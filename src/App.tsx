@@ -97,6 +97,7 @@ export default function App() {
           </div>
           <button 
             onClick={() => setStorageErrorMessage(null)} 
+            aria-label="Dismiss storage warning"
             className="text-rose-600 hover:text-rose-900 font-bold ml-2 cursor-pointer"
           >
             ✕
@@ -115,7 +116,7 @@ export default function App() {
       />
 
       {/* Main View Container */}
-      <main className="flex-1">
+      <main className="flex-1 min-w-0">
         {currentView === 'session' && (
           <SessionView
             key={`${activeStudent}-${refreshKey}`}

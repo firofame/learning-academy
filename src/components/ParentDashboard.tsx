@@ -262,8 +262,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
 
             return (
               <div key={subj} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs sm:text-sm font-semibold">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs sm:text-sm font-semibold">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span style={{ color: meta?.accentColor || '#1e293b' }} className="font-bold">
                       {subj}
                     </span>

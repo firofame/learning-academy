@@ -158,6 +158,53 @@ describe('Production component interactions', () => {
     assert.equal(getWordProgress(word.id, 'fazia').unaidedCorrectCount, 0);
   });
 
+  test('typing waits for a tap and requests no keyboard spelling hints', () => {
+    recordAttempt(land.id, 'fazia', true, 'practice');
+    const view = renderSession();
+    const input = view.getByLabelText('Type the exact spelling:');
+    assert.notEqual(document.activeElement, input);
+    assert.equal(input.hasAttribute('autofocus'), false);
+    assert.equal(input.getAttribute('autocomplete'), 'off');
+    assert.equal(input.getAttribute('autocapitalize'), 'none');
+    assert.equal(input.getAttribute('autocorrect'), 'off');
+    assert.equal(input.getAttribute('spellcheck'), 'false');
+    assert.equal(input.getAttribute('enterkeyhint'), 'done');
+    fireEvent.change(input, { target: { value: 'land' } });
+    fireEvent.submit(input.closest('form')!);
+    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 1);
+  });
+
+  test('native subject pickers work in practice, curriculum, and worksheets', () => {
+    const view = render(React.createElement(App));
+    const subjects = ['All', ...new Set(words.map(word => word.subject))];
+    let picker = view.getByRole('combobox', { name: 'Subject' });
+    assert.deepEqual(
+      Array.from(picker.querySelectorAll('option'), option => option.value),
+      subjects
+    );
+    fireEvent.change(picker, { target: { value: 'Hindi' } });
+    assert.equal((picker as HTMLSelectElement).value, 'Hindi');
+    assert.ok(view.getByRole('button', { name: 'Hindi', pressed: true }));
+    assert.ok(view.getByRole('heading', { name: words.find(word => word.subject === 'Hindi')!.word }));
+
+    fireEvent.click(view.getByRole('button', { name: /All 45 Words/ }));
+    picker = view.getByRole('combobox', { name: 'Subject' });
+    fireEvent.change(picker, { target: { value: 'Hindi' } });
+    assert.ok(view.getByRole('button', { name: 'Practice Hindi Words' }));
+    assert.equal(
+      view.getAllByRole('button', { name: 'Practice This Word' }).length,
+      words.filter(word => word.subject === 'Hindi').length
+    );
+
+    fireEvent.click(view.getByRole('button', { name: /Worksheets/ }));
+    picker = view.getByRole('combobox', { name: 'Subject' });
+    assert.match(picker.querySelector('option[value="Hindi"]')!.textContent!, /Hindi \(\d+\)/);
+    fireEvent.change(picker, { target: { value: 'Hindi' } });
+    assert.ok(view.getByRole('heading', { name: 'Hindi Spelling Test' }));
+    fireEvent.click(view.getByRole('button', { name: 'Teacher Answer Key' }));
+    assert.ok(view.getByRole('heading', { name: 'Hindi Exam Answer Key' }));
+  });
+
   test('targeted queues use requested words and advance to a fresh hidden card', () => {
     const target = [words[3], words[1]];
     const view = renderSession(target);

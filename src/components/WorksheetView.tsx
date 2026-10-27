@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Printer, Eye, EyeOff, ArrowLeft, FileText, CheckSquare } from 'lucide-react';
 import { SubjectCategory, WordEntry, StudentId } from '../types';
 import { getWordsForStudent, getStudentProfile, SUBJECT_METADATA } from '../data/wordList';
+import { SubjectFilter } from './SubjectFilter';
 
 interface WorksheetViewProps {
   activeStudent: StudentId;
@@ -56,7 +57,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* Sheet Type Toggle */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+            <div className="w-full sm:w-auto grid grid-cols-1 sm:flex items-center gap-1 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
               <button
                 onClick={() => setSheetType('student_test')}
                 className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer ${
@@ -93,30 +94,18 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
         </div>
 
         {/* Subject Filter Bar */}
-        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl overflow-x-auto max-w-full">
-          {availableSubjects.map(subj => {
-            const count = subj === 'All' 
-              ? studentWords.length 
-              : studentWords.filter(w => w.subject === subj).length;
-            return (
-              <button
-                key={subj}
-                onClick={() => setSelectedSubject(subj)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                  selectedSubject === subj
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {subj} ({count})
-              </button>
-            );
-          })}
-        </div>
+        <SubjectFilter
+          subjects={availableSubjects}
+          value={selectedSubject}
+          onChange={setSelectedSubject}
+          getWordCount={subject => subject === 'All'
+            ? studentWords.length
+            : studentWords.filter(word => word.subject === subject).length}
+        />
       </div>
 
       {/* Printable Sheet Container */}
-      <div className="bg-white border border-slate-300 rounded-2xl p-8 sm:p-12 shadow-sm space-y-6 print-container">
+      <div className="bg-white border border-slate-300 rounded-2xl p-4 sm:p-12 shadow-sm space-y-6 print-container">
         {/* Worksheet Header */}
         <div className="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
           <div>
@@ -148,7 +137,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
           {filteredWords.map((word, index) => (
             <div key={word.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="space-y-1 sm:max-w-md">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-slate-400 w-6">
                     {index + 1}.
                   </span>
@@ -195,7 +184,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
                 <span className="text-[10px] text-slate-400 uppercase tracking-wider block text-right">
                   {sheetType === 'student_test' ? 'Handwritten spelling:' : 'Teacher check:'}
                 </span>
-                <div className="border-b-2 border-slate-300 w-full h-8 flex items-end justify-between">
+                <div className="border-b-2 border-slate-300 w-full min-h-8 flex flex-wrap items-end justify-between gap-2">
                   {sheetType === 'answer_key' ? (
                     <>
                       <span className="text-xs font-mono font-bold text-slate-800 tracking-wider pl-1">

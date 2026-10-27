@@ -4,6 +4,7 @@ import { WordEntry, SubjectCategory, MasteryLevel, StudentId } from '../types';
 import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data/wordList';
 import { audioService } from '../utils/audio';
 import { getAllProgress, getWordProgress } from '../utils/storage';
+import { SubjectFilter } from './SubjectFilter';
 
 interface AllWordsViewProps {
   activeStudent: StudentId;
@@ -97,27 +98,14 @@ export const AllWordsView: React.FC<AllWordsViewProps> = ({
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         {/* Subject Segmented Buttons */}
-        <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-xl overflow-x-auto max-w-full">
-          {availableSubjects.map(subj => (
-            <button
-              key={subj}
-              onClick={() => setSelectedSubject(subj)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                selectedSubject === subj
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {subj}
-            </button>
-          ))}
-        </div>
+        <SubjectFilter subjects={availableSubjects} value={selectedSubject} onChange={setSelectedSubject} />
 
         {/* Search input */}
-        <div className="relative min-w-[240px]">
+        <div className="relative min-w-0 md:min-w-[240px]">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            aria-label="Search words"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search word or meaning..."
@@ -220,7 +208,7 @@ export const AllWordsView: React.FC<AllWordsViewProps> = ({
                     <button
                       onClick={() => playWord(word)}
                       title="Listen to pronunciation"
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="shrink-0 p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-slate-100 transition-colors cursor-pointer"
                       aria-label="Listen"
                     >
                       <Volume2 className="w-4 h-4" />

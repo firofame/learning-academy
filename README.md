@@ -71,5 +71,11 @@ local development URL does not transfer automatically to the published site.
   - Saved records are validated in full, including history, dates, counters, and student identity. Malformed records are reported and skipped while valid progress is preserved.
 - **Consistent Controls**:
   - Voice and slow-speech settings apply across every screen. Navigation wraps into a second row on compact screens.
+- **Small-Screen Learning**:
+  - Phone controls have at least 48px touch targets, with larger supporting text and short Learn / Practice / Test labels.
+  - Subject pickers use a native dropdown on phones so every subject is discoverable without horizontal scrolling.
+  - Cards and action buttons stack to fit narrow screens; the phone header scrolls away to leave more room for learning and the keyboard.
+  - Typing starts only when the child taps the answer field. Spelling inputs request no autocorrect, automatic capitals, autocomplete, or spellcheck so keyboard hints do not undermine recall.
+  - Desktop navigation and printable worksheets retain their existing layouts.
 - **Multi-Language Support**:
   - Supports English, Hindi (Devanagari), and Malayalam script with canonical Unicode normalization.

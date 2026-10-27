@@ -24,6 +24,7 @@ import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data
 import { audioService } from '../utils/audio';
 import { evaluateSpelling } from '../utils/spellingCoach';
 import { recordAttempt, selectSessionWords, getWordProgress, AppSettings } from '../utils/storage';
+import { SubjectFilter } from './SubjectFilter';
 
 interface SessionViewProps {
   settings: AppSettings;
@@ -406,8 +407,8 @@ export const SessionView: React.FC<SessionViewProps> = ({
             {sessionResults.map((res, i) => {
               const prog = getWordProgress(res.word.id, activeStudent);
               return (
-                <div key={i} className="p-3.5 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
+                <div key={i} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0 flex items-center gap-3">
                     <span className="text-xs font-semibold text-slate-400 w-5">
                       {i + 1}.
                     </span>
@@ -467,28 +468,14 @@ export const SessionView: React.FC<SessionViewProps> = ({
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
       {/* Subject Filter Bar */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1 p-1 bg-slate-200/70 rounded-xl overflow-x-auto max-w-full">
-          {availableSubjects.map(subj => (
-            <button
-              key={subj}
-              onClick={() => onSubjectChange(subj)}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                selectedSubject === subj
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              {subj}
-            </button>
-          ))}
-        </div>
+        <SubjectFilter subjects={availableSubjects} value={selectedSubject} onChange={onSubjectChange} />
 
         <button
           onClick={onExploreAll}
-          className="text-xs font-semibold text-amber-800 hover:text-amber-900 flex items-center gap-1 whitespace-nowrap"
+          className="hidden sm:flex text-xs font-semibold text-amber-800 hover:text-amber-900 items-center gap-1 whitespace-nowrap"
         >
           <span>Curriculum ({studentWords.length})</span>
           <ChevronRight className="w-3.5 h-3.5" />
@@ -496,7 +483,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
       </div>
 
       {targetedWords && targetedWords.length > 0 && (
-        <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-950 font-medium">
+        <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-950 font-medium">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-700" />
             <span>Targeted Practice: <strong>{targetedWords.length} {targetedWords.length === 1 ? 'Word' : 'Words'} Target List</strong></span>
@@ -538,7 +525,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
                   </>
                 )}
               </div>
-              <span className="text-sm font-semibold text-slate-900 block truncate max-w-full sm:max-w-sm">
+              <span className="text-sm font-semibold text-slate-900 block sm:truncate max-w-full sm:max-w-sm">
                 {currentWord.meaning}
               </span>
             </div>
@@ -550,10 +537,11 @@ export const SessionView: React.FC<SessionViewProps> = ({
         </div>
 
         {/* 3 Explicit Learning Mode Tabs */}
-        <div className="flex items-center p-1 bg-slate-100 rounded-xl gap-1">
+        <div className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl gap-1">
           <button
             onClick={() => handleSelectMode('learn')}
-            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            aria-pressed={studyMode === 'learn'}
+            className={`min-w-0 py-2 sm:py-1.5 px-1 sm:px-2 text-xs font-semibold rounded-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
               studyMode === 'learn'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
@@ -565,26 +553,32 @@ export const SessionView: React.FC<SessionViewProps> = ({
 
           <button
             onClick={() => handleSelectMode('practice')}
-            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            aria-label="2. Practice (Assisted)"
+            aria-pressed={studyMode === 'practice'}
+            className={`min-w-0 py-2 sm:py-1.5 px-1 sm:px-2 text-xs font-semibold rounded-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
               studyMode === 'practice'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-            <span>2. Practice (Assisted)</span>
+            <span className="sm:hidden">2. Practice</span>
+            <span className="hidden sm:inline">2. Practice (Assisted)</span>
           </button>
 
           <button
             onClick={() => handleSelectMode('test')}
-            className={`flex-1 py-1.5 px-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            aria-label="3. Test (Unaided Recall)"
+            aria-pressed={studyMode === 'test'}
+            className={`min-w-0 py-2 sm:py-1.5 px-1 sm:px-2 text-xs font-semibold rounded-lg transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 ${
               studyMode === 'test'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>3. Test (Unaided Recall)</span>
+            <span className="sm:hidden">3. Test</span>
+            <span className="hidden sm:inline">3. Test (Unaided Recall)</span>
           </button>
         </div>
       </div>
@@ -593,14 +587,14 @@ export const SessionView: React.FC<SessionViewProps> = ({
           MODE 1: LEARN (Discover, Pronunciation, Meaning, Tricky spot)
          ======================================================== */}
       {studyMode === 'learn' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-8 shadow-xs space-y-5 sm:space-y-6">
           <div className="text-center space-y-3">
             <span className="text-xs uppercase tracking-wider font-bold text-slate-400">
               {currentWord.subject} · Word #{currentWord.categoryNumber}
             </span>
 
             <div className="py-2">
-              <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-slate-900">
+              <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900">
                 {currentWord.word}
               </h1>
 
@@ -617,7 +611,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
             </div>
 
             {/* Pronunciation & Phonics Buttons */}
-            <div className="flex items-center justify-center gap-2 pt-1">
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
               <button
                 onClick={playWordAudio}
                 className="px-4 py-2 rounded-xl bg-amber-500 text-white font-semibold text-sm hover:bg-amber-600 transition-colors shadow-xs flex items-center gap-2 cursor-pointer"
@@ -689,7 +683,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
           </div>
 
           {/* Next Button */}
-          <div className="pt-2 flex items-center gap-3">
+          <div className="pt-2 grid grid-cols-1 sm:flex sm:items-center gap-3">
             <button
               onClick={() => handleSelectMode('practice')}
               className="flex-1 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm sm:text-base hover:bg-slate-800 transition-colors shadow-xs flex items-center justify-center gap-2 cursor-pointer"
@@ -711,7 +705,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
           MODE 2: PRACTICE (Guided Scaffolding with Tiles)
          ======================================================== */}
       {studyMode === 'practice' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-8 shadow-xs space-y-5 sm:space-y-6">
           <div className="text-center space-y-2">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
               Assisted Tile Assembly
@@ -783,7 +777,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
           )}
 
           {/* Next Button */}
-          <div className="pt-2 flex items-center gap-3">
+          <div className="pt-2 grid grid-cols-1 sm:flex sm:items-center gap-3">
             <button
               onClick={() => handleSelectMode('learn')}
               className="px-4 py-3 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 cursor-pointer"
@@ -806,7 +800,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
           MODE 3: TEST (Unaided Recall - Target Word Completely Hidden)
          ======================================================== */}
       {studyMode === 'test' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-xs space-y-6">
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-8 shadow-xs space-y-5 sm:space-y-6">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
             <div>
               <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider block">
@@ -818,7 +812,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
             </div>
 
             {/* Paper vs Digital Toggle */}
-            <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
+            <div className="w-full sm:w-auto grid grid-cols-2 sm:flex items-center gap-1 p-1 bg-slate-100 rounded-lg text-xs font-semibold">
               <button
                 onClick={() => {
                   if (paperRevealed) setIsAssistedAttempt(true);
@@ -866,12 +860,17 @@ export const SessionView: React.FC<SessionViewProps> = ({
           {!isPaperMode && (
             <form onSubmit={handleSubmitTest} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                <label htmlFor="spelling-answer" className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
                   Type the exact spelling:
                 </label>
                 <input
+                  id="spelling-answer"
                   type="text"
-                  autoFocus
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="done"
                   disabled={testFeedback?.submitted}
                   value={testInput}
                   onChange={(e) => setTestInput(e.target.value)}
@@ -964,7 +963,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
                   </div>
 
                   {!testFeedback && (
-                    <div className="flex items-center gap-3 pt-2">
+                    <div className="grid grid-cols-1 sm:flex sm:items-center gap-3 pt-2">
                       <button
                         onClick={() => handlePaperValidation(false)}
                         className="flex-1 py-2.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-800 font-semibold text-xs sm:text-sm hover:bg-rose-100 flex items-center justify-center gap-1.5 cursor-pointer"

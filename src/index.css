@@ -3,6 +3,20 @@
 @layer base {
   body {
     font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    overflow-wrap: anywhere;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+
+  button > svg {
+    flex-shrink: 0;
+  }
+
+  :where(button, input, select):focus-visible {
+    outline: 3px solid #b45309;
+    outline-offset: 3px;
   }
 }
 
@@ -12,6 +26,29 @@
 
 .font-devanagari {
   font-family: 'Noto Sans Devanagari', 'Outfit', sans-serif;
+}
+
+@media screen and (max-width: 639px) {
+  button,
+  input,
+  select {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .text-xs,
+  .text-\[11px\],
+  .text-\[10px\] {
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  input.text-xs,
+  input.text-sm,
+  select.text-xs,
+  select.text-sm {
+    font-size: 1rem;
+  }
 }
 
 @media print {
