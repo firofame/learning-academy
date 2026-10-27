@@ -1,0 +1,6 @@
+{
+  "name": "Spell Bee Academy & Learning Companion",
+  "description": "A gentle, evidence-based spelling and vocabulary learning companion for children, featuring guided practice, mistake recovery coaching, independent hidden spelling, and multi-language support across EVS, Maths, Malayalam, Computer, English, and Hindi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
