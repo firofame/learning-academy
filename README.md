@@ -29,6 +29,27 @@ npm run lint
 npm run build
 ```
 
+## GitHub Pages
+
+Live site: https://firofame.github.io/learning-academy/
+
+The [deployment workflow](.github/workflows/deploy-pages.yml) runs tests, type
+checking, and a production build on every push to `main`, then publishes `dist`
+to GitHub Pages. It can also be started manually from the repository's Actions
+tab. Repository **Settings > Pages > Source** must be set to **GitHub Actions**.
+
+The deployment uses the Pages base path so JavaScript and CSS load correctly
+under `/learning-academy/`, without changing the local development URL. To
+reproduce the deployed build locally:
+
+```bash
+npm run build -- --base /learning-academy/
+npm run preview -- --base /learning-academy/
+```
+
+Learning progress is stored in each browser's local storage. Progress from a
+local development URL does not transfer automatically to the published site.
+
 ## Features & Learning Design
 
 - **3-Mode Learning Progression**:
