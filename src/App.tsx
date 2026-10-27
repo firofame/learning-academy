@@ -14,6 +14,7 @@ import {
   subscribeStorageError 
 } from './utils/storage';
 import { getWordsForStudent, getStudentProfile } from './data/wordList';
+import { audioService } from './utils/audio';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('session');
@@ -25,10 +26,24 @@ export default function App() {
   const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    return subscribeStorageError((msg) => {
-      setStorageErrorMessage(msg);
+    let active = true;
+    const unsubscribe = subscribeStorageError((msg) => {
+      // Storage reads may happen while a child view is rendering.
+      queueMicrotask(() => {
+        if (active) setStorageErrorMessage(msg);
+      });
     });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    audioService.speechEnabled = settings.speechAudio;
+    audioService.slowMode = settings.slowSpeech;
+    if (!settings.speechAudio) audioService.stopAll();
+  }, [settings.speechAudio, settings.slowSpeech]);
 
   const studentWords = getWordsForStudent(activeStudent);
   const currentProfile = getStudentProfile(activeStudent);

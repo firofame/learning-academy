@@ -59,8 +59,9 @@ export interface WordProgress {
   attempts: number;
   unaidedCorrectCount: number; // Correct in independent test mode without hints
   consecutiveUnaidedCorrect: number;
-  unaidedCorrectDates: string[]; // Distinct dates (YYYY-MM-DD) when word was passed unaided
+  unaidedCorrectDates: string[]; // Distinct local dates (YYYY-MM-DD) in the current unaided success streak
   lastAttemptDate: string | null;
+  lastUnaidedCorrectDate?: string | null; // Timestamp of the latest qualifying recall; optional for legacy records
   level: MasteryLevel;
   lastMistake?: string;
   needsRevisit: boolean;

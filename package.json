@@ -25,7 +25,10 @@
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/jsdom": "^27.0.0",
     "autoprefixer": "^10.4.21",
+    "jsdom": "^27.0.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"

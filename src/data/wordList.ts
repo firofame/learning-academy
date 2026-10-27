@@ -396,7 +396,7 @@ export const GRADE_2_WORDS: WordEntry[] = [
     trickySpot: 'Two words! "scroll" has double "l", and "wheel" begins with "wh".',
     phoneticGuide: 'SKROHL weel',
     letterSpelling: ['S', 'C', 'R', 'O', 'L', 'L', ' ', 'W', 'H', 'E', 'E', 'L'],
-    graphemeTiles: ['scroll', 'wheel'],
+    graphemeTiles: ['scroll', ' ', 'wheel'],
     languageCode: 'en-US'
   },
   {
@@ -464,7 +464,7 @@ export const GRADE_2_WORDS: WordEntry[] = [
     trickySpot: 'Two words: "hard" (h-a-r-d) and "copy" (c-o-p-y with a "y").',
     phoneticGuide: 'HARD KOP-ee',
     letterSpelling: ['H', 'A', 'R', 'D', ' ', 'C', 'O', 'P', 'Y'],
-    graphemeTiles: ['hard', 'copy'],
+    graphemeTiles: ['hard', ' ', 'copy'],
     languageCode: 'en-US'
   },
 
@@ -1024,7 +1024,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Two separate words: "Mail" (m-a-i-l) and "Merge" (m-e-r-g-e).',
     phoneticGuide: 'MAYL murj',
     letterSpelling: ['M', 'A', 'I', 'L', ' ', 'M', 'E', 'R', 'G', 'E'],
-    graphemeTiles: ['Mail', 'Merge'],
+    graphemeTiles: ['Mail', ' ', 'Merge'],
     languageCode: 'en-US'
   },
   {
@@ -1058,7 +1058,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Compound "Mainframe" (m-a-i-n-f-r-a-m-e) + plural "Computers".',
     phoneticGuide: 'MAYN-fraym kum-PYOO-turz',
     letterSpelling: ['M', 'A', 'I', 'N', 'F', 'R', 'A', 'M', 'E', ' ', 'C', 'O', 'M', 'P', 'U', 'T', 'E', 'R', 'S'],
-    graphemeTiles: ['Main', 'frame', 'Com', 'pu', 'ters'],
+    graphemeTiles: ['Main', 'frame', ' ', 'Com', 'pu', 'ters'],
     languageCode: 'en-US'
   },
   {
@@ -1075,7 +1075,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: '"character" has "ch" sounding like "k": c-h-a-r-a-c-t-e-r.',
     phoneticGuide: 'WYLD kard KAIR-ik-tur',
     letterSpelling: ['W', 'I', 'L', 'D', ' ', 'C', 'A', 'R', 'D', ' ', 'C', 'H', 'A', 'R', 'A', 'C', 'T', 'E', 'R'],
-    graphemeTiles: ['Wild', 'card', 'cha', 'rac', 'ter'],
+    graphemeTiles: ['Wild', ' ', 'card', ' ', 'cha', 'rac', 'ter'],
     languageCode: 'en-US'
   },
   {
@@ -1126,7 +1126,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Two words: "Autofit" (a-u-t-o-f-i-t) and plural "contents" (c-o-n-t-e-n-t-s).',
     phoneticGuide: 'AW-toh-fit KON-tents',
     letterSpelling: ['A', 'U', 'T', 'O', 'F', 'I', 'T', ' ', 'C', 'O', 'N', 'T', 'E', 'N', 'T', 'S'],
-    graphemeTiles: ['Au', 'to', 'fit', 'con', 'tents'],
+    graphemeTiles: ['Au', 'to', 'fit', ' ', 'con', 'tents'],
     languageCode: 'en-US'
   },
   {
@@ -1196,7 +1196,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: '"Linear" (l-i-n-e-a-r) + "equations" (e-q-u-a-t-i-o-n-s with "qu").',
     phoneticGuide: 'LIN-ee-ur ih-KWAY-zhunz',
     letterSpelling: ['L', 'I', 'N', 'E', 'A', 'R', ' ', 'E', 'Q', 'U', 'A', 'T', 'I', 'O', 'N', 'S'],
-    graphemeTiles: ['Lin', 'e', 'ar', 'e', 'qua', 'tions'],
+    graphemeTiles: ['Lin', 'e', 'ar', ' ', 'e', 'qua', 'tions'],
     languageCode: 'en-US'
   },
   {
@@ -1368,7 +1368,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Two words: "Static" (s-t-a-t-i-c) + "friction" (f-r-i-c-t-i-o-n).',
     phoneticGuide: 'STAT-ik FRIK-shun',
     letterSpelling: ['S', 'T', 'A', 'T', 'I', 'C', ' ', 'F', 'R', 'I', 'C', 'T', 'I', 'O', 'N'],
-    graphemeTiles: ['Sta', 'tic', 'fric', 'tion'],
+    graphemeTiles: ['Sta', 'tic', ' ', 'fric', 'tion'],
     languageCode: 'en-US'
   },
 
@@ -1421,7 +1421,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: '"Periodic" (p-e-r-i-o-d-i-c) + "table" (t-a-b-l-e).',
     phoneticGuide: 'peer-ee-OD-ik TAY-bull',
     letterSpelling: ['P', 'E', 'R', 'I', 'O', 'D', 'I', 'C', ' ', 'T', 'A', 'B', 'L', 'E'],
-    graphemeTiles: ['Pe', 'ri', 'od', 'ic', 'ta', 'ble'],
+    graphemeTiles: ['Pe', 'ri', 'od', 'ic', ' ', 'ta', 'ble'],
     languageCode: 'en-US'
   },
   {
@@ -1799,7 +1799,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Two words: "Atharva" (A-t-h-a-r-v-a with "th") + "Veda" (V-e-d-a).',
     phoneticGuide: 'uh-TUR-vuh VAY-duh',
     letterSpelling: ['A', 'T', 'H', 'A', 'R', 'V', 'A', ' ', 'V', 'E', 'D', 'A'],
-    graphemeTiles: ['A', 'thar', 'va', 'Ve', 'da'],
+    graphemeTiles: ['A', 'thar', 'va', ' ', 'Ve', 'da'],
     languageCode: 'en-US'
   },
   {
@@ -1816,7 +1816,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Two words: "Panchayati" (P-a-n-c-h-a-y-a-t-i with "ch") + "Raj" (R-a-j).',
     phoneticGuide: 'pun-chah-yuh-tee RAHJ',
     letterSpelling: ['P', 'A', 'N', 'C', 'H', 'A', 'Y', 'A', 'T', 'I', ' ', 'R', 'A', 'J'],
-    graphemeTiles: ['Pan', 'cha', 'ya', 'ti', 'Raj'],
+    graphemeTiles: ['Pan', 'cha', 'ya', 'ti', ' ', 'Raj'],
     languageCode: 'en-US'
   },
   {
@@ -1901,7 +1901,7 @@ export const GRADE_6_WORDS: WordEntry[] = [
     trickySpot: 'Two words: "Nyaya" (N-y-a-y-a) + "Panchayat" (P-a-n-c-h-a-y-a-t).',
     phoneticGuide: 'NYAH-yuh pun-CHAH-yut',
     letterSpelling: ['N', 'Y', 'A', 'Y', 'A', ' ', 'P', 'A', 'N', 'C', 'H', 'A', 'Y', 'A', 'T'],
-    graphemeTiles: ['Nya', 'ya', 'Pan', 'cha', 'yat'],
+    graphemeTiles: ['Nya', 'ya', ' ', 'Pan', 'cha', 'yat'],
     languageCode: 'en-US'
   },
 

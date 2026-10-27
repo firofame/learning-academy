@@ -25,9 +25,15 @@ export const DEFAULT_SETTINGS: AppSettings = {
 // Storage event and error subscription system
 type StorageErrorListener = (message: string) => void;
 const storageErrorListeners: StorageErrorListener[] = [];
+let pendingStorageError: string | null = null;
 
 export function subscribeStorageError(listener: StorageErrorListener): () => void {
   storageErrorListeners.push(listener);
+  if (pendingStorageError) {
+    const message = pendingStorageError;
+    pendingStorageError = null;
+    emitStorageError(message);
+  }
   return () => {
     const idx = storageErrorListeners.indexOf(listener);
     if (idx >= 0) storageErrorListeners.splice(idx, 1);
@@ -35,6 +41,8 @@ export function subscribeStorageError(listener: StorageErrorListener): () => voi
 }
 
 export function emitStorageError(message: string): void {
+  // Initial loads can fail before the app's notification listener has mounted.
+  if (storageErrorListeners.length === 0) pendingStorageError = message;
   storageErrorListeners.forEach(listener => {
     try {
       listener(message);
@@ -146,16 +154,42 @@ export function getStudentStorageKey(studentId: StudentId): string {
   return `spellbee_progress_${studentId}_v1`;
 }
 
+function isTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+function isLocalDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    isTimestamp(value) && new Date(value).toISOString().slice(0, 10) === value;
+}
+
+function isCounter(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
 function isValidWordProgress(val: unknown): val is WordProgress {
   if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
   const obj = val as Record<string, unknown>;
   return (
     typeof obj.wordId === 'string' &&
-    typeof obj.studentId === 'string' &&
-    typeof obj.attempts === 'number' &&
-    typeof obj.unaidedCorrectCount === 'number' &&
-    typeof obj.consecutiveUnaidedCorrect === 'number' &&
+    (obj.studentId === 'fazia' || obj.studentId === 'shiza') &&
+    isCounter(obj.attempts) &&
+    isCounter(obj.unaidedCorrectCount) &&
+    isCounter(obj.consecutiveUnaidedCorrect) &&
     Array.isArray(obj.unaidedCorrectDates) &&
+    obj.unaidedCorrectDates.every(isLocalDate) &&
+    (obj.lastAttemptDate === null || isTimestamp(obj.lastAttemptDate)) &&
+    (obj.lastUnaidedCorrectDate === undefined || obj.lastUnaidedCorrectDate === null || isTimestamp(obj.lastUnaidedCorrectDate)) &&
+    (obj.lastMistake === undefined || typeof obj.lastMistake === 'string') &&
+    typeof obj.needsRevisit === 'boolean' &&
+    Array.isArray(obj.history) &&
+    obj.history.every(entry => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+      return isTimestamp(entry.date) &&
+        ['learn', 'practice', 'test', 'paper'].includes(entry.mode) &&
+        typeof entry.wasCorrect === 'boolean' &&
+        (entry.mistakeInput === undefined || typeof entry.mistakeInput === 'string');
+    }) &&
     (obj.level === 'learning' || obj.level === 'practising' || obj.level === 'remembered')
   );
 }
@@ -172,10 +206,16 @@ export function getAllProgress(studentId: StudentId): Record<string, WordProgres
     }
 
     const sanitized: Record<string, WordProgress> = {};
+    let invalidCount = 0;
     for (const [key, val] of Object.entries(parsed)) {
-      if (isValidWordProgress(val)) {
+      if (isValidWordProgress(val) && val.wordId === key && val.studentId === studentId) {
         sanitized[key] = val;
+      } else {
+        invalidCount++;
       }
+    }
+    if (invalidCount > 0) {
+      emitStorageError(`Skipped ${invalidCount} malformed progress record(s) for ${studentId}. Valid progress was preserved.`);
     }
     return sanitized;
   } catch {
@@ -198,6 +238,7 @@ export function getWordProgress(wordId: string, studentId: StudentId): WordProgr
     consecutiveUnaidedCorrect: 0,
     unaidedCorrectDates: [],
     lastAttemptDate: null,
+    lastUnaidedCorrectDate: null,
     level: 'learning',
     needsRevisit: false,
     history: []
@@ -210,8 +251,21 @@ export function getWordProgress(wordId: string, studentId: StudentId): WordProgr
  * - Missed words (needsRevisit === true) are highest urgency.
  * - Learning words (mistakes or assisted only) are due.
  * - Practising words waiting for distinct calendar day verification are due if not passed unaided today.
- * - Remembered words are due for periodic retention checks (e.g. 3+ days since last attempt).
+ * - Remembered words are due 3+ days after the last qualifying unaided recall.
  */
+function getLastUnaidedCorrectDate(prog: WordProgress): string | null {
+  if (prog.lastUnaidedCorrectDate) return prog.lastUnaidedCorrectDate;
+  const qualifyingDates = prog.history
+    .filter(attempt => attempt.wasCorrect && (attempt.mode === 'test' || attempt.mode === 'paper'))
+    .map(attempt => attempt.date);
+  if (qualifyingDates.length > 0) {
+    return qualifyingDates.reduce((latest, date) => Date.parse(date) > Date.parse(latest) ? date : latest);
+  }
+  // Legacy histories are capped; calendar-day evidence is a conservative fallback.
+  const latestDay = [...prog.unaidedCorrectDates].sort().at(-1);
+  return latestDay ? new Date(`${latestDay}T00:00:00`).toISOString() : null;
+}
+
 export function isWordDueForReview(prog?: WordProgress): boolean {
   if (!prog || prog.attempts === 0) return false;
   if (prog.needsRevisit) return true;
@@ -225,9 +279,9 @@ export function isWordDueForReview(prog?: WordProgress): boolean {
   }
 
   if (prog.level === 'remembered') {
-    if (!prog.lastAttemptDate) return true;
-    const lastAttemptTime = new Date(prog.lastAttemptDate).getTime();
-    const daysSince = (Date.now() - lastAttemptTime) / (1000 * 60 * 60 * 24);
+    const lastRecall = getLastUnaidedCorrectDate(prog);
+    if (!lastRecall) return true;
+    const daysSince = (Date.now() - Date.parse(lastRecall)) / (1000 * 60 * 60 * 24);
     return daysSince >= 3;
   }
 
@@ -257,6 +311,7 @@ export function recordAttempt(
   const updatedAttempts = current.attempts + 1;
   const isUnaided = (mode === 'test' || mode === 'paper');
   const todayDateStr = getLocalDateString(); // Learner's local calendar
+  const now = new Date().toISOString();
 
   let unaidedCount = current.unaidedCorrectCount;
   let consecutiveUnaided = current.consecutiveUnaidedCorrect;
@@ -268,6 +323,7 @@ export function recordAttempt(
     distinctDates.add(todayDateStr);
   } else if (isUnaided && !wasCorrect) {
     consecutiveUnaided = 0;
+    distinctDates.clear();
   }
 
   const updatedDates = Array.from(distinctDates);
@@ -299,14 +355,15 @@ export function recordAttempt(
     unaidedCorrectCount: unaidedCount,
     consecutiveUnaidedCorrect: consecutiveUnaided,
     unaidedCorrectDates: updatedDates,
-    lastAttemptDate: new Date().toISOString(),
+    lastAttemptDate: now,
+    lastUnaidedCorrectDate: isUnaided && wasCorrect ? now : getLastUnaidedCorrectDate(current),
     level: newLevel,
     lastMistake: wasCorrect ? undefined : mistakeInput,
     needsRevisit: newNeedsRevisit,
     history: [
       ...current.history.slice(-14),
       {
-        date: new Date().toISOString(),
+        date: now,
         mode,
         wasCorrect,
         mistakeInput

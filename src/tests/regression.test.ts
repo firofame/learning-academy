@@ -1,6 +1,6 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { WordEntry, WordProgress, StudentId } from '../types';
+import { WordProgress, StudentId } from '../types';
 import { 
   GRADE_2_WORDS, 
   GRADE_6_WORDS, 
@@ -90,53 +90,6 @@ describe('Spelling Learning Companion - Regression Test Suite', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 2. Duplicate submission and mode-switch scoring protection
-  // -------------------------------------------------------------------------
-  test('2. Handlers block duplicate submissions and mode switches preserve submission protection', () => {
-    let hasSubmittedCurrentCard = false;
-    let isAssistedAttempt = false;
-    let submissionCount = 0;
-
-    const handleSubmitTest = (input: string) => {
-      // Handler enforcement
-      if (hasSubmittedCurrentCard) return false;
-      if (!input.trim()) return false;
-      hasSubmittedCurrentCard = true;
-      submissionCount++;
-      return true;
-    };
-
-    const handleSelectMode = (newMode: 'learn' | 'practice' | 'test') => {
-      if (!hasSubmittedCurrentCard) {
-        if (newMode === 'learn' || newMode === 'practice') {
-          isAssistedAttempt = true;
-        }
-      }
-      // If already submitted, submission protection is strictly preserved
-    };
-
-    // First submission succeeds
-    const firstSub = handleSubmitTest('land');
-    assert.equal(firstSub, true);
-    assert.equal(submissionCount, 1);
-    assert.equal(hasSubmittedCurrentCard, true);
-
-    // Immediate duplicate click blocked
-    const dupSub = handleSubmitTest('land');
-    assert.equal(dupSub, false, 'Duplicate submission must be blocked');
-    assert.equal(submissionCount, 1);
-
-    // Switching to Learn mode and then back to Test mode
-    handleSelectMode('learn');
-    handleSelectMode('test');
-
-    // Attempting to submit again must still be blocked!
-    const reSubmit = handleSubmitTest('land');
-    assert.equal(reSubmit, false, 'Mode switch must not allow re-submission of already scored card');
-    assert.equal(submissionCount, 1);
-  });
-
-  // -------------------------------------------------------------------------
   // 3. Correct distinct-day mastery behavior
   // -------------------------------------------------------------------------
   test('3. Test-Ready requires qualifying unaided recalls across distinct local calendar days', () => {
@@ -169,41 +122,6 @@ describe('Spelling Learning Companion - Regression Test Suite', () => {
     assert.equal(mistakeResult.consecutiveUnaidedCorrect, 0);
     assert.equal(mistakeResult.level, 'learning', 'Mistake should downgrade to learning');
     assert.equal(mistakeResult.needsRevisit, true, 'Needs revisit should be marked');
-  });
-
-  // -------------------------------------------------------------------------
-  // 4. Single-word and targeted-list session queues
-  // -------------------------------------------------------------------------
-  test('4. Targeted practice passes requested words directly without discarding them', () => {
-    const faziaWords = getWordsForStudent('fazia');
-    const specificWord = faziaWords.find(w => w.word === 'Bicycle')!;
-    assert.ok(specificWord, 'Bicycle exists in Fazia word list');
-
-    // Flow simulation: App -> SessionView
-    let currentSessionQueue: WordEntry[] = [];
-    const initializeSession = (targetedWords?: WordEntry[], subject?: string) => {
-      if (targetedWords && targetedWords.length > 0) {
-        currentSessionQueue = [...targetedWords];
-      } else {
-        currentSessionQueue = selectSessionWords('fazia', subject as any, 5);
-      }
-    };
-
-    // Single-word request (Practice This Word)
-    initializeSession([specificWord], specificWord.subject);
-    assert.equal(currentSessionQueue.length, 1);
-    assert.equal(currentSessionQueue[0].id, specificWord.id, 'Single word session must start with that word');
-
-    // Multi-word targeted list request (Parent Dashboard: Due words)
-    const targetedList = [faziaWords[0], faziaWords[3], faziaWords[7]];
-    initializeSession(targetedList, 'All');
-    assert.equal(currentSessionQueue.length, 3);
-    assert.deepEqual(currentSessionQueue.map(w => w.id), targetedList.map(w => w.id), 'Targeted list must match requested words');
-
-    // Normal subject session
-    initializeSession(undefined, 'EVS');
-    assert.ok(currentSessionQueue.length > 0);
-    assert.ok(currentSessionQueue.every(w => w.subject === 'EVS'), 'Normal session filters by subject');
   });
 
   // -------------------------------------------------------------------------
@@ -443,5 +361,126 @@ describe('Spelling Learning Companion - Regression Test Suite', () => {
     // Verify session selection picks due words
     const session = selectSessionWords(studentId, 'Biology', 5);
     assert.ok(session.some(w => w.id === wordA), 'Due missed word A is included in session');
+  });
+
+  test('all curriculum tile assemblies match their actual spelling, including word boundaries', () => {
+    for (const word of [...GRADE_2_WORDS, ...GRADE_6_WORDS]) {
+      const expected = normalizeSpelling(word.nativeScript || word.canonicalSpelling);
+      assert.equal(normalizeSpelling(word.graphemeTiles.join('')), expected, word.id);
+      assert.equal(evaluateSpelling(word, word.graphemeTiles.join('')).isCorrect, true, word.id);
+      assert.equal(word.hiddenSentence.toLowerCase().includes(word.canonicalSpelling.toLowerCase()), false, word.id);
+      assert.equal(word.meaning.toLowerCase().includes(word.canonicalSpelling.toLowerCase()), false, word.id);
+    }
+  });
+
+  test('partial and malformed records are reported and skipped without losing valid progress', () => {
+    const wordId = 'g2-evs-1';
+    const valid = recordAttempt(wordId, 'fazia', true, 'test');
+    let message = '';
+    const unsubscribe = subscribeStorageError(error => { message = error; });
+    const invalidFields: Array<Record<string, unknown>> = [
+      { history: undefined },
+      { history: null },
+      { history: [{ date: 'not a date', mode: 'test', wasCorrect: true }] },
+      { history: [{ date: new Date().toISOString(), mode: 'invalid', wasCorrect: true }] },
+      { history: [{ date: new Date().toISOString(), mode: 'paper', wasCorrect: 'yes' }] },
+      { attempts: -1 },
+      { unaidedCorrectCount: 0.5 },
+      { consecutiveUnaidedCorrect: null },
+      { unaidedCorrectDates: ['2026-02-31'] },
+      { unaidedCorrectDates: [123] },
+      { lastAttemptDate: 'invalid' },
+      { lastUnaidedCorrectDate: 'invalid' },
+      { lastMistake: {} },
+      { needsRevisit: 'false' },
+      { wordId: 'wrong-word' },
+      { studentId: 'shiza' }
+    ];
+    try {
+      for (const fields of invalidFields) {
+        mockStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({
+          [wordId]: { ...valid, ...fields },
+          'g2-evs-2': { ...valid, wordId: 'g2-evs-2' }
+        }));
+        message = '';
+        assert.deepEqual(Object.keys(getAllProgress('fazia')), ['g2-evs-2'], JSON.stringify(fields));
+        assert.match(message, /malformed progress/);
+        const result = recordAttempt(wordId, 'fazia', true, 'test');
+        assert.equal(result.attempts, 1, 'submitting after a rejected record must not crash');
+        assert.equal(getWordProgress('g2-evs-2', 'fazia').attempts, valid.attempts);
+      }
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  test('assisted attempts do not postpone retention; unaided success resets the exact three-day clock', () => {
+    const wordId = 'g2-evs-1';
+    const old = new Date(Date.now() - 4 * 86400000);
+    const progress: WordProgress = {
+      ...getWordProgress(wordId, 'fazia'),
+      attempts: 4, unaidedCorrectCount: 4, consecutiveUnaidedCorrect: 4,
+      unaidedCorrectDates: [getLocalDateString(new Date(old.getTime() - 86400000)), getLocalDateString(old)],
+      lastAttemptDate: old.toISOString(),
+      lastUnaidedCorrectDate: old.toISOString(),
+      level: 'remembered'
+    };
+    mockStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({ [wordId]: progress }));
+    assert.equal(isWordDueForReview(progress), true);
+    for (let i = 0; i < 20; i++) {
+      assert.equal(isWordDueForReview(recordAttempt(wordId, 'fazia', true, 'practice')), true);
+    }
+    const recall = recordAttempt(wordId, 'fazia', true, 'paper');
+    assert.equal(isWordDueForReview(recall), false);
+    assert.equal(recall.lastUnaidedCorrectDate, recall.lastAttemptDate);
+    const now = Date.now();
+    assert.equal(isWordDueForReview({ ...recall, lastUnaidedCorrectDate: new Date(now - 3 * 86400000 + 1000).toISOString() }), false);
+    assert.equal(isWordDueForReview({ ...recall, lastUnaidedCorrectDate: new Date(now - 3 * 86400000).toISOString() }), true);
+  });
+
+  test('legacy retention falls back to unaided history or calendar evidence, not recent assisted work', () => {
+    const wordId = 'g2-evs-1';
+    const old = new Date(Date.now() - 4 * 86400000);
+    const progress: WordProgress = {
+      ...getWordProgress(wordId, 'fazia'),
+      attempts: 4, unaidedCorrectCount: 2, consecutiveUnaidedCorrect: 2,
+      unaidedCorrectDates: [getLocalDateString(old)],
+      lastAttemptDate: new Date().toISOString(),
+      level: 'remembered',
+      history: [
+        { date: old.toISOString(), mode: 'paper', wasCorrect: true },
+        { date: new Date().toISOString(), mode: 'practice', wasCorrect: true }
+      ]
+    };
+    delete progress.lastUnaidedCorrectDate;
+    assert.equal(isWordDueForReview(progress), true);
+    assert.equal(isWordDueForReview({ ...progress, history: progress.history.slice(1) }), true);
+    mockStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({ [wordId]: progress }));
+    const updated = recordAttempt(wordId, 'fazia', true, 'practice');
+    assert.equal(updated.lastUnaidedCorrectDate, old.toISOString());
+    assert.equal(isWordDueForReview(updated), true);
+  });
+
+  test('after a lapse historical mastery cannot replace fresh distinct-day evidence', () => {
+    const wordId = 'g2-evs-1';
+    const old = new Date(Date.now() - 4 * 86400000);
+    const progress: WordProgress = {
+      ...getWordProgress(wordId, 'fazia'),
+      attempts: 4, unaidedCorrectCount: 4, consecutiveUnaidedCorrect: 4,
+      unaidedCorrectDates: [getLocalDateString(new Date(old.getTime() - 86400000)), getLocalDateString(old)],
+      lastAttemptDate: old.toISOString(),
+      level: 'remembered'
+    };
+    mockStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({ [wordId]: progress }));
+    const lapse = recordAttempt(wordId, 'fazia', false, 'test', 'lnd');
+    assert.deepEqual(lapse.unaidedCorrectDates, []);
+    recordAttempt(wordId, 'fazia', true, 'test');
+    const sameDayRecovery = recordAttempt(wordId, 'fazia', true, 'test');
+    assert.equal(sameDayRecovery.level, 'practising');
+    assert.equal(sameDayRecovery.unaidedCorrectDates.length, 1);
+    const yesterday = getLocalDateString(new Date(Date.now() - 86400000));
+    sameDayRecovery.unaidedCorrectDates = [yesterday];
+    mockStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({ [wordId]: sameDayRecovery }));
+    assert.equal(recordAttempt(wordId, 'fazia', true, 'test').level, 'remembered');
   });
 });

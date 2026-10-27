@@ -31,7 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="border-b border-slate-200 bg-white/95 sticky top-0 z-40 backdrop-blur-sm no-print">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 lg:py-0 lg:h-16 flex flex-wrap items-center justify-between gap-3">
         {/* Zone 1: Brand & Profile Switcher */}
         <div className="flex items-center gap-3 shrink-0">
           <div 
@@ -60,10 +60,10 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Zone 2: Navigation Links */}
-        <nav className="flex items-center gap-1 sm:gap-2">
+        <nav className="order-last lg:order-none w-full lg:w-auto grid grid-cols-4 lg:flex items-center gap-1 sm:gap-2">
           <button
             onClick={() => onNavigate('session')}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-1 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
               currentView === 'session'
                 ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -75,19 +75,20 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onNavigate('curriculum')}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-1 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
               currentView === 'curriculum'
                 ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5 text-slate-600" />
-            <span>All {studentWords.length} Words</span>
+            <span className="hidden sm:inline">All {studentWords.length} Words</span>
+            <span className="sm:hidden">Words</span>
           </button>
 
           <button
             onClick={() => onNavigate('parent')}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-1 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
               currentView === 'parent'
                 ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
@@ -100,7 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => onNavigate('worksheet')}
-            className={`px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            className={`px-1 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap ${
               currentView === 'worksheet'
                 ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'

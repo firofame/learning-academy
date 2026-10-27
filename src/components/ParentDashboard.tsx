@@ -52,6 +52,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   });
 
   const wordsDueForReview = studentWords.filter(w => isWordDueForReview(allProgress[w.id]));
+  const reviewTargets = wordsDueForReview.length > 0 ? wordsDueForReview : needsHelpWords;
 
   // Collect words with recorded mistakes for diagnostics
   const wordsWithMistakes = studentWords.filter(w => {
@@ -60,9 +61,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   });
 
   const handleStartNeedsHelpSession = () => {
-    const targetList = wordsDueForReview.length > 0 ? wordsDueForReview : needsHelpWords;
-    if (targetList.length > 0) {
-      onStartTargetedSession(targetList.slice(0, 5));
+    if (reviewTargets.length > 0) {
+      onStartTargetedSession(reviewTargets.slice(0, 5));
     }
   };
 
@@ -107,7 +107,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
             </span>
           </div>
           <span className="text-xs text-slate-500 mt-1 block">
-            A word is marked Test-Ready only after being spelled unaided without hints across at least 2 separate sessions.
+            A word is marked Test-Ready only after being spelled unaided without hints across at least 2 separate calendar days.
           </span>
         </div>
 
@@ -178,13 +178,13 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
 
       {/* Action Row */}
       <div className="flex flex-wrap items-center gap-3">
-        {needsHelpWords.length > 0 && (
+        {reviewTargets.length > 0 && (
           <button
             onClick={handleStartNeedsHelpSession}
             className="px-5 py-2.5 rounded-xl bg-amber-600 text-white font-semibold text-xs sm:text-sm hover:bg-amber-700 transition-colors shadow-xs flex items-center gap-2 cursor-pointer"
           >
             <Play className="w-4 h-4" />
-            <span>Practice 5 Words Due for Review</span>
+            <span>{wordsDueForReview.length > 0 ? 'Review' : 'Practice'} {Math.min(5, reviewTargets.length)} Words{wordsDueForReview.length > 0 ? ' Due for Review' : ' Needing Practice'}</span>
           </button>
         )}
 

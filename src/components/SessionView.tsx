@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Volume2, 
@@ -69,7 +69,9 @@ export const SessionView: React.FC<SessionViewProps> = ({
 
   // Submission and assistance tracking
   const [hasSubmittedCurrentCard, setHasSubmittedCurrentCard] = useState<boolean>(false);
-  const [isAssistedAttempt, setIsAssistedAttempt] = useState<boolean>(false);
+  const [isAssistedAttempt, setIsAssistedAttempt] = useState<boolean>(true);
+  const submittedRef = useRef(false);
+  const [showNativeTiles, setShowNativeTiles] = useState(false);
   const [shuffledNativeTiles, setShuffledNativeTiles] = useState<string[]>([]);
 
   // Test Mode state (Unaided Recall)
@@ -104,27 +106,33 @@ export const SessionView: React.FC<SessionViewProps> = ({
     }
     setSessionQueue(words);
     setCurrentIndex(0);
-    setStudyMode('learn');
+    const initialMode = words[0] && getWordProgress(words[0].id, activeStudent).attempts > 0 ? 'test' : 'learn';
+    setStudyMode(initialMode);
     setIsCompleted(false);
     setSessionResults([]);
-    resetWordStates(words[0]);
+    resetWordStates(words[0], initialMode);
   };
 
   useEffect(() => {
     startNewSession(selectedSubject);
   }, [activeStudent, selectedSubject, settings.sessionSize, targetedWords]);
 
-  // Keep audio service sync with settings
-  useEffect(() => {
-    audioService.speechEnabled = settings.speechAudio;
-    audioService.slowMode = settings.slowSpeech;
-  }, [settings]);
-
   const currentWord = sessionQueue[currentIndex] || null;
   const currentSubjectMeta = currentWord ? SUBJECT_METADATA[currentWord.subject] : null;
 
+  useEffect(() => {
+    if (!currentWord || studyMode !== 'test' || isCompleted) return;
+    const timer = setTimeout(() => {
+      audioService.speak(currentWord.nativeScript || currentWord.canonicalSpelling, currentWord.languageCode);
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      audioService.stopAll();
+    };
+  }, [currentWord, studyMode, isCompleted]);
+
   // Reset inputs when switching words
-  const resetWordStates = (word: WordEntry | null) => {
+  const resetWordStates = (word: WordEntry | null, mode: StudyMode = studyMode) => {
     if (!word) return;
     setGuidedSelectedTiles([]);
     // Shuffle grapheme/syllable tiles for puzzle assembly
@@ -136,8 +144,10 @@ export const SessionView: React.FC<SessionViewProps> = ({
     setTestFeedback(null);
     setHighlightedLetterIdx(null);
     setHasSubmittedCurrentCard(false);
-    setIsAssistedAttempt(false);
-    // Shuffle native tiles for test mode so they are NEVER in the correct answer order
+    submittedRef.current = false;
+    setIsAssistedAttempt(mode !== 'test');
+    setShowNativeTiles(false);
+    // Native helpers stay hidden until the learner opts into assisted practice.
     if (word.nativeScript) {
       const nativeTiles = [...word.graphemeTiles].sort(() => Math.random() - 0.5);
       setShuffledNativeTiles(nativeTiles);
@@ -180,16 +190,6 @@ export const SessionView: React.FC<SessionViewProps> = ({
       setPaperRevealed(false);
     }
 
-    if (mode === 'test') {
-      setTimeout(() => {
-        if (currentWord) {
-          audioService.speak(
-            `Spell the word: ${currentWord.nativeScript || currentWord.canonicalSpelling}`,
-            currentWord.languageCode
-          );
-        }
-      }, 400);
-    }
   };
 
   // Guided tile tap
@@ -202,12 +202,11 @@ export const SessionView: React.FC<SessionViewProps> = ({
     setGuidedSelectedTiles(newSelected);
     setGuidedAvailableTiles(newAvailable);
 
-    const assembledWord = newSelected.join('').toLowerCase();
-    const expectedWord = currentWord.graphemeTiles.join('').toLowerCase();
+    const assembledWord = newSelected.join('');
 
     // Check if finished
     if (newAvailable.length === 0) {
-      if (assembledWord === expectedWord || assembledWord === currentWord.canonicalSpelling.toLowerCase()) {
+      if (evaluateSpelling(currentWord, assembledWord).isCorrect) {
         if (settings.soundEffects) audioService.playGentleSuccess();
         setGuidedCoachingMessage("Terrific! You assembled the word correctly.");
         recordAttempt(currentWord.id, activeStudent, true, 'practice');
@@ -237,7 +236,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
 
   // Append a tile directly to test input for Indic scripts
   const handleAddScriptTileToInput = (tile: string) => {
-    if (hasSubmittedCurrentCard) return;
+    if (submittedRef.current) return;
     if (settings.soundEffects) audioService.playTileTap();
     // Using native virtual helper tiles is assisted practice
     setIsAssistedAttempt(true);
@@ -248,9 +247,10 @@ export const SessionView: React.FC<SessionViewProps> = ({
   const handleSubmitTest = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     // Enforce submission protection in handler!
-    if (hasSubmittedCurrentCard) return;
+    if (submittedRef.current) return;
     if (!currentWord || !testInput.trim()) return;
 
+    submittedRef.current = true;
     setHasSubmittedCurrentCard(true);
 
     const feedback = evaluateSpelling(currentWord, testInput);
@@ -297,24 +297,28 @@ export const SessionView: React.FC<SessionViewProps> = ({
   // Paper mode parent validation
   const handlePaperValidation = (isCorrect: boolean) => {
     // Enforce submission protection in handler!
-    if (hasSubmittedCurrentCard) return;
-    if (!currentWord) return;
+    if (submittedRef.current) return;
+    if (!currentWord || !paperRevealed) return;
 
+    submittedRef.current = true;
     setHasSubmittedCurrentCard(true);
+    const targetMode = isAssistedAttempt ? 'practice' : 'paper';
 
     if (isCorrect) {
       if (settings.soundEffects) audioService.playGentleSuccess();
-      const rec = recordAttempt(currentWord.id, activeStudent, true, 'paper');
+      const rec = recordAttempt(currentWord.id, activeStudent, true, targetMode);
       setTestFeedback({
         submitted: true,
         isCorrect: true,
         message: rec.saveFailed 
           ? "Notebook attempt checked! (Note: Storage save failed; progress was not saved)."
-          : "Excellent! Marked as correctly written in notebook."
+          : isAssistedAttempt
+            ? "Good notebook practice! This assisted attempt does not earn Test-Ready credit."
+            : "Excellent! Marked as correctly written in notebook."
       });
     } else {
       if (settings.soundEffects) audioService.playGentlePrompt();
-      recordAttempt(currentWord.id, activeStudent, false, 'paper', 'Notebook mistake');
+      recordAttempt(currentWord.id, activeStudent, false, targetMode, 'Notebook mistake');
       setTestFeedback({
         submitted: true,
         isCorrect: false,
@@ -495,7 +499,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
         <div className="bg-amber-50/80 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-950 font-medium">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-amber-700" />
-            <span>Targeted Practice: <strong>{targetedWords.length === 1 ? targetedWords[0].word : `${targetedWords.length} Words Target List`}</strong></span>
+            <span>Targeted Practice: <strong>{targetedWords.length} {targetedWords.length === 1 ? 'Word' : 'Words'} Target List</strong></span>
           </div>
           <button 
             onClick={() => {
@@ -512,9 +516,9 @@ export const SessionView: React.FC<SessionViewProps> = ({
       {/* Progress & 3-Mode Tab Control */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div 
-              className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs"
+              className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center font-bold text-xs"
               style={{ 
                 backgroundColor: currentSubjectMeta?.bgLight || '#F8FAFC', 
                 color: currentSubjectMeta?.accentColor || '#334155' 
@@ -522,8 +526,8 @@ export const SessionView: React.FC<SessionViewProps> = ({
             >
               {currentIndex + 1}
             </div>
-            <div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <span className="font-semibold text-slate-700">{currentWord.subject}</span>
                 <span aria-hidden="true">·</span>
                 <span>Word {currentIndex + 1} of {sessionQueue.length}</span>
@@ -534,7 +538,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
                   </>
                 )}
               </div>
-              <span className="text-sm font-semibold text-slate-900 block truncate max-w-xs sm:max-w-sm">
+              <span className="text-sm font-semibold text-slate-900 block truncate max-w-full sm:max-w-sm">
                 {currentWord.meaning}
               </span>
             </div>
@@ -603,6 +607,11 @@ export const SessionView: React.FC<SessionViewProps> = ({
               {currentWord.transliteration && (
                 <p className="text-sm font-medium text-slate-500 mt-1">
                   Transliteration: <span className="text-slate-800 font-semibold">{currentWord.transliteration}</span>
+                </p>
+              )}
+              {currentWord.phoneticGuide && (
+                <p className="text-xs font-medium text-slate-500">
+                  Sound guide: <span className="font-semibold text-slate-700">{currentWord.phoneticGuide}</span>
                 </p>
               )}
             </div>
@@ -760,7 +769,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
           {/* Gentle Coaching Message */}
           {guidedCoachingMessage && (
             <div className={`p-4 rounded-xl border flex items-start gap-3 ${
-              guidedAvailableTiles.length === 0 && guidedSelectedTiles.join('').toLowerCase() === currentWord.graphemeTiles.join('').toLowerCase()
+              guidedAvailableTiles.length === 0 && evaluateSpelling(currentWord, guidedSelectedTiles.join('')).isCorrect
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
                 : 'bg-amber-50 border-amber-200 text-amber-950'
             }`}>
@@ -801,7 +810,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
             <div>
               <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider block">
-                Independent Test Mode (Unaided)
+                {isAssistedAttempt ? 'Assisted Recall Practice' : 'Independent Test Mode (Unaided)'}
               </span>
               <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
                 Word is Hidden
@@ -843,12 +852,6 @@ export const SessionView: React.FC<SessionViewProps> = ({
               <span>Hear Word Spoken</span>
             </button>
 
-            {currentWord.phoneticGuide && (
-              <p className="text-xs font-medium text-slate-500">
-                Sound guide: <span className="font-semibold text-slate-700">{currentWord.phoneticGuide}</span>
-              </p>
-            )}
-
             <div className="pt-2 text-left bg-white p-3.5 rounded-lg border border-slate-200/60">
               <span className="text-[11px] font-bold text-slate-400 uppercase block mb-1">
                 Context Sentence (Spell the missing word):
@@ -881,9 +884,21 @@ export const SessionView: React.FC<SessionViewProps> = ({
               {currentWord.nativeScript && !testFeedback?.submitted && (
                 <div className="space-y-1.5 pt-1">
                   <span className="text-[11px] font-semibold text-slate-500 block">
-                    Optional native script tiles (tap to insert into input):
+                    Native script helpers count as assisted practice.
                   </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {!showNativeTiles ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAssistedAttempt(true);
+                          setShowNativeTiles(true);
+                        }}
+                        className="px-3 py-2 text-xs font-semibold bg-slate-100 rounded-lg border border-slate-200"
+                      >
+                        Show native script tiles (assisted)
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5 flex-wrap">
                     {(shuffledNativeTiles.length > 0 ? shuffledNativeTiles : currentWord.graphemeTiles).map((tile, i) => (
                       <button
                         key={i}
@@ -901,7 +916,8 @@ export const SessionView: React.FC<SessionViewProps> = ({
                     >
                       Clear
                     </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               )}
 
