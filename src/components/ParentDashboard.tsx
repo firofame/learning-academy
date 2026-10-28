@@ -219,7 +219,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           <h2 className="text-lg font-bold">Robotics: {roboticsLesson.title}</h2>
           <p className="text-sm">
             {roboticsExam
-              ? `Last exam quiz: ${roboticsExam.answers.filter(answer => answer.correct).length} / ${roboticsExam.answers.length} correct. ${roboticsExam.answers.filter(answer => answer.parentChecked).length} written answer(s) parent-checked.`
+              ? `Last exam quiz: ${roboticsExam.answers.filter(answer => answer.correct).length} / ${roboticsExam.answers.length} correct. ${roboticsExam.answers.filter(answer => answer.aiChecked).length} written answer(s) AI-checked.`
               : 'No completed robotics exam quiz yet.'}
           </p>
           <p className="text-sm">{robotics.reviewQuestionIds.length} question(s) to revisit. Robotics results are separate from spelling mastery and are not cleared by the spelling reset.</p>

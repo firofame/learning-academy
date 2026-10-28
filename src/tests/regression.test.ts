@@ -155,7 +155,7 @@ describe('Robotics curriculum and saved results', () => {
     const fullForm = getRoboticsLesson('shiza').questions.find(question => question.id === 'g6-fill-3')!;
     assert.equal(checkRoboticsAnswer(fullForm, 'NLP'), false);
     const written = getRoboticsLesson('shiza').questions.find(question => question.kind === 'short')!;
-    assert.throws(() => checkRoboticsAnswer(written, written.answer), /parent check/);
+    assert.throws(() => checkRoboticsAnswer(written, written.answer), /automatic grading/);
   });
 
   test('practice and exam results persist separately per child and leave spelling untouched', () => {
@@ -219,6 +219,30 @@ describe('Robotics curriculum and saved results', () => {
       assert.ok(saveRoboticsResult('shiza', fullExam('shiza')));
       assert.equal(loadRoboticsProgress('shiza').exam?.answers.length, 22);
     } finally { unsubscribe(); }
+  });
+
+  test('AI grades persist without parent checks while legacy parent-checked results remain readable', () => {
+    const legacy = fullExam('fazia');
+    assert.ok(saveRoboticsResult('fazia', legacy));
+    assert.equal(loadRoboticsProgress('fazia').exam?.answers.filter(answer => answer.parentChecked).length, 5);
+    const automatic: RoboticsResult = {
+      ...legacy,
+      answers: legacy.answers.map(answer => answer.parentChecked
+        ? { ...answer, parentChecked: false, aiChecked: true, aiFeedback: 'The essential ideas are present.' }
+        : answer)
+    };
+    assert.ok(saveRoboticsResult('fazia', automatic));
+    assert.equal(loadRoboticsProgress('fazia').exam?.answers.filter(answer => answer.aiChecked).length, 5);
+    const firstWritten = automatic.answers.findIndex(answer => answer.aiChecked);
+    for (const patch of [
+      { aiChecked: false }, { aiFeedback: '' }, { aiFeedback: 'a'.repeat(301) },
+      { parentChecked: true }, { answer: '' }, { aiChecked: 'yes' }
+    ]) {
+      const invalid = structuredClone(automatic);
+      Object.assign(invalid.answers[firstWritten], patch);
+      assert.equal(saveRoboticsResult('fazia', invalid), null);
+    }
+    assert.equal(loadRoboticsProgress('fazia').exam?.answers.filter(answer => answer.aiChecked).length, 5);
   });
 });
 

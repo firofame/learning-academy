@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx --test src/tests/*.test.ts"
+    "test": "tsx --test src/tests/*.test.ts",
+    "worker:dev": "wrangler dev --port 8787",
+    "worker:deploy": "wrangler deploy",
+    "worker:check": "wrangler deploy --dry-run"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -21,16 +24,17 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.0",
     "@types/canvas-confetti": "^1.9.0",
+    "@types/jsdom": "^27.0.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@testing-library/react": "^16.3.0",
-    "@types/jsdom": "^27.0.0",
     "autoprefixer": "^10.4.21",
     "jsdom": "^27.0.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.36.0"
   }
 }

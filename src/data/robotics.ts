@@ -6,6 +6,7 @@ export interface RoboticsCard {
   title: string;
   prompt: string;
   answer: string;
+  gradingCriteria: string;
   examples?: string;
 }
 
@@ -19,7 +20,7 @@ interface QuestionBase {
 export type RoboticsQuestion =
   | (QuestionBase & { kind: 'choice' | 'true-false'; options: string[] })
   | (QuestionBase & { kind: 'fill'; acceptedAnswers: string[] })
-  | (QuestionBase & { kind: 'short' });
+  | (QuestionBase & { kind: 'short'; gradingCriteria: string });
 
 export interface RoboticsLesson {
   id: string;
@@ -41,29 +42,36 @@ const fill = (id: string, prompt: string, answer: string, aliases: string[] = []
   ({ id, kind: 'fill', prompt, answer, acceptedAnswers: [answer, ...aliases] });
 
 const shortAnswers = (cards: RoboticsCard[]): RoboticsQuestion[] =>
-  cards.map(card => ({ id: card.id, kind: 'short', prompt: card.prompt, answer: card.answer }));
+  cards.map(card => ({
+    id: card.id, kind: 'short', prompt: card.prompt, answer: card.answer, gradingCriteria: card.gradingCriteria
+  }));
 
 const machinesCards: RoboticsCard[] = [
   {
     id: 'g2-machine', title: 'Machines make work easier', prompt: 'What is a machine?',
-    answer: 'A machine helps us do work easily.'
+    answer: 'A machine helps us do work easily.',
+    gradingCriteria: 'Must say a machine helps people do work or makes work easier. Equivalent wording is sufficient.'
   },
   {
     id: 'g2-simple', title: 'Simple machines', prompt: 'What is a simple machine?',
-    answer: 'A simple machine has few parts and makes work easier.'
+    answer: 'A simple machine has few parts and makes work easier.',
+    gradingCriteria: 'Must convey both a basic mechanism or few parts, and making work easier. Do not require the exact phrase "few parts".'
   },
   {
     id: 'g2-examples', title: 'Lever and pulley', prompt: 'Give two examples of simple machines.',
     answer: 'Lever and pulley.',
+    gradingCriteria: 'Give two distinct valid simple machines: lever, pulley, wheel and axle, inclined plane or ramp, wedge, or screw. Accept any two, not only the reference pair.',
     examples: 'A pulley uses a wheel and rope to lift things. A wheel and axle is also a simple machine.'
   },
   {
     id: 'g2-complex', title: 'Simple machines working together', prompt: 'What is a complex machine?',
-    answer: 'A complex machine is made of two or more simple machines.'
+    answer: 'A complex machine is made of two or more simple machines.',
+    gradingCriteria: 'Must say two or more simple machines combined or working together. Merely saying "many parts" is insufficient.'
   },
   {
     id: 'g2-bicycle', title: 'A bicycle is a complex machine', prompt: 'Give one example of a complex machine.',
     answer: 'Bicycle.',
+    gradingCriteria: 'Give at least one valid complex or compound machine, such as a bicycle, car, scissors, wheelbarrow, or sewing machine. Do not require bicycle specifically.',
     examples: 'Machines help us save effort.'
   }
 ];
@@ -72,21 +80,25 @@ const aiCards: RoboticsCard[] = [
   {
     id: 'g6-domain', title: 'AI domains', prompt: 'What is a domain in AI?',
     answer: 'A domain is a specific area or field of work. In AI, a domain is an area where AI is used to perform specific tasks.',
+    gradingCriteria: 'Must describe an AI domain as a particular area, field, or category of AI work or application. Naming an example without explaining the idea is insufficient.',
     examples: 'This lesson explores Natural Language Processing, Computer Vision, and Statistical Data.'
   },
   {
     id: 'g6-nlp', title: 'Natural Language Processing (NLP)', prompt: 'What is Natural Language Processing (NLP)?',
     answer: 'NLP helps computers understand and work with human language.',
+    gradingCriteria: 'Must connect computers or AI with understanding, processing, or working with human language. The expansion of NLP alone is insufficient.',
     examples: 'Chatbots, voice assistants, and language translation.'
   },
   {
     id: 'g6-cv', title: 'Computer Vision (CV)', prompt: 'What is Computer Vision (CV)?',
     answer: 'Computer Vision helps computers see and understand images and videos.',
+    gradingCriteria: 'Must connect computers or AI with understanding or interpreting visual information, pictures, images, or videos. An example alone is insufficient.',
     examples: 'Face recognition, object detection, and self-driving cars.'
   },
   {
     id: 'g6-data', title: 'Statistical Data', prompt: 'What is statistical data, and how does AI use it?',
     answer: 'Statistical data is information collected in the form of numbers or facts. AI studies this data to find patterns and make predictions.',
+    gradingCriteria: 'Must explain data as numbers or collected facts, and say AI uses it to find patterns or make predictions. Both the definition and the use are required.',
     examples: 'Weather prediction, student marks analysis, and sales reports.'
   }
 ];
@@ -168,7 +180,7 @@ export function normalizeRoboticsAnswer(answer: string): string {
 }
 
 export function checkRoboticsAnswer(question: RoboticsQuestion, answer: string): boolean {
-  if (question.kind === 'short') throw new Error('Short robotics answers require a parent check.');
+  if (question.kind === 'short') throw new Error('Short robotics answers require automatic grading.');
   const accepted = question.kind === 'fill' ? question.acceptedAnswers : [question.answer];
   return accepted.some(value => normalizeRoboticsAnswer(value) === normalizeRoboticsAnswer(answer));
 }

@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "learning-academy-grading",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-28",
+  "workers_dev": true,
+  "secrets": {
+    "required": ["GEMINI_API_KEY", "GRADING_ACCESS_TOKEN"]
+  },
+  "vars": {
+    "ALLOWED_ORIGINS": "https://firofame.github.io,http://localhost:3000,http://127.0.0.1:3000"
+  },
+  "ratelimits": [
+    {
+      "name": "GRADING_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 30, "period": 60 }
+    }
+  ]
+}

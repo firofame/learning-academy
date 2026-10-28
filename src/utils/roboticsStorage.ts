@@ -1,6 +1,7 @@
 import { StudentId } from '../types';
 import { checkRoboticsAnswer, getRoboticsLesson, RoboticsLesson } from '../data/robotics';
 import { emitStorageError } from './storage';
+import { isWrittenGrade } from './roboticsGrading';
 
 export type RoboticsQuizMode = 'practice' | 'exam';
 
@@ -9,6 +10,8 @@ export interface RoboticsAnswer {
   answer: string;
   correct: boolean;
   parentChecked: boolean;
+  aiChecked?: boolean;
+  aiFeedback?: string;
 }
 
 export interface RoboticsResult {
@@ -47,11 +50,16 @@ function isValidResult(value: unknown, mode: RoboticsQuizMode, lesson: RoboticsL
     if (!isRecord(entry) || typeof entry.questionId !== 'string' || ids.has(entry.questionId) ||
         typeof entry.answer !== 'string' || typeof entry.correct !== 'boolean' ||
         typeof entry.parentChecked !== 'boolean') return false;
+    if (entry.aiChecked !== undefined && typeof entry.aiChecked !== 'boolean') return false;
+    const aiChecked = entry.aiChecked === true;
+    if (aiChecked && !isWrittenGrade({ correct: entry.correct, feedback: entry.aiFeedback })) return false;
+    if (!aiChecked && entry.aiFeedback !== undefined) return false;
     const question = lesson.questions.find(question => question.id === entry.questionId);
     if (!question) return false;
     if (question.kind === 'short') {
-      if (entry.answer.trim() ? !entry.parentChecked : entry.correct || entry.parentChecked) return false;
-    } else if (entry.parentChecked || entry.correct !== checkRoboticsAnswer(question, entry.answer)) {
+      const hasSingleCheck = entry.parentChecked !== aiChecked;
+      if (entry.answer.trim() ? !hasSingleCheck : entry.correct || entry.parentChecked || aiChecked) return false;
+    } else if (entry.parentChecked || aiChecked || entry.correct !== checkRoboticsAnswer(question, entry.answer)) {
       return false;
     }
     ids.add(entry.questionId);

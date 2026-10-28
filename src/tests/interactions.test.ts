@@ -34,6 +34,7 @@ Object.defineProperty(window, 'speechSynthesis', {
 const { render, fireEvent, cleanup, waitFor } = await import('@testing-library/react');
 const { SessionView } = await import('../components/SessionView');
 const { ParentDashboard } = await import('../components/ParentDashboard');
+const { RoboticsView } = await import('../components/RoboticsView');
 const { default: App } = await import('../App');
 const { getWordsForStudent } = await import('../data/wordList');
 const { getRoboticsLesson } = await import('../data/robotics');
@@ -444,11 +445,17 @@ describe('Production component interactions', () => {
   });
 
   for (const studentId of ['fazia', 'shiza'] as const) {
-    test(`${studentId}'s full exam hides feedback, requires parent marking, and persists the exact score`, () => {
+    test(`${studentId}'s full exam hides AI feedback, automatically grades, and persists the exact score`, async t => {
+      let calls = 0;
+      t.mock.method(globalThis, 'fetch', async () => {
+        calls++;
+        return Response.json({ correct: true, feedback: 'The essential idea is present.' });
+      });
       localStorage.setItem(ACTIVE_PROFILE_KEY, studentId);
-      const view = render(React.createElement(App));
+      const view = render(React.createElement(RoboticsView, {
+        activeStudent: studentId, settings, gradingApiUrl: 'https://grading.example/grade'
+      }));
       const lesson = getRoboticsLesson(studentId);
-      fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
       fireEvent.click(view.getByRole('button', { name: 'Start exam quiz' }));
       for (const [index, question] of lesson.questions.entries()) {
         assert.ok(view.getByText(`Exam quiz · Question ${index + 1} of ${lesson.questions.length}`));
@@ -466,21 +473,23 @@ describe('Production component interactions', () => {
           assert.equal(field.getAttribute('spellcheck'), 'false');
           fireEvent.change(field, { target: { value: question.answer.toUpperCase() } });
         } else {
-          fireEvent.click(view.getByRole('checkbox', { name: 'I wrote my answer in a notebook for a parent to check' }));
+          fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: question.answer } });
+          fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
         }
         fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
-        assert.equal(loadRoboticsProgress(studentId).exam, null, 'unfinished or unmarked exams are not saved');
+        if (index + 1 < lesson.questions.length) {
+          await waitFor(() => assert.ok(view.getByText(`Exam quiz · Question ${index + 2} of ${lesson.questions.length}`)));
+          assert.equal(loadRoboticsProgress(studentId).exam, null, 'unfinished exams are not saved');
+          assert.equal(view.queryByText('AI feedback: The essential idea is present.'), null);
+        }
       }
-      assert.ok(view.getByRole('heading', { name: 'Parent check: written answers' }));
-      for (const question of lesson.questions.filter(question => question.kind === 'short')) {
-        assert.ok(view.getByRole('heading', { name: question.prompt }));
-        fireEvent.click(view.getByRole('button', { name: 'Parent: answer is correct' }));
-      }
-      assert.ok(view.getByRole('heading', { name: 'Exam quiz complete' }));
+      await waitFor(() => assert.ok(view.getByRole('heading', { name: 'Exam quiz complete' })));
       const result = loadRoboticsProgress(studentId).exam!;
       assert.equal(result.answers.length, lesson.questions.length);
       assert.equal(result.answers.filter(answer => answer.correct).length, lesson.questions.length - 1);
-      assert.equal(result.answers.filter(answer => answer.parentChecked).length, lesson.cards.length);
+      assert.equal(result.answers.filter(answer => answer.parentChecked).length, 0);
+      assert.equal(result.answers.filter(answer => answer.aiChecked).length, lesson.cards.length);
+      assert.equal(calls, lesson.cards.length);
       assert.deepEqual(loadRoboticsProgress(studentId).reviewQuestionIds, [lesson.questions[0].id]);
       assert.deepEqual(getAllProgress(studentId), {}, 'robotics does not alter spelling mastery');
       view.unmount();
@@ -496,23 +505,87 @@ describe('Production component interactions', () => {
     });
   }
 
-  test('robotics short-answer practice waits for parent confirmation and permits equivalent wording', () => {
+  test('robotics short-answer practice automatically checks equivalent wording without parent confirmation', async t => {
+    t.mock.method(globalThis, 'fetch', async () => Response.json({ correct: true, feedback: 'That means the same thing.' }));
     const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
     saveRoboticsResult('fazia', {
       mode: 'practice', completedAt: new Date().toISOString(),
       answers: [{ questionId: question.id, answer: '', correct: false, parentChecked: false }]
     });
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
+    const view = render(React.createElement(RoboticsView, {
+      activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
+    }));
     fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
     fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes our work easier.' } });
+    fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
     fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    assert.ok(view.getByText('Parent check needed'));
-    assert.equal(view.queryByRole('button', { name: 'Finish practice' }), null);
-    fireEvent.click(view.getByRole('button', { name: 'Parent: answer is correct' }));
+    await waitFor(() => assert.ok(view.getByText('Well done!')));
+    assert.ok(view.getByText('AI feedback: That means the same thing.'));
+    assert.equal(view.queryByRole('button', { name: 'Parent: answer is correct' }), null);
     fireEvent.click(view.getByRole('button', { name: 'Finish practice' }));
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].parentChecked, true);
+    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].parentChecked, false);
+    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].aiChecked, true);
     assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].correct, true);
+  });
+
+  test('a failed AI check retains the answer and score, prevents double submits, and can be retried', async t => {
+    const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
+    saveRoboticsResult('fazia', {
+      mode: 'practice', completedAt: new Date().toISOString(),
+      answers: [{ questionId: question.id, answer: '', correct: false, parentChecked: false }]
+    });
+    let complete: (response: Response) => void = () => { throw new Error('No request is pending'); };
+    let calls = 0;
+    t.mock.method(globalThis, 'fetch', () => {
+      calls++;
+      return new Promise<Response>(resolve => { complete = resolve; });
+    });
+    const view = render(React.createElement(RoboticsView, {
+      activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
+    }));
+    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
+    fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes work easier.' } });
+    fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
+    const form = view.getByRole('button', { name: 'Check answer' }).closest('form')!;
+    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
+    assert.equal(calls, 1);
+    assert.ok(view.getByRole('button', { name: "I don't know yet" }).hasAttribute('disabled'));
+    await act(async () => { complete(new Response(null, { status: 503 })); });
+    assert.match(view.getByRole('alert').textContent!, /has not been marked/);
+    assert.equal((view.getByLabelText('Write your answer') as HTMLTextAreaElement).value, 'It makes work easier.');
+    assert.equal(view.queryByText('Model answer:'), null);
+    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].answer, '');
+    fireEvent.click(view.getByRole('button', { name: 'Retry checking answer' }));
+    await act(async () => { complete(Response.json({ correct: false, feedback: 'Add the missing idea.' })); });
+    assert.ok(view.getByText('Let us practise this again.'));
+    fireEvent.click(view.getByRole('button', { name: 'Finish practice' }));
+    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].aiChecked, true);
+    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].correct, false);
+  });
+
+  test('leaving during an AI check aborts it and never saves an unfinished result', async t => {
+    const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
+    saveRoboticsResult('fazia', {
+      mode: 'practice', completedAt: new Date().toISOString(),
+      answers: [{ questionId: question.id, answer: '', correct: false, parentChecked: false }]
+    });
+    let signal: AbortSignal | undefined;
+    t.mock.method(globalThis, 'fetch', (_url: unknown, init: RequestInit) => {
+      signal = init.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
+      });
+    });
+    const view = render(React.createElement(RoboticsView, {
+      activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
+    }));
+    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
+    fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes work easier.' } });
+    fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await act(async () => { view.unmount(); });
+    assert.equal(signal?.aborted, true);
+    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].answer, '');
   });
 
   test('robotics read-aloud honors mute and slow speech and stops when the lesson is left', () => {

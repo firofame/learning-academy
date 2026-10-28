@@ -5,6 +5,7 @@ import { getStudentProfile } from '../data/wordList';
 import { checkRoboticsAnswer, getRoboticsLesson, RoboticsQuestion } from '../data/robotics';
 import { audioService } from '../utils/audio';
 import { AppSettings } from '../utils/storage';
+import { gradeRoboticsAnswer, MAX_WRITTEN_ANSWER_LENGTH } from '../utils/roboticsGrading';
 import {
   loadRoboticsProgress, RoboticsAnswer, RoboticsQuizMode, RoboticsResult, saveRoboticsResult
 } from '../utils/roboticsStorage';
@@ -12,6 +13,7 @@ import {
 interface RoboticsViewProps {
   activeStudent: StudentId;
   settings: AppSettings;
+  gradingApiUrl?: string;
 }
 
 const primaryButton = 'min-h-12 px-5 py-3 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed';
@@ -37,18 +39,22 @@ function ListenButton({ text, label, enabled }: { text: string; label: string; e
 function ResultSummary({ result }: { result: RoboticsResult }) {
   const correct = result.answers.filter(answer => answer.correct).length;
   const parentChecks = result.answers.filter(answer => answer.parentChecked).length;
+  const aiChecks = result.answers.filter(answer => answer.aiChecked).length;
   return (
     <div>
       <p className="font-bold">{result.mode === 'exam' ? 'Last exam quiz' : 'Last assisted practice'}: {correct} / {result.answers.length} correct</p>
       <p className="text-sm text-slate-600">
         {new Date(result.completedAt).toLocaleString()}
         {parentChecks > 0 && ` · ${parentChecks} written answer(s) parent-checked`}
+        {aiChecks > 0 && ` · ${aiChecks} written answer(s) AI-checked`}
       </p>
     </div>
   );
 }
 
-export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, settings }) => {
+export const RoboticsView: React.FC<RoboticsViewProps> = ({
+  activeStudent, settings, gradingApiUrl = import.meta.env?.VITE_GRADING_API_URL || ''
+}) => {
   const lesson = getRoboticsLesson(activeStudent);
   const profile = getStudentProfile(activeStudent);
   const [progress, setProgress] = useState(() => loadRoboticsProgress(activeStudent));
@@ -56,6 +62,7 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
   const [result, setResult] = useState<RoboticsResult | null>(null);
   const [saved, setSaved] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => audioService.stopAll(), []);
@@ -104,6 +111,8 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
           )}
           <RoboticsQuiz
             mode={quiz.mode} questions={quiz.questions} settings={settings}
+            lessonId={lesson.id} gradingApiUrl={gradingApiUrl}
+            accessCode={accessCode} onAccessCodeChange={setAccessCode}
             onComplete={completed => {
               audioService.stopAll(); setResult(completed); persist(completed);
             }}
@@ -114,7 +123,7 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
           <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-2" role="status">
             <h2 className="text-xl font-bold">{result.mode === 'exam' ? 'Exam quiz complete' : 'Practice complete'}</h2>
             <ResultSummary result={result} />
-            <p className="text-sm">This is a revision snapshot, not a guarantee of exam readiness. Written answers use a parent check.</p>
+            <p className="text-sm">This is a revision snapshot, not a guarantee of exam readiness. AI checks written answers and can make mistakes.</p>
             <p className="font-semibold">{saved ? `Saved for ${profile.name} on this browser.` : 'Result not saved. Please retry before leaving this page.'}</p>
             {!saved && <button className={secondaryButton} onClick={() => persist(result)}>Retry saving result</button>}
           </div>
@@ -133,10 +142,11 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
               <article key={answer.questionId} className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
                 <h3 className="font-bold">{question.prompt}</h3>
                 <p className={answer.correct ? 'text-teal-800 font-semibold' : 'text-amber-900 font-semibold'}>
-                  {answer.correct ? 'Correct' : 'Revisit this'}{answer.parentChecked ? ' · Parent-checked' : ''}
+                  {answer.correct ? 'Correct' : 'Revisit this'}{answer.parentChecked ? ' · Parent-checked' : answer.aiChecked ? ' · AI-checked' : ''}
                 </p>
                 <p>Your answer: {answer.answer || 'Not answered yet'}</p>
                 <p><strong>Model answer:</strong> {question.answer}</p>
+                {answer.aiFeedback && <p className="text-slate-600">AI feedback: {answer.aiFeedback}</p>}
                 {question.explanation && <p className="text-slate-600">{question.explanation}</p>}
               </article>
             );
@@ -147,7 +157,8 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
           <section className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-4">
             <h2 className="text-lg font-bold">Read, cover, recall, check</h2>
             <p>{lesson.memoryTip}</p>
-            <p className="text-sm text-slate-700">Read the cards, then cover them and explain aloud. Practise with feedback, then try all {lesson.questions.length} questions without hints. Short answers can be typed or written in a notebook for a parent to check.</p>
+            <p className="text-sm text-slate-700">Read the cards, then cover them and explain aloud. Practise with feedback, then try all {lesson.questions.length} questions without hints. Type short answers for automatic checking by meaning, not exact spelling. Do not include names or personal information.</p>
+            {!gradingApiUrl && <p role="status" className="text-sm text-amber-900">Automatic written-answer checking is not configured. Fixed-answer practice still works. The site owner must set VITE_GRADING_API_URL to the grading Worker URL.</p>}
             <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               <button className={primaryButton} onClick={() => start('practice')}>Start practice</button>
               <button className={secondaryButton} onClick={() => start('exam')}>Start exam quiz</button>
@@ -155,7 +166,7 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
                 <button className={secondaryButton} onClick={() => start('practice', missedQuestions)}>Review missed ({missedQuestions.length})</button>
               )}
             </div>
-            <p className="text-sm text-slate-600">Practice is assisted. Exam answers stay hidden until all questions are finished; a parent then checks written answers. Results save only when a quiz is complete. Leaving Robotics or switching student discards an unfinished quiz.</p>
+            <p className="text-sm text-slate-600">Practice is assisted. Exam feedback stays hidden until all questions are finished. Written answers are checked automatically; service failures leave your answer unmarked so you can retry. Results save only when a quiz is complete. Leaving Robotics or switching student discards an unfinished quiz.</p>
           </section>
           <section className="grid gap-4 sm:grid-cols-2" aria-label="Revision notes">
             {lesson.cards.map(card => (
@@ -186,28 +197,31 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({ activeStudent, setti
   );
 };
 
-function RoboticsQuiz({ mode, questions, settings, onComplete }: {
+function RoboticsQuiz({
+  mode, questions, settings, lessonId, gradingApiUrl, accessCode, onAccessCodeChange, onComplete
+}: {
   mode: RoboticsQuizMode;
   questions: RoboticsQuestion[];
   settings: AppSettings;
+  lessonId: string;
+  gradingApiUrl: string;
+  accessCode: string;
+  onAccessCodeChange: (value: string) => void;
   onComplete: (result: RoboticsResult) => void;
 }) {
   const [index, setIndex] = useState(0);
   const [input, setInput] = useState('');
-  const [notebook, setNotebook] = useState(false);
   const [answers, setAnswers] = useState<RoboticsAnswer[]>([]);
   const [feedback, setFeedback] = useState<RoboticsAnswer | null>(null);
-  const [pendingWritten, setPendingWritten] = useState(false);
-  const [parentReview, setParentReview] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [checkingError, setCheckingError] = useState('');
+  const controllerRef = useRef<AbortController | null>(null);
   const submittedRef = useRef(false);
   const promptRef = useRef<HTMLHeadingElement>(null);
   const question = questions[index];
-  const unmarked = answers.find(answer => {
-    const target = questions.find(question => question.id === answer.questionId);
-    return target?.kind === 'short' && answer.answer.trim() && !answer.parentChecked;
-  });
 
-  useEffect(() => { promptRef.current?.focus(); }, [index, parentReview, unmarked?.questionId]);
+  useEffect(() => () => controllerRef.current?.abort(), []);
+  useEffect(() => { promptRef.current?.focus(); }, [index]);
   useEffect(() => { submittedRef.current = false; }, [index]);
 
   const finish = (completed: RoboticsAnswer[]) => {
@@ -217,60 +231,57 @@ function RoboticsQuiz({ mode, questions, settings, onComplete }: {
   const advance = (completed: RoboticsAnswer[]) => {
     audioService.stopAll();
     if (index + 1 === questions.length) {
-      if (mode === 'exam' && completed.some(answer => {
-        const target = questions.find(question => question.id === answer.questionId);
-        return target?.kind === 'short' && answer.answer.trim() && !answer.parentChecked;
-      })) {
-        setAnswers(completed); setParentReview(true);
-      } else finish(completed);
+      finish(completed);
     } else {
-      setAnswers(completed); setIndex(index + 1); setInput(''); setNotebook(false);
-      setFeedback(null); setPendingWritten(false);
+      setAnswers(completed); setIndex(index + 1); setInput('');
+      setFeedback(null); setCheckingError('');
     }
   };
 
-  const submit = (unknown = false) => {
+  const submit = async (unknown = false) => {
     if (submittedRef.current) return;
     submittedRef.current = true;
     audioService.stopAll();
-    const answer = unknown ? '' : notebook ? 'Written in notebook' : input.trim();
+    const answer = unknown ? '' : input.trim();
+    if (!unknown && (!answer || (question.kind === 'short' && (!gradingApiUrl || !accessCode.trim())))) {
+      submittedRef.current = false;
+      setCheckingError('Enter your answer and grading access code before checking.');
+      return;
+    }
     const entry: RoboticsAnswer = {
       questionId: question.id, answer,
       correct: question.kind !== 'short' && checkRoboticsAnswer(question, answer),
       parentChecked: false
     };
-    if (mode === 'exam') advance([...answers, entry]);
-    else {
-      setFeedback(entry);
-      setPendingWritten(question.kind === 'short' && answer.length > 0);
+    if (question.kind === 'short' && answer) {
+      const controller = new AbortController();
+      controllerRef.current = controller;
+      setChecking(true);
+      setCheckingError('');
+      try {
+        const grade = await gradeRoboticsAnswer(
+          gradingApiUrl, accessCode, lessonId, question.id, answer, controller.signal
+        );
+        if (controller.signal.aborted) return;
+        entry.correct = grade.correct;
+        entry.aiChecked = true;
+        entry.aiFeedback = grade.feedback;
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          submittedRef.current = false;
+          setCheckingError(error instanceof Error ? error.message : 'Checking failed. Your answer has not been marked. Please retry.');
+        }
+        return;
+      } finally {
+        if (!controller.signal.aborted) {
+          setChecking(false);
+          controllerRef.current = null;
+        }
+      }
     }
+    if (mode === 'exam') advance([...answers, entry]);
+    else setFeedback(entry);
   };
-
-  if (parentReview && unmarked) {
-    const target = questions.find(question => question.id === unmarked.questionId)!;
-    const mark = (correct: boolean) => {
-      const completed = answers.map(answer => answer.questionId === target.id ? { ...answer, correct, parentChecked: true } : answer);
-      setAnswers(completed);
-      const remaining = completed.some(answer => {
-        const question = questions.find(question => question.id === answer.questionId);
-        return question?.kind === 'short' && answer.answer.trim() && !answer.parentChecked;
-      });
-      if (!remaining) finish(completed);
-    };
-    return (
-      <section className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4">
-        <h2 ref={promptRef} tabIndex={-1} className="text-xl font-bold">Parent check: written answers</h2>
-        <p>All questions are finished. A parent should compare each written answer with the model. Equivalent wording is fine if it includes the key idea.</p>
-        <h3 className="font-bold">{target.prompt}</h3>
-        <p><strong>Child's answer:</strong> {unmarked.answer}</p>
-        <p><strong>Model answer:</strong> {target.answer}</p>
-        <div className="flex flex-col sm:flex-row gap-3" key={target.id}>
-          <button className={primaryButton} onClick={() => mark(true)}>Parent: answer is correct</button>
-          <button className={secondaryButton} onClick={() => mark(false)}>Parent: needs more practice</button>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 space-y-5">
@@ -280,7 +291,7 @@ function RoboticsQuiz({ mode, questions, settings, onComplete }: {
       </div>
       <progress className="w-full accent-teal-700" value={index} max={questions.length} aria-label="Quiz progress" />
       <h2 ref={promptRef} tabIndex={-1} className="text-xl font-bold leading-relaxed">{question.prompt}</h2>
-      <form className="space-y-4" onSubmit={event => { event.preventDefault(); submit(); }}>
+      <form className="space-y-4" onSubmit={event => { event.preventDefault(); void submit(); }}>
         {question.kind === 'choice' || question.kind === 'true-false' ? (
           <fieldset disabled={feedback !== null} className="space-y-3">
             <legend className="text-sm text-slate-600 mb-2">Choose one answer</legend>
@@ -293,48 +304,50 @@ function RoboticsQuiz({ mode, questions, settings, onComplete }: {
           </fieldset>
         ) : (
           <div className="space-y-3">
-            {question.kind === 'short' && (
-              <label className="flex items-center gap-3">
-                <input type="checkbox" checked={notebook} disabled={feedback !== null} onChange={event => setNotebook(event.target.checked)} />
-                I wrote my answer in a notebook for a parent to check
-              </label>
-            )}
-            {!notebook && (
+            <label htmlFor="robotics-answer" className="block font-semibold">{question.kind === 'short' ? 'Write your answer' : 'Fill in the blank'}</label>
+            <textarea
+              id="robotics-answer" rows={question.kind === 'short' ? 3 : 2}
+              value={input} onChange={event => setInput(event.target.value)} disabled={feedback !== null || checking}
+              maxLength={MAX_WRITTEN_ANSWER_LENGTH}
+              autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
+              className="w-full rounded-xl border border-slate-300 p-3 text-base"
+            />
+            {question.kind === 'short' && !feedback && (
               <>
-                <label htmlFor="robotics-answer" className="block font-semibold">{question.kind === 'short' ? 'Write your answer' : 'Fill in the blank'}</label>
-                <textarea
-                  id="robotics-answer" rows={question.kind === 'short' ? 3 : 2}
-                  value={input} onChange={event => setInput(event.target.value)} disabled={feedback !== null}
-                  autoComplete="off" autoCorrect="off" autoCapitalize="none" spellCheck={false}
-                  className="w-full rounded-xl border border-slate-300 p-3 text-base"
+                <p className="text-sm text-slate-600">AI checks your meaning, not exact spelling. Feedback stays hidden until {mode === 'exam' ? 'the end of the quiz' : 'you submit'}. Do not include personal information.</p>
+                <label htmlFor="grading-access-code" className="block font-semibold">Grading access code</label>
+                <input
+                  id="grading-access-code" type="password" autoComplete="off" maxLength={128}
+                  value={accessCode} onChange={event => onAccessCodeChange(event.target.value)} disabled={checking}
+                  className="min-h-12 w-full rounded-xl border border-slate-300 p-3"
+                  aria-describedby="grading-access-help"
                 />
+                <p id="grading-access-help" className="text-sm text-slate-600">Use your family's grading code, not a Gemini API key. It stays in memory only while Robotics is open.</p>
+                {!gradingApiUrl && <p role="alert" className="text-amber-900">Automatic checking is not configured. The site owner must connect the grading service.</p>}
               </>
             )}
-            {question.kind === 'short' && <p className="text-sm text-slate-600">A parent checks the meaning, not exact spelling. Model answers stay hidden until {mode === 'exam' ? 'the end of the quiz' : 'you submit'}.</p>}
           </div>
         )}
         {!feedback && (
           <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" className={primaryButton} disabled={!input.trim() && !notebook}>{mode === 'exam' ? 'Save answer and continue' : 'Check answer'}</button>
-            <button type="button" className={secondaryButton} onClick={() => submit(true)}>I don't know yet</button>
+            <button type="submit" className={primaryButton} disabled={checking || !input.trim() || (question.kind === 'short' && (!gradingApiUrl || !accessCode.trim()))}>
+              {checking ? 'Checking answer…' : checkingError ? 'Retry checking answer' : mode === 'exam' ? 'Save answer and continue' : 'Check answer'}
+            </button>
+            <button type="button" className={secondaryButton} disabled={checking} onClick={() => void submit(true)}>I don't know yet</button>
           </div>
         )}
       </form>
+      {checking && <p role="status" className="text-teal-800">Checking your answer. Please wait.</p>}
+      {checkingError && <p role="alert" className="text-amber-900">{checkingError}</p>}
       {feedback && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3" role="status">
-          <p className="font-bold">{pendingWritten ? 'Parent check needed' : feedback.correct ? 'Well done!' : 'Let us practise this again.'}</p>
+          <p className="font-bold">{feedback.correct ? 'Well done!' : 'Let us practise this again.'}</p>
+          {feedback.aiFeedback && <p>AI feedback: {feedback.aiFeedback}</p>}
           <p><strong>Model answer:</strong> {question.answer}</p>
           {question.explanation && <p>{question.explanation}</p>}
-          {pendingWritten ? (
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button className={primaryButton} onClick={() => { setFeedback({ ...feedback, correct: true, parentChecked: true }); setPendingWritten(false); }}>Parent: answer is correct</button>
-              <button className={secondaryButton} onClick={() => { setFeedback({ ...feedback, correct: false, parentChecked: true }); setPendingWritten(false); }}>Parent: needs more practice</button>
-            </div>
-          ) : (
-            <button className={`${primaryButton} inline-flex items-center gap-2`} onClick={() => advance([...answers, feedback])}>
-              {index + 1 === questions.length ? 'Finish practice' : 'Next question'} <ArrowRight className="w-4 h-4" />
-            </button>
-          )}
+          <button className={`${primaryButton} inline-flex items-center gap-2`} onClick={() => advance([...answers, feedback])}>
+            {index + 1 === questions.length ? 'Finish practice' : 'Next question'} <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       )}
     </section>
