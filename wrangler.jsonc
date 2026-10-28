@@ -4,6 +4,9 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-10-28",
   "workers_dev": true,
+  "placement": {
+    "region": "gcp:asia-south1"
+  },
   "secrets": {
     "required": ["GEMINI_API_KEY", "GRADING_ACCESS_TOKEN"]
   },

@@ -159,6 +159,11 @@ available on the deployed Worker.
   approximate, not a strict global spending cap. Each request can make up to two
   Gemini calls. Check Gemini quotas/billing separately; free Worker hosting does
   not imply free or unlimited Gemini usage.
+- Worker placement targets Mumbai (`gcp:asia-south1`). Without placement, a
+  request can run in a Cloudflare location where Gemini is unavailable, causing
+  intermittent failures depending on where the site is opened. Placement hints
+  select a nearby Cloudflare location; they are not a strict data-residency
+  guarantee. Keep the target in a Gemini-supported region.
 - Only grade level, question, reference, criteria, and the typed answer are sent
   to Google. Student IDs/names and progress are not sent. Do not enter personal
   information in answers. Check Google's data-use terms before using its free
