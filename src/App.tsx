@@ -5,6 +5,7 @@ import { AllWordsView } from './components/AllWordsView';
 import { ParentDashboard } from './components/ParentDashboard';
 import { WorksheetView } from './components/WorksheetView';
 import { RoboticsView } from './components/RoboticsView';
+import { SubjectHome } from './components/SubjectHome';
 import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
 import { 
   loadSettings, 
@@ -12,13 +13,15 @@ import {
   AppSettings, 
   loadActiveStudent, 
   saveActiveStudent, 
-  subscribeStorageError 
+  subscribeStorageError,
+  emitStorageError
 } from './utils/storage';
-import { getWordsForStudent, getStudentProfile } from './data/wordList';
+import { getStudentProfile } from './data/wordList';
+import { getAvailableSubjectsForGrade, getSubjectForView } from './data/subjects';
 import { audioService } from './utils/audio';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ActiveAppView>('session');
+  const [currentView, setCurrentView] = useState<ActiveAppView>('home');
   const [activeStudent, setActiveStudent] = useState<StudentId>(() => loadActiveStudent());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [sessionSubject, setSessionSubject] = useState<SubjectCategory | 'All'>('All');
@@ -46,8 +49,19 @@ export default function App() {
     if (!settings.speechAudio) audioService.stopAll();
   }, [settings.speechAudio, settings.slowSpeech]);
 
-  const studentWords = getWordsForStudent(activeStudent);
   const currentProfile = getStudentProfile(activeStudent);
+  const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
+
+  const handleNavigate = (view: ActiveAppView) => {
+    audioService.stopAll();
+    const subject = getSubjectForView(view);
+    if (subject && !availableSubjects.some(available => available.id === subject.id)) {
+      emitStorageError(`${subject.name} is not available for ${currentProfile.gradeLabel}. Please choose another subject.`);
+      setCurrentView('home');
+      return;
+    }
+    setCurrentView(view);
+  };
 
   const handleUpdateSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
@@ -58,6 +72,11 @@ export default function App() {
     audioService.stopAll();
     setActiveStudent(newStudent);
     saveActiveStudent(newStudent);
+    const nextGrade = getStudentProfile(newStudent).grade;
+    const subject = getSubjectForView(currentView);
+    if (subject && !getAvailableSubjectsForGrade(nextGrade).some(available => available.id === subject.id)) {
+      setCurrentView('home');
+    }
     // Reset filters and active session inputs
     setSessionSubject('All');
     setTargetedWords(null);
@@ -67,14 +86,14 @@ export default function App() {
   const handlePracticeSpecificWord = (word: WordEntry) => {
     setTargetedWords([word]);
     setSessionSubject(word.subject);
-    setCurrentView('session');
+    handleNavigate('session');
     setRefreshKey(prev => prev + 1);
   };
 
   const handleStartSubjectSession = (subject: SubjectCategory) => {
     setTargetedWords(null);
     setSessionSubject(subject);
-    setCurrentView('session');
+    handleNavigate('session');
     setRefreshKey(prev => prev + 1);
   };
 
@@ -85,7 +104,7 @@ export default function App() {
     } else {
       setSessionSubject('All');
     }
-    setCurrentView('session');
+    handleNavigate('session');
     setRefreshKey(prev => prev + 1);
   };
 
@@ -110,10 +129,7 @@ export default function App() {
       {/* Top Bar Header */}
       <Header
         currentView={currentView}
-        onNavigate={(view) => {
-          audioService.stopAll();
-          setCurrentView(view);
-        }}
+        onNavigate={handleNavigate}
         activeStudent={activeStudent}
         onSwitchStudent={handleSwitchStudent}
         settings={settings}
@@ -122,6 +138,10 @@ export default function App() {
 
       {/* Main View Container */}
       <main className="flex-1 min-w-0">
+        {currentView === 'home' && (
+          <SubjectHome activeStudent={activeStudent} onNavigate={handleNavigate} />
+        )}
+
         {currentView === 'session' && (
           <SessionView
             key={`${activeStudent}-${refreshKey}`}
@@ -134,13 +154,14 @@ export default function App() {
             }}
             targetedWords={targetedWords || undefined}
             onClearTargeted={() => setTargetedWords(null)}
-            onExploreAll={() => setCurrentView('curriculum')}
-            onOpenParent={() => setCurrentView('parent')}
+            onExploreAll={() => handleNavigate('curriculum')}
+            onOpenParent={() => handleNavigate('parent')}
           />
         )}
 
         {currentView === 'curriculum' && (
           <AllWordsView
+            key={activeStudent}
             activeStudent={activeStudent}
             onPracticeSpecificWord={handlePracticeSpecificWord}
             onStartSubjectSession={handleStartSubjectSession}
@@ -149,18 +170,20 @@ export default function App() {
 
         {currentView === 'parent' && (
           <ParentDashboard
+            key={activeStudent}
             activeStudent={activeStudent}
             onStartTargetedSession={handleStartTargetedSession}
-            onOpenWorksheet={() => setCurrentView('worksheet')}
+            onOpenWorksheet={() => handleNavigate('worksheet')}
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
-            onOpenRobotics={() => setCurrentView('robotics')}
+            onOpenRobotics={() => handleNavigate('robotics')}
           />
         )}
 
         {currentView === 'worksheet' && (
           <WorksheetView
+            key={activeStudent}
             activeStudent={activeStudent}
-            onBackToPractice={() => setCurrentView('session')}
+            onBackToPractice={() => handleNavigate('session')}
           />
         )}
 
@@ -173,10 +196,10 @@ export default function App() {
       <footer className="no-print border-t border-slate-200/80 bg-white/60 py-6 text-center text-xs text-slate-500">
         <div className="max-w-4xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>
-            Spell Bee Learning Companion · Designed for calm, evidence-based spelling mastery.
+            Learning Academy · Learn with confidence, one subject at a time.
           </p>
           <p className="text-slate-400">
-            {currentProfile.name} ({currentProfile.gradeLabel}) · {studentWords.length} Curriculum Words
+            {currentProfile.name} ({currentProfile.gradeLabel}) · {availableSubjects.length} subjects
           </p>
         </div>
       </footer>

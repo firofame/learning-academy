@@ -1,5 +1,5 @@
 /**
- * Core type definitions for Spell Bee Learning Companion
+ * Core type definitions for Learning Academy
  */
 
 export type StudentId = 'fazia' | 'shiza';
@@ -7,14 +7,14 @@ export type StudentId = 'fazia' | 'shiza';
 export interface StudentProfile {
   id: StudentId;
   name: string;
+  grade: number;
   gradeLabel: string;
   avatarEmoji: string;
   description: string;
 }
 
-export type Grade2Subject = 'EVS' | 'Maths' | 'Malayalam' | 'Computer' | 'English' | 'Hindi';
-
-export type Grade6Subject = 
+export type SubjectCategory =
+  | 'EVS'
   | 'Biology'
   | 'Physics'
   | 'Chemistry'
@@ -25,8 +25,6 @@ export type Grade6Subject =
   | 'Malayalam'
   | 'Hindi';
 
-export type SubjectCategory = Grade2Subject | Grade6Subject;
-
 export type ScriptType = 'english' | 'malayalam' | 'devanagari';
 
 export type MasteryLevel = 'learning' | 'practising' | 'remembered';
@@ -35,7 +33,7 @@ export type StudyMode = 'learn' | 'practice' | 'test';
 
 export interface WordEntry {
   id: string;
-  studentGrade: 2 | 6;
+  studentGrade: number;
   word: string; // Display word (e.g., "Phyllotaxy", "Bicycle", "രാജ്യപത്നി", "भरोसा")
   canonicalSpelling: string; // The primary spelling to check in lowercase
   nativeScript?: string; // For Indic words (e.g. "രാജ്യപത്നി", "भरोसा")
@@ -73,7 +71,18 @@ export interface WordProgress {
   }>;
 }
 
-export type ActiveAppView = 'session' | 'curriculum' | 'parent' | 'worksheet' | 'robotics';
+export type ActiveAppView = 'home' | 'session' | 'curriculum' | 'parent' | 'worksheet' | 'robotics';
+
+export type LearningSubjectId = 'spell-bee' | 'robotics';
+
+export interface LearningSubject {
+  id: LearningSubjectId;
+  name: string;
+  description: string;
+  availableGrades: number[];
+  startView: ActiveAppView;
+  views: ActiveAppView[];
+}
 
 export interface PracticeSessionState {
   words: WordEntry[];

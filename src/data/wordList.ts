@@ -4,16 +4,18 @@ export const STUDENT_PROFILES: StudentProfile[] = [
   {
     id: 'fazia',
     name: 'Fazia',
+    grade: 2,
     gradeLabel: 'Grade 2',
     avatarEmoji: '🌸',
-    description: 'Foundational spelling bee vocabulary across 6 subjects'
+    description: 'Foundational spelling bee vocabulary across 6 word categories'
   },
   {
     id: 'shiza',
     name: 'Shiza',
+    grade: 6,
     gradeLabel: 'Grade 6',
     avatarEmoji: '⭐',
-    description: 'Advanced academic vocabulary across 9 subjects'
+    description: 'Advanced academic vocabulary across 9 word categories'
   }
 ];
 
@@ -2254,15 +2256,18 @@ export const GRADE_6_WORDS: WordEntry[] = [
 
 export const ALL_WORDS: WordEntry[] = [...GRADE_2_WORDS, ...GRADE_6_WORDS];
 
+export function getWordsForGrade(grade: number): WordEntry[] {
+  return ALL_WORDS.filter(word => word.studentGrade === grade);
+}
+
 export function getWordsForStudent(studentId: StudentId): WordEntry[] {
-  if (studentId === 'shiza') {
-    return GRADE_6_WORDS;
-  }
-  return GRADE_2_WORDS;
+  return getWordsForGrade(getStudentProfile(studentId).grade);
 }
 
 export function getStudentProfile(studentId: StudentId): StudentProfile {
-  return STUDENT_PROFILES.find(p => p.id === studentId) || STUDENT_PROFILES[0];
+  const profile = STUDENT_PROFILES.find(p => p.id === studentId);
+  if (!profile) throw new Error(`Unknown student profile: ${studentId}`);
+  return profile;
 }
 
 export const SUBJECT_METADATA: Record<SubjectCategory, {

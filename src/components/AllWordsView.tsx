@@ -80,7 +80,7 @@ export const AllWordsView: React.FC<AllWordsViewProps> = ({
             All {studentWords.length} Words Matrix
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Full school curriculum words categorized by subject with verified definitions and tricky spelling patterns.
+            Spell Bee words organized by word category, with verified definitions and tricky spelling patterns.
           </p>
         </div>
 

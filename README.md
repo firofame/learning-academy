@@ -1,6 +1,30 @@
-# Spell Bee Academy & Learning Companion
+# Learning Academy
 
-An evidence-based spelling and vocabulary learning companion designed for calm, systematic mastery.
+A grade-aware learning app with **Spell Bee** and **Robotics** as separate subjects,
+designed for calm, systematic learning.
+
+## Subjects & Grades
+
+- The app opens on a subject home screen for the active student and their grade.
+- Spell Bee and Robotics are currently available for both **Grade 2** and **Grade 6**.
+- EVS, Maths, English, Hindi, Malayalam, and the other spelling groupings are
+  **word categories within Spell Bee**, not separate academy subjects.
+- Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.
+- Each subject declares its own `availableGrades` in
+  [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
+  the same across subjects. Home cards, navigation, and related dashboard links
+  use this catalog. Switching to a profile whose grade does not offer the current
+  subject returns to the subject home screen.
+- Student profiles in [`src/data/wordList.ts`](src/data/wordList.ts) have an explicit
+  numeric `grade`. Spelling words and robotics lessons are selected by grade,
+  while progress remains stored separately for each student.
+- To add another grade, add its curriculum content and profile, then include that
+  grade only in the subjects that offer it. To add another subject, define its
+  identity, description, available grades, and views in the catalog, and wire its
+  learning view into [`src/App.tsx`](src/App.tsx) and the subject ID type in
+  [`src/types/index.ts`](src/types/index.ts).
+- Existing browser-storage keys and curriculum IDs are unchanged, so the rename
+  does not reset saved spelling or robotics progress.
 
 ## Package Manager & Development Workflow
 
@@ -53,7 +77,7 @@ local development URL does not transfer automatically to the published site.
 ## Features & Learning Design
 
 - **Robotics Exam Revision**:
-  - Open **Robotics** in the main navigation. Switching profiles selects Fazia's Grade 2 *Simple and Complex Machines* or Shiza's Grade 6 *Exploring AI Domains* lesson.
+  - Open **Robotics** from the subject home screen or main navigation. Switching profiles selects Fazia's Grade 2 *Simple and Complex Machines* or Shiza's Grade 6 *Exploring AI Domains* lesson.
   - Content follows the supplied Lesson 1 school PDFs: 23 Grade 2 questions and 22 Grade 6 questions covering true/false, multiple choice, fill in the blanks, and short answers.
   - Revision cards include read-aloud using the existing voice/slow-speech controls, memory tips, and a short revision plan.
   - Assisted practice gives immediate feedback. The full exam quiz hides answers until all questions are submitted; a parent then marks written/notebook answers against the model, allowing equivalent wording.
@@ -81,7 +105,7 @@ local development URL does not transfer automatically to the published site.
   - Voice and slow-speech settings apply across every screen. Navigation wraps into a second row on compact screens.
 - **Small-Screen Learning**:
   - Phone controls have at least 48px touch targets, with larger supporting text and short Learn / Practice / Test labels.
-  - Subject pickers use a native dropdown on phones so every subject is discoverable without horizontal scrolling.
+  - Spell Bee word-category pickers use a native dropdown on phones so every category is discoverable without horizontal scrolling.
   - Cards and action buttons stack to fit narrow screens; the phone header scrolls away to leave more room for learning and the keyboard.
   - Typing starts only when the child taps the answer field. Spelling inputs request no autocorrect, automatic capitals, autocomplete, or spellcheck so keyboard hints do not undermine recall.
   - Desktop navigation and printable worksheets retain their existing layouts.

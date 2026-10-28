@@ -23,7 +23,7 @@ export const SubjectFilter: React.FC<SubjectFilterProps> = ({
   return (
     <div className="min-w-0 w-full sm:w-auto max-w-full">
       <div className="flex items-center gap-3 sm:hidden">
-        <label htmlFor={selectId} className="text-sm font-semibold text-slate-700">Subject</label>
+        <label htmlFor={selectId} className="text-sm font-semibold text-slate-700">Word category</label>
         <select
           id={selectId}
           value={value}

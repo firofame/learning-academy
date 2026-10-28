@@ -201,7 +201,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({
 
         {/* Worksheet Footer */}
         <div className="border-t-2 border-slate-900 pt-4 flex items-center justify-between text-xs text-slate-500">
-          <span>Spell Bee Learning Companion · {currentProfile.name} ({currentProfile.gradeLabel})</span>
+          <span>Learning Academy · Spell Bee · {currentProfile.name} ({currentProfile.gradeLabel})</span>
           <span>{filteredWords.length} Test Words</span>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { StudentId } from '../types';
+import { getStudentProfile } from './wordList';
 
 export interface RoboticsCard {
   id: string;
@@ -22,7 +23,7 @@ export type RoboticsQuestion =
 
 export interface RoboticsLesson {
   id: string;
-  studentId: StudentId;
+  grade: number;
   title: string;
   sourceName: string;
   memoryTip: string;
@@ -90,10 +91,10 @@ const aiCards: RoboticsCard[] = [
   }
 ];
 
-export const ROBOTICS_LESSONS: Record<StudentId, RoboticsLesson> = {
-  fazia: {
+export const ROBOTICS_LESSONS: RoboticsLesson[] = [
+  {
     id: 'robotics-grade-2-lesson-1',
-    studentId: 'fazia',
+    grade: 2,
     title: 'Simple and Complex Machines',
     sourceName: 'Robotics Notes Grade 2 lesson-1-1.pdf',
     memoryTip: 'Simple = few parts. Complex = two or more simple machines together. Machines save effort!',
@@ -120,9 +121,9 @@ export const ROBOTICS_LESSONS: Record<StudentId, RoboticsLesson> = {
       ...shortAnswers(machinesCards)
     ]
   },
-  shiza: {
+  {
     id: 'robotics-grade-6-lesson-1',
-    studentId: 'shiza',
+    grade: 6,
     title: 'Exploring AI Domains',
     sourceName: 'Robotics Grade 6 lesson1 .pdf',
     memoryTip: 'Language - Pictures - Numbers: NLP works with language; CV with images and videos; Statistical Data with numbers and facts.',
@@ -149,10 +150,17 @@ export const ROBOTICS_LESSONS: Record<StudentId, RoboticsLesson> = {
       ...shortAnswers(aiCards)
     ]
   }
-};
+];
+
+export function getRoboticsLessonForGrade(grade: number): RoboticsLesson | undefined {
+  return ROBOTICS_LESSONS.find(lesson => lesson.grade === grade);
+}
 
 export function getRoboticsLesson(studentId: StudentId): RoboticsLesson {
-  return ROBOTICS_LESSONS[studentId];
+  const profile = getStudentProfile(studentId);
+  const lesson = getRoboticsLessonForGrade(profile.grade);
+  if (!lesson) throw new Error(`Robotics is not available for ${profile.gradeLabel}.`);
+  return lesson;
 }
 
 export function normalizeRoboticsAnswer(answer: string): string {

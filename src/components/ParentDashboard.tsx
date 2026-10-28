@@ -16,6 +16,7 @@ import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data
 import { getAllProgress, resetStudentProgress, getWordProgress, isWordDueForReview } from '../utils/storage';
 import { loadRoboticsProgress } from '../utils/roboticsStorage';
 import { getRoboticsLesson } from '../data/robotics';
+import { isSubjectAvailableForGrade } from '../data/subjects';
 
 interface ParentDashboardProps {
   activeStudent: StudentId;
@@ -36,8 +37,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   const currentProfile = getStudentProfile(activeStudent);
   const studentWords = getWordsForStudent(activeStudent);
   const allProgress = getAllProgress(activeStudent);
-  const robotics = loadRoboticsProgress(activeStudent);
-  const roboticsExam = robotics.exam;
+  const roboticsAvailable = isSubjectAvailableForGrade('robotics', currentProfile.grade);
+  const robotics = roboticsAvailable ? loadRoboticsProgress(activeStudent) : null;
+  const roboticsLesson = roboticsAvailable ? getRoboticsLesson(activeStudent) : null;
+  const roboticsExam = robotics?.exam;
 
   // Categorize words by evidence-based test-readiness mastery
   const rememberedWords: WordEntry[] = [];
@@ -88,7 +91,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
       <div className="border-b border-slate-200 pb-5">
         <div className="flex items-center gap-2 text-amber-800 font-semibold text-xs tracking-wider uppercase mb-1">
           <HeartHandshake className="w-4 h-4" />
-          <span>Parent & Educator Insights · {currentProfile.name} ({currentProfile.gradeLabel})</span>
+          <span>Spell Bee · Parent & Educator Insights · {currentProfile.name} ({currentProfile.gradeLabel})</span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
           Verifiable Spelling Mastery & Test Readiness
@@ -211,20 +214,22 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
         </button>
       </div>
 
-      <section className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-3" aria-label="Robotics progress">
-        <h2 className="text-lg font-bold">Robotics: {getRoboticsLesson(activeStudent).title}</h2>
-        <p className="text-sm">
-          {roboticsExam
-            ? `Last exam quiz: ${roboticsExam.answers.filter(answer => answer.correct).length} / ${roboticsExam.answers.length} correct. ${roboticsExam.answers.filter(answer => answer.parentChecked).length} written answer(s) parent-checked.`
-            : 'No completed robotics exam quiz yet.'}
-        </p>
-        <p className="text-sm">{robotics.reviewQuestionIds.length} question(s) to revisit. Robotics results are separate from spelling mastery and are not cleared by the spelling reset.</p>
-        {onOpenRobotics && (
-          <button onClick={onOpenRobotics} className="min-h-12 px-4 py-3 rounded-xl bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer">
-            Open robotics revision
-          </button>
-        )}
-      </section>
+      {robotics && roboticsLesson && (
+        <section className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-3" aria-label="Robotics progress">
+          <h2 className="text-lg font-bold">Robotics: {roboticsLesson.title}</h2>
+          <p className="text-sm">
+            {roboticsExam
+              ? `Last exam quiz: ${roboticsExam.answers.filter(answer => answer.correct).length} / ${roboticsExam.answers.length} correct. ${roboticsExam.answers.filter(answer => answer.parentChecked).length} written answer(s) parent-checked.`
+              : 'No completed robotics exam quiz yet.'}
+          </p>
+          <p className="text-sm">{robotics.reviewQuestionIds.length} question(s) to revisit. Robotics results are separate from spelling mastery and are not cleared by the spelling reset.</p>
+          {onOpenRobotics && (
+            <button onClick={onOpenRobotics} className="min-h-12 px-4 py-3 rounded-xl bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer">
+              Open robotics revision
+            </button>
+          )}
+        </section>
+      )}
 
       {/* Diagnostic Mistake Log */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
@@ -271,7 +276,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
       {/* Subject by Subject Mastery Breakdown */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
         <h2 className="text-lg font-bold text-slate-900">
-          Progress by Subject ({activeSubjects.length} Subjects)
+          Progress by Word Category ({activeSubjects.length} Categories)
         </h2>
 
         <div className="space-y-4">
