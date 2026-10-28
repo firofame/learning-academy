@@ -83,7 +83,7 @@ step for new robotics quizzes. Historical parent-checked results remain readable
 
 Deployed grading endpoint:
 https://learning-academy-grading.firofame.workers.dev/grade
-(authenticated POST requests only).
+(POST requests only; no access code required).
 
 ### Deploy the grading Worker
 
@@ -98,37 +98,36 @@ https://learning-academy-grading.firofame.workers.dev/grade
    Run this in the zsh terminal where your key is set, or put it in a Codespaces
    secret and restart the Codespace first. Do not paste the key into source code,
    chat, a GitHub Pages build variable, or any `VITE_` variable.
-3. Generate a random family access code, save it in your password manager, and
-   enter it at the secret prompt:
-   ```bash
-   openssl rand -hex 24
-   npx wrangler secret put GRADING_ACCESS_TOKEN
-   ```
-   The code must be 24–128 characters. It is separate from the Gemini key.
-4. Review `ALLOWED_ORIGINS` in [`wrangler.jsonc`](wrangler.jsonc). It includes
+3. Review `ALLOWED_ORIGINS` in [`wrangler.jsonc`](wrangler.jsonc). It includes
    `https://firofame.github.io` and local Vite URLs. Use origins without paths or
    trailing slashes. If rate-limit namespace `1001` is already used by another
    Worker in your Cloudflare account, choose an unused namespace.
-5. Deploy:
+4. Deploy:
    ```bash
    npm run worker:deploy
    ```
-6. In the GitHub repository, open **Settings > Secrets and variables > Actions >
+5. In the GitHub repository, open **Settings > Secrets and variables > Actions >
    Variables** and create `VITE_GRADING_API_URL` with the full endpoint:
    `https://learning-academy-grading.<your-subdomain>.workers.dev/grade`.
    Run the GitHub Pages deployment workflow again. Only this public URL goes
-   into the frontend build; neither secret belongs in GitHub Pages.
+   into the frontend build; the Gemini key does not belong in GitHub Pages.
 
-Enter the family grading code at the first written-answer question. It stays in
-React memory while Robotics is open, is reused for subsequent questions, and is
-not saved in browser storage. Leaving Robotics or reloading requires re-entry.
-Anyone holding the code can use the grading API; rotate it if it is shared.
-Origin checks are defense in depth, not authentication.
+Children only enter their answer and select **Check answer** in practice or
+**Save answer and continue** in an exam. No access code or parent unlock is
+required, including after leaving Robotics or reloading.
+
+The grading endpoint is publicly usable. Origin checks restrict browser access
+but are not authentication; other clients can imitate an allowed origin and
+consume your Gemini quota. Rate limits reduce abuse, not eliminate it. Set
+appropriate Gemini quotas and monitor billing before deploying.
+
+When upgrading an existing deployment, redeploy both the Worker and GitHub Pages.
+The old family-code Worker secret is no longer required or read.
 
 ### Local development
 
-Create a gitignored `.dev.vars` for Wrangler using the same two secret names:
-`GEMINI_API_KEY` and `GRADING_ACCESS_TOKEN`. Copy `.env.example` to `.env.local`
+Create a gitignored `.dev.vars` for Wrangler containing `GEMINI_API_KEY`.
+Copy `.env.example` to `.env.local`
 for the frontend endpoint. In separate terminals run:
 
 ```bash
@@ -136,8 +135,8 @@ npm run worker:dev
 npm run dev
 ```
 
-Alternatively export both secrets in your shell and run `npm run worker:dev`.
-The required-secret list in `wrangler.jsonc` lets Wrangler read just those names
+Alternatively export `GEMINI_API_KEY` in your shell and run `npm run worker:dev`.
+The required-secret list in `wrangler.jsonc` lets Wrangler read just that name
 from the process environment. Your shell's Gemini key is never automatically
 available on the deployed Worker.
 
@@ -154,7 +153,7 @@ available on the deployed Worker.
   "I don't know yet" is an explicit skipped answer and does count as incorrect.
 - Practice shows feedback immediately. Exam feedback stays hidden until all
   questions finish. Only completed, graded quizzes are saved.
-- Requests require the family code and have per-IP and family-wide limits of
+- Requests do not require authentication and have per-IP and shared limits of
   30 requests per minute **per Cloudflare location**. Cloudflare's counters are
   approximate, not a strict global spending cap. Each request can make up to two
   Gemini calls. Check Gemini quotas/billing separately; free Worker hosting does

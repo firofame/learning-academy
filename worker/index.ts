@@ -5,7 +5,6 @@ import {
 
 export interface GradingEnv {
   GEMINI_API_KEY: string;
-  GRADING_ACCESS_TOKEN: string;
   ALLOWED_ORIGINS: string;
   GRADING_RATE_LIMITER: {
     limit(options: { key: string }): Promise<{ success: boolean }>;
@@ -48,20 +47,6 @@ async function readBody(request: Request): Promise<unknown> {
   for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
   try { return JSON.parse(new TextDecoder().decode(bytes)); }
   catch { throw new GradingError(400, 'The answer must be valid JSON.'); }
-}
-
-async function authorized(header: string | null, token: string): Promise<boolean> {
-  if (!header || header.length > 512) return false;
-  const encoder = new TextEncoder();
-  const [actual, expected] = await Promise.all([
-    crypto.subtle.digest('SHA-256', encoder.encode(header)),
-    crypto.subtle.digest('SHA-256', encoder.encode(`Bearer ${token}`))
-  ]);
-  const left = new Uint8Array(actual);
-  const right = new Uint8Array(expected);
-  let difference = 0;
-  for (let index = 0; index < left.length; index++) difference |= left[index] ^ right[index];
-  return difference === 0;
 }
 
 async function generateGrade(
@@ -140,22 +125,18 @@ export async function handleGradingRequest(
   if (new URL(request.url).pathname !== '/grade') return reply(404, { error: 'Not found.' });
   if (request.method === 'OPTIONS') {
     headers.set('Access-Control-Allow-Methods', 'POST');
-    headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type');
     headers.set('Access-Control-Max-Age', '600');
     return new Response(null, { status: 204, headers });
   }
   if (request.method !== 'POST') return reply(405, { error: 'Use POST.' });
   try {
-    if (!env.GEMINI_API_KEY || !env.GRADING_ACCESS_TOKEN || env.GRADING_ACCESS_TOKEN.length < 24 ||
-        env.GRADING_ACCESS_TOKEN.length > 128 || !env.GRADING_RATE_LIMITER) {
+    if (!env.GEMINI_API_KEY || !env.GRADING_RATE_LIMITER) {
       throw new GradingError(503, 'Automatic checking is not configured.');
     }
     const ip = request.headers.get('CF-Connecting-IP') || 'local';
     if (!(await env.GRADING_RATE_LIMITER.limit({ key: `ip:${ip}` })).success) {
       throw new GradingError(429, 'Too many requests. Wait a minute and retry.');
-    }
-    if (!await authorized(request.headers.get('Authorization'), env.GRADING_ACCESS_TOKEN)) {
-      throw new GradingError(401, 'Incorrect grading access code.');
     }
     if (!(await env.GRADING_RATE_LIMITER.limit({ key: 'family' })).success) {
       throw new GradingError(429, 'Too many checks. Wait a minute and retry.');

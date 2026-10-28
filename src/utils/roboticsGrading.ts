@@ -17,7 +17,7 @@ export function isWrittenGrade(value: unknown): value is WrittenGrade {
 }
 
 export async function gradeRoboticsAnswer(
-  apiUrl: string, accessCode: string, lessonId: string, questionId: string,
+  apiUrl: string, lessonId: string, questionId: string,
   answer: string, signal: AbortSignal
 ): Promise<WrittenGrade> {
   let url: URL;
@@ -31,7 +31,7 @@ export async function gradeRoboticsAnswer(
   try {
     response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessCode.trim()}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lessonId, questionId, answer }),
       signal: AbortSignal.any([signal, AbortSignal.timeout(55_000)])
     });
@@ -40,7 +40,6 @@ export async function gradeRoboticsAnswer(
     throw new Error('Could not reach automatic checking. Your answer is unchanged. Please retry.');
   }
   if (!response.ok) {
-    if (response.status === 401) throw new Error('The grading access code is incorrect. Update it and retry.');
     if (response.status === 429) throw new Error('Checking is busy. Wait a minute and retry. Your answer has not been marked.');
     throw new Error('Automatic checking is unavailable. Your answer has not been marked. Please retry.');
   }

@@ -473,8 +473,8 @@ describe('Production component interactions', () => {
           assert.equal(field.getAttribute('spellcheck'), 'false');
           fireEvent.change(field, { target: { value: question.answer.toUpperCase() } });
         } else {
+          assert.equal(view.queryByLabelText('Grading access code'), null);
           fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: question.answer } });
-          fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
         }
         fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
         if (index + 1 < lesson.questions.length) {
@@ -505,7 +505,7 @@ describe('Production component interactions', () => {
     });
   }
 
-  test('robotics short-answer practice automatically checks equivalent wording without parent confirmation', async t => {
+  test('robotics short-answer practice checks equivalent wording without an access code or parent confirmation', async t => {
     t.mock.method(globalThis, 'fetch', async () => Response.json({ correct: true, feedback: 'That means the same thing.' }));
     const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
     saveRoboticsResult('fazia', {
@@ -516,8 +516,10 @@ describe('Production component interactions', () => {
       activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
     }));
     fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
+    assert.equal(view.queryByLabelText('Grading access code'), null);
+    assert.equal(view.getByRole('button', { name: 'Check answer' }).hasAttribute('disabled'), true);
     fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes our work easier.' } });
-    fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
+    assert.equal(view.getByRole('button', { name: 'Check answer' }).hasAttribute('disabled'), false);
     fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
     await waitFor(() => assert.ok(view.getByText('Well done!')));
     assert.ok(view.getByText('AI feedback: That means the same thing.'));
@@ -545,7 +547,6 @@ describe('Production component interactions', () => {
     }));
     fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
     fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes work easier.' } });
-    fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
     const form = view.getByRole('button', { name: 'Check answer' }).closest('form')!;
     act(() => { fireEvent.submit(form); fireEvent.submit(form); });
     assert.equal(calls, 1);
@@ -581,7 +582,6 @@ describe('Production component interactions', () => {
     }));
     fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
     fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes work easier.' } });
-    fireEvent.change(view.getByLabelText('Grading access code'), { target: { value: 'test-family-access-code-123456' } });
     fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
     await act(async () => { view.unmount(); });
     assert.equal(signal?.aborted, true);

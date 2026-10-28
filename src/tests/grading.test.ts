@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import worker, { handleGradingRequest, type GradingEnv } from '../../worker/index';
 import { gradeRoboticsAnswer, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
 
-const accessCode = 'test-family-access-code-123456';
 const origin = 'https://firofame.github.io';
 const answer = { lessonId: 'robotics-grade-2-lesson-1', questionId: 'g2-machine', answer: 'It makes work easier.' };
 
 function environment(): GradingEnv {
   return {
-    GEMINI_API_KEY: 'synthetic-test-key', GRADING_ACCESS_TOKEN: accessCode,
+    GEMINI_API_KEY: 'synthetic-test-key',
     ALLOWED_ORIGINS: origin,
     GRADING_RATE_LIMITER: { limit: async () => ({ success: true }) }
   };
@@ -18,7 +17,7 @@ function environment(): GradingEnv {
 function request(body: unknown = answer, headers: HeadersInit = {}): Request {
   return new Request('https://grading.example/grade', {
     method: 'POST',
-    headers: { Origin: origin, Authorization: `Bearer ${accessCode}`, 'Content-Type': 'application/json', ...headers },
+    headers: { Origin: origin, 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body)
   });
 }
@@ -41,14 +40,12 @@ describe('Cloudflare automatic grading', () => {
     }), env);
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), origin);
-    assert.match(preflight.headers.get('Access-Control-Allow-Headers')!, /Authorization/);
+    assert.equal(preflight.headers.get('Access-Control-Allow-Headers'), 'Content-Type');
   });
 
-  test('requires a server secret and family code, and enforces IP and family limits', async () => {
+  test('requires the server API key and enforces IP and shared limits without an access code', async () => {
     const env = environment();
-    assert.equal((await worker.fetch(request(answer, { Authorization: 'Bearer wrong' }), env)).status, 401);
     assert.equal((await worker.fetch(request(), { ...env, GEMINI_API_KEY: '' })).status, 503);
-    assert.equal((await worker.fetch(request(), { ...env, GRADING_ACCESS_TOKEN: 'short' })).status, 503);
     const keys: string[] = [];
     env.GRADING_RATE_LIMITER.limit = async ({ key }) => {
       keys.push(key);
@@ -58,8 +55,15 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(limited.status, 429);
     assert.equal(limited.headers.get('Retry-After'), '60');
     assert.deepEqual(keys, ['ip:local', 'family']);
-    env.GRADING_RATE_LIMITER.limit = async () => ({ success: false });
-    assert.equal((await worker.fetch(request(), env)).status, 429);
+    keys.length = 0;
+    env.GRADING_RATE_LIMITER.limit = async ({ key }) => {
+      keys.push(key);
+      return { success: false };
+    };
+    const ipLimited = await worker.fetch(request(answer, { 'CF-Connecting-IP': '192.0.2.1' }), env);
+    assert.equal(ipLimited.status, 429);
+    assert.equal(ipLimited.headers.get('Retry-After'), '60');
+    assert.deepEqual(keys, ['ip:192.0.2.1']);
   });
 
   test('rejects malformed, oversized, foreign, or client-supplied marking criteria before calling Gemini', async () => {
@@ -80,7 +84,7 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(calls, 0);
   });
 
-  test('uses the pinned model and server-owned rubric without sending identities or exposing secrets', async () => {
+  test('grades without authorization using the pinned model and server-owned rubric without exposing secrets', async () => {
     let calls = 0;
     const upstream: typeof fetch = async (input, init) => {
       calls++;
@@ -94,7 +98,9 @@ describe('Cloudflare automatic grading', () => {
       assert.equal(body.generationConfig.responseMimeType, 'application/json');
       return geminiResponse();
     };
-    const result = await handleGradingRequest(request(), environment(), upstream);
+    const unauthenticated = request();
+    assert.equal(unauthenticated.headers.has('Authorization'), false);
+    const result = await handleGradingRequest(unauthenticated, environment(), upstream);
     assert.equal(result.status, 200);
     assert.equal(result.headers.get('Cache-Control'), 'no-store');
     assert.deepEqual(await result.json(), { correct: true, feedback: 'You explained how a machine helps us.' });
@@ -143,14 +149,14 @@ describe('Cloudflare automatic grading', () => {
 });
 
 describe('Browser grading client', () => {
-  test('sends only answer identifiers and answer text, using a bearer code', async t => {
+  test('sends only answer identifiers and answer text, without credentials', async t => {
     t.mock.method(globalThis, 'fetch', async (_input: unknown, init: RequestInit) => {
-      assert.equal(new Headers(init.headers).get('Authorization'), `Bearer ${accessCode}`);
+      assert.deepEqual([...new Headers(init.headers)], [['content-type', 'application/json']]);
       assert.deepEqual(JSON.parse(String(init.body)), answer);
       return Response.json({ correct: true, feedback: 'Good explanation.' });
     });
     assert.deepEqual(await gradeRoboticsAnswer(
-      'https://grading.example/grade', accessCode, answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+      'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), { correct: true, feedback: 'Good explanation.' });
   });
 
@@ -162,19 +168,19 @@ describe('Browser grading client', () => {
     ]) {
       const mock = t.mock.method(globalThis, 'fetch', async () => response);
       await assert.rejects(gradeRoboticsAnswer(
-        'https://grading.example/grade', accessCode, answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+        'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
       ));
       mock.mock.restore();
     }
     t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('network'); });
     await assert.rejects(gradeRoboticsAnswer(
-      'https://grading.example/grade', accessCode, answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+      'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /Could not reach/);
     await assert.rejects(gradeRoboticsAnswer(
-      'http://untrusted.example/grade', accessCode, answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+      'http://untrusted.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /secure grading/);
     await assert.rejects(gradeRoboticsAnswer(
-      'not-a-url', accessCode, answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+      'not-a-url', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /invalid grading API URL/);
   });
 });

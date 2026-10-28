@@ -8,7 +8,7 @@
     "region": "gcp:asia-south1"
   },
   "secrets": {
-    "required": ["GEMINI_API_KEY", "GRADING_ACCESS_TOKEN"]
+    "required": ["GEMINI_API_KEY"]
   },
   "vars": {
     "ALLOWED_ORIGINS": "https://firofame.github.io,http://localhost:3000,http://127.0.0.1:3000"

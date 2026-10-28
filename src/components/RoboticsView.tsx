@@ -62,7 +62,6 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
   const [result, setResult] = useState<RoboticsResult | null>(null);
   const [saved, setSaved] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
-  const [accessCode, setAccessCode] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => audioService.stopAll(), []);
@@ -112,7 +111,6 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
           <RoboticsQuiz
             mode={quiz.mode} questions={quiz.questions} settings={settings}
             lessonId={lesson.id} gradingApiUrl={gradingApiUrl}
-            accessCode={accessCode} onAccessCodeChange={setAccessCode}
             onComplete={completed => {
               audioService.stopAll(); setResult(completed); persist(completed);
             }}
@@ -198,15 +196,13 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
 };
 
 function RoboticsQuiz({
-  mode, questions, settings, lessonId, gradingApiUrl, accessCode, onAccessCodeChange, onComplete
+  mode, questions, settings, lessonId, gradingApiUrl, onComplete
 }: {
   mode: RoboticsQuizMode;
   questions: RoboticsQuestion[];
   settings: AppSettings;
   lessonId: string;
   gradingApiUrl: string;
-  accessCode: string;
-  onAccessCodeChange: (value: string) => void;
   onComplete: (result: RoboticsResult) => void;
 }) {
   const [index, setIndex] = useState(0);
@@ -243,9 +239,11 @@ function RoboticsQuiz({
     submittedRef.current = true;
     audioService.stopAll();
     const answer = unknown ? '' : input.trim();
-    if (!unknown && (!answer || (question.kind === 'short' && (!gradingApiUrl || !accessCode.trim())))) {
+    if (!unknown && (!answer || (question.kind === 'short' && !gradingApiUrl))) {
       submittedRef.current = false;
-      setCheckingError('Enter your answer and grading access code before checking.');
+      setCheckingError(!answer
+        ? 'Enter your answer before checking.'
+        : 'Automatic checking is not configured. The site owner must connect the grading service.');
       return;
     }
     const entry: RoboticsAnswer = {
@@ -260,7 +258,7 @@ function RoboticsQuiz({
       setCheckingError('');
       try {
         const grade = await gradeRoboticsAnswer(
-          gradingApiUrl, accessCode, lessonId, question.id, answer, controller.signal
+          gradingApiUrl, lessonId, question.id, answer, controller.signal
         );
         if (controller.signal.aborted) return;
         entry.correct = grade.correct;
@@ -315,14 +313,6 @@ function RoboticsQuiz({
             {question.kind === 'short' && !feedback && (
               <>
                 <p className="text-sm text-slate-600">AI checks your meaning, not exact spelling. Feedback stays hidden until {mode === 'exam' ? 'the end of the quiz' : 'you submit'}. Do not include personal information.</p>
-                <label htmlFor="grading-access-code" className="block font-semibold">Grading access code</label>
-                <input
-                  id="grading-access-code" type="password" autoComplete="off" maxLength={128}
-                  value={accessCode} onChange={event => onAccessCodeChange(event.target.value)} disabled={checking}
-                  className="min-h-12 w-full rounded-xl border border-slate-300 p-3"
-                  aria-describedby="grading-access-help"
-                />
-                <p id="grading-access-help" className="text-sm text-slate-600">Use your family's grading code, not a Gemini API key. It stays in memory only while Robotics is open.</p>
                 {!gradingApiUrl && <p role="alert" className="text-amber-900">Automatic checking is not configured. The site owner must connect the grading service.</p>}
               </>
             )}
@@ -330,7 +320,7 @@ function RoboticsQuiz({
         )}
         {!feedback && (
           <div className="flex flex-col sm:flex-row gap-3">
-            <button type="submit" className={primaryButton} disabled={checking || !input.trim() || (question.kind === 'short' && (!gradingApiUrl || !accessCode.trim()))}>
+            <button type="submit" className={primaryButton} disabled={checking || !input.trim() || (question.kind === 'short' && !gradingApiUrl)}>
               {checking ? 'Checking answer…' : checkingError ? 'Retry checking answer' : mode === 'exam' ? 'Save answer and continue' : 'Check answer'}
             </button>
             <button type="button" className={secondaryButton} disabled={checking} onClick={() => void submit(true)}>I don't know yet</button>
