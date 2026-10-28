@@ -52,6 +52,14 @@ local development URL does not transfer automatically to the published site.
 
 ## Features & Learning Design
 
+- **Robotics Exam Revision**:
+  - Open **Robotics** in the main navigation. Switching profiles selects Fazia's Grade 2 *Simple and Complex Machines* or Shiza's Grade 6 *Exploring AI Domains* lesson.
+  - Content follows the supplied Lesson 1 school PDFs: 23 Grade 2 questions and 22 Grade 6 questions covering true/false, multiple choice, fill in the blanks, and short answers.
+  - Revision cards include read-aloud using the existing voice/slow-speech controls, memory tips, and a short revision plan.
+  - Assisted practice gives immediate feedback. The full exam quiz hides answers until all questions are submitted; a parent then marks written/notebook answers against the model, allowing equivalent wording.
+  - The latest practice and exam results are saved separately for each child in browser storage, without changing spelling progress or its mastery rules. Parent Insights links to robotics and shows the latest exam score.
+  - Missed questions can be practised again. Assisted practice does not clear revisit flags; a correct answer in a completed full exam does. Scores are revision snapshots, not claims of verified mastery.
+  - Results save only after completion, including any parent checks. Navigating away or switching profiles discards an unfinished quiz. Failed saves show a warning and can be retried from the results page. Spelling resets do not erase robotics results.
 - **3-Mode Learning Progression**:
   1. *Learn*: Auditory pronunciation, phonics guide, contextual usage, and tricky spot mnemonics.
   2. *Practice (Assisted)*: Scaffolded syllable and akshara block assembly.

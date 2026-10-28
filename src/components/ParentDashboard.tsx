@@ -14,24 +14,30 @@ import {
 import { WordEntry, SubjectCategory, StudentId } from '../types';
 import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data/wordList';
 import { getAllProgress, resetStudentProgress, getWordProgress, isWordDueForReview } from '../utils/storage';
+import { loadRoboticsProgress } from '../utils/roboticsStorage';
+import { getRoboticsLesson } from '../data/robotics';
 
 interface ParentDashboardProps {
   activeStudent: StudentId;
   onStartTargetedSession: (words: WordEntry[]) => void;
   onOpenWorksheet: () => void;
   onResetComplete: () => void;
+  onOpenRobotics?: () => void;
 }
 
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   activeStudent,
   onStartTargetedSession,
   onOpenWorksheet,
-  onResetComplete
+  onResetComplete,
+  onOpenRobotics
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const currentProfile = getStudentProfile(activeStudent);
   const studentWords = getWordsForStudent(activeStudent);
   const allProgress = getAllProgress(activeStudent);
+  const robotics = loadRoboticsProgress(activeStudent);
+  const roboticsExam = robotics.exam;
 
   // Categorize words by evidence-based test-readiness mastery
   const rememberedWords: WordEntry[] = [];
@@ -204,6 +210,21 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           <span>Reset {currentProfile.name}'s Progress</span>
         </button>
       </div>
+
+      <section className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-3" aria-label="Robotics progress">
+        <h2 className="text-lg font-bold">Robotics: {getRoboticsLesson(activeStudent).title}</h2>
+        <p className="text-sm">
+          {roboticsExam
+            ? `Last exam quiz: ${roboticsExam.answers.filter(answer => answer.correct).length} / ${roboticsExam.answers.length} correct. ${roboticsExam.answers.filter(answer => answer.parentChecked).length} written answer(s) parent-checked.`
+            : 'No completed robotics exam quiz yet.'}
+        </p>
+        <p className="text-sm">{robotics.reviewQuestionIds.length} question(s) to revisit. Robotics results are separate from spelling mastery and are not cleared by the spelling reset.</p>
+        {onOpenRobotics && (
+          <button onClick={onOpenRobotics} className="min-h-12 px-4 py-3 rounded-xl bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer">
+            Open robotics revision
+          </button>
+        )}
+      </section>
 
       {/* Diagnostic Mistake Log */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">

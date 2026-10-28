@@ -1,6 +1,10 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { WordProgress, StudentId } from '../types';
+import { checkRoboticsAnswer, getRoboticsLesson } from '../data/robotics';
+import {
+  getRoboticsStorageKey, loadRoboticsProgress, RoboticsResult, saveRoboticsResult
+} from '../utils/roboticsStorage';
 import { 
   GRADE_2_WORDS, 
   GRADE_6_WORDS, 
@@ -57,6 +61,120 @@ const mockStorage = new MockLocalStorage();
 // Attach to global window
 (global as any).window = { localStorage: mockStorage };
 (global as any).localStorage = mockStorage;
+
+describe('Robotics curriculum and saved results', () => {
+  beforeEach(() => {
+    mockStorage.clear();
+    mockStorage.shouldThrowOnSet = false;
+    mockStorage.shouldThrowOnGet = false;
+  });
+
+  function fullExam(studentId: StudentId): RoboticsResult {
+    return {
+      mode: 'exam',
+      completedAt: new Date().toISOString(),
+      answers: getRoboticsLesson(studentId).questions.map(question => ({
+        questionId: question.id, answer: question.answer, correct: true, parentChecked: question.kind === 'short'
+      }))
+    };
+  }
+
+  test('both PDF lessons include every school question format and valid answer keys', () => {
+    for (const studentId of ['fazia', 'shiza'] as const) {
+      const lesson = getRoboticsLesson(studentId);
+      assert.equal(lesson.studentId, studentId);
+      assert.equal(lesson.questions.length, studentId === 'fazia' ? 23 : 22);
+      assert.equal(new Set(lesson.questions.map(question => question.id)).size, lesson.questions.length);
+      for (const kind of ['true-false', 'choice', 'fill', 'short']) {
+        assert.equal(lesson.questions.filter(question => question.kind === kind).length,
+          kind === 'short' ? lesson.cards.length : 6);
+      }
+      for (const question of lesson.questions) {
+        if (question.kind === 'short') continue;
+        assert.equal(checkRoboticsAnswer(question, question.answer), true);
+        assert.equal(checkRoboticsAnswer(question, ''), false);
+        assert.equal(checkRoboticsAnswer(question, 'not the answer'), false);
+        if (question.kind !== 'fill') assert.ok(question.options.includes(question.answer));
+      }
+    }
+  });
+
+  test('blank answers accept case, whitespace, punctuation and explicit variants, not partial matches', () => {
+    const quantity = getRoboticsLesson('fazia').questions.find(question => question.id === 'g2-fill-4')!;
+    assert.equal(checkRoboticsAnswer(quantity, '  TWO   or More.  '), true);
+    assert.equal(checkRoboticsAnswer(quantity, '2 or more'), true);
+    assert.equal(checkRoboticsAnswer(quantity, 'two'), false);
+    const nlp = getRoboticsLesson('shiza').questions.find(question => question.id === 'g6-fill-2')!;
+    assert.equal(checkRoboticsAnswer(nlp, 'Natural Language Processing'), true);
+    const fullForm = getRoboticsLesson('shiza').questions.find(question => question.id === 'g6-fill-3')!;
+    assert.equal(checkRoboticsAnswer(fullForm, 'NLP'), false);
+    const written = getRoboticsLesson('shiza').questions.find(question => question.kind === 'short')!;
+    assert.throws(() => checkRoboticsAnswer(written, written.answer), /parent check/);
+  });
+
+  test('practice and exam results persist separately per child and leave spelling untouched', () => {
+    mockStorage.setItem('spellbee_progress_fazia_v1', '{"existing":"spelling"}');
+    const exam = fullExam('fazia');
+    exam.answers[0] = { ...exam.answers[0], answer: 'False', correct: false };
+    assert.ok(saveRoboticsResult('fazia', exam));
+    const practice: RoboticsResult = {
+      mode: 'practice', completedAt: new Date().toISOString(),
+      answers: [fullExam('fazia').answers[0]]
+    };
+    assert.ok(saveRoboticsResult('fazia', practice));
+    assert.ok(saveRoboticsResult('shiza', fullExam('shiza')));
+    const fazia = loadRoboticsProgress('fazia');
+    assert.equal(fazia.exam?.answers.filter(answer => answer.correct).length, 22);
+    assert.equal(fazia.practice?.answers.length, 1);
+    assert.deepEqual(fazia.reviewQuestionIds, ['g2-tf-1'], 'assisted practice does not clear an exam mistake');
+    assert.equal(loadRoboticsProgress('shiza').exam?.answers.length, 22);
+    assert.equal(mockStorage.getItem('spellbee_progress_fazia_v1'), '{"existing":"spelling"}');
+    saveRoboticsResult('fazia', fullExam('fazia'));
+    assert.deepEqual(loadRoboticsProgress('fazia').reviewQuestionIds, []);
+  });
+
+  test('malformed, cross-profile, partial and unmarked results are reported rather than trusted', () => {
+    const messages: string[] = [];
+    const unsubscribe = subscribeStorageError(message => messages.push(message));
+    try {
+      const base = fullExam('fazia');
+      const invalid = [
+        { ...base, answers: base.answers.slice(1) },
+        { ...base, answers: [...base.answers, base.answers[0]] },
+        { ...base, answers: base.answers.map(answer => ({ ...answer, parentChecked: false })) },
+        { ...base, answers: [{ ...base.answers[0], questionId: 'other-lesson' }] }
+      ];
+      for (const result of invalid) assert.equal(saveRoboticsResult('fazia', result), null);
+      assert.equal(mockStorage.getItem(getRoboticsStorageKey('fazia')), null);
+
+      const valid = saveRoboticsResult('fazia', base)!;
+      for (const payload of ['{broken', 'null', '[]', JSON.stringify({ ...valid, studentId: 'shiza' }),
+        JSON.stringify({ ...valid, reviewQuestionIds: ['unknown'] }),
+        JSON.stringify({ ...valid, exam: { ...base, answers: [{ ...base.answers[0], correct: false }] } })]) {
+        mockStorage.setItem(getRoboticsStorageKey('fazia'), payload);
+        assert.equal(loadRoboticsProgress('fazia').exam, null);
+      }
+      assert.ok(messages.length >= invalid.length + 6);
+    } finally { unsubscribe(); }
+  });
+
+  test('storage errors are surfaced and a failed save can be retried', () => {
+    const messages: string[] = [];
+    const unsubscribe = subscribeStorageError(message => messages.push(message));
+    try {
+      mockStorage.shouldThrowOnGet = true;
+      assert.equal(loadRoboticsProgress('shiza').exam, null);
+      assert.match(messages.at(-1)!, /Unable to read robotics/);
+      mockStorage.shouldThrowOnGet = false;
+      mockStorage.shouldThrowOnSet = true;
+      assert.equal(saveRoboticsResult('shiza', fullExam('shiza')), null);
+      assert.match(messages.at(-1)!, /Storage save failed/);
+      mockStorage.shouldThrowOnSet = false;
+      assert.ok(saveRoboticsResult('shiza', fullExam('shiza')));
+      assert.equal(loadRoboticsProgress('shiza').exam?.answers.length, 22);
+    } finally { unsubscribe(); }
+  });
+});
 
 describe('Spelling Learning Companion - Regression Test Suite', () => {
   beforeEach(() => {

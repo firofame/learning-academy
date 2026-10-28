@@ -73,7 +73,7 @@ export interface WordProgress {
   }>;
 }
 
-export type ActiveAppView = 'session' | 'curriculum' | 'parent' | 'worksheet';
+export type ActiveAppView = 'session' | 'curriculum' | 'parent' | 'worksheet' | 'robotics';
 
 export interface PracticeSessionState {
   words: WordEntry[];

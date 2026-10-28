@@ -4,6 +4,7 @@ import { SessionView } from './components/SessionView';
 import { AllWordsView } from './components/AllWordsView';
 import { ParentDashboard } from './components/ParentDashboard';
 import { WorksheetView } from './components/WorksheetView';
+import { RoboticsView } from './components/RoboticsView';
 import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
 import { 
   loadSettings, 
@@ -54,6 +55,7 @@ export default function App() {
   };
 
   const handleSwitchStudent = (newStudent: StudentId) => {
+    audioService.stopAll();
     setActiveStudent(newStudent);
     saveActiveStudent(newStudent);
     // Reset filters and active session inputs
@@ -108,7 +110,10 @@ export default function App() {
       {/* Top Bar Header */}
       <Header
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={(view) => {
+          audioService.stopAll();
+          setCurrentView(view);
+        }}
         activeStudent={activeStudent}
         onSwitchStudent={handleSwitchStudent}
         settings={settings}
@@ -148,6 +153,7 @@ export default function App() {
             onStartTargetedSession={handleStartTargetedSession}
             onOpenWorksheet={() => setCurrentView('worksheet')}
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
+            onOpenRobotics={() => setCurrentView('robotics')}
           />
         )}
 
@@ -156,6 +162,10 @@ export default function App() {
             activeStudent={activeStudent}
             onBackToPractice={() => setCurrentView('session')}
           />
+        )}
+
+        {currentView === 'robotics' && (
+          <RoboticsView key={activeStudent} activeStudent={activeStudent} settings={settings} />
         )}
       </main>
 
