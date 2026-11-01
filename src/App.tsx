@@ -5,6 +5,7 @@ import { AllWordsView } from './components/AllWordsView';
 import { ParentDashboard } from './components/ParentDashboard';
 import { WorksheetView } from './components/WorksheetView';
 import { RoboticsView } from './components/RoboticsView';
+import { MathsView } from './components/MathsView';
 import { SubjectHome } from './components/SubjectHome';
 import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
 import { 
@@ -176,6 +177,7 @@ export default function App() {
             onOpenWorksheet={() => handleNavigate('worksheet')}
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
             onOpenRobotics={() => handleNavigate('robotics')}
+            onOpenMaths={() => handleNavigate('maths')}
           />
         )}
 
@@ -189,6 +191,10 @@ export default function App() {
 
         {currentView === 'robotics' && (
           <RoboticsView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+        )}
+
+        {currentView === 'maths' && (
+          <MathsView key={activeStudent} activeStudent={activeStudent} settings={settings} />
         )}
       </main>
 

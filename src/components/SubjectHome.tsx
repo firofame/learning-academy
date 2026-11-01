@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BookOpen } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Calculator } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import { getStudentProfile } from '../data/wordList';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
@@ -27,10 +27,16 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
         </p>
       </header>
 
-      <section aria-label={`Subjects for ${profile.gradeLabel}`} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+      <section aria-label={`Subjects for ${profile.gradeLabel}`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {subjects.map(subject => (
           <article key={subject.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col items-start gap-4">
-            <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
+            {subject.id === 'robotics' ? (
+              <Bot className="w-8 h-8 text-teal-700" aria-hidden="true" />
+            ) : subject.id === 'maths' ? (
+              <Calculator className="w-8 h-8 text-indigo-700" aria-hidden="true" />
+            ) : (
+              <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
+            )}
             <div className="space-y-2 flex-1">
               <h2 className="text-2xl font-bold text-slate-900">{subject.name}</h2>
               <p className="text-sm text-slate-600 leading-relaxed">{subject.description}</p>

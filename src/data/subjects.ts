@@ -16,6 +16,14 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     availableGrades: [2, 6],
     startView: 'robotics',
     views: ['robotics']
+  },
+  {
+    id: 'maths',
+    name: 'Maths',
+    description: 'Revise Grade 2 school maths: place value, expanded form, comparing numbers, shapes, ordering, and addition & subtraction.',
+    availableGrades: [2],
+    startView: 'maths',
+    views: ['maths']
   }
 ];
 
