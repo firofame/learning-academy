@@ -250,4 +250,57 @@ describe('Maths Progress Storage & Isolation', () => {
       unsubscribe();
     }
   });
+
+  test('saves and reloads topic-specific exam results without requiring all 49 questions', () => {
+    const placeValueQuestions = fullLesson.questions.filter(q => q.topic === 'place-value');
+    const topicExam: MathsResult = {
+      mode: 'exam',
+      completedAt: new Date().toISOString(),
+      topic: 'place-value',
+      answers: placeValueQuestions.map(q => ({
+        questionId: q.id,
+        answer: q.answer,
+        correct: true
+      }))
+    };
+
+    const saved = saveMathsResult('fazia', topicExam);
+    assert.ok(saved);
+    assert.equal(saved?.exam?.answers.length, placeValueQuestions.length);
+    assert.equal(saved?.exam?.topic, 'place-value');
+
+    const reloaded = loadMathsProgress('fazia');
+    assert.ok(reloaded.exam);
+    assert.equal(reloaded.exam?.answers.length, placeValueQuestions.length);
+    assert.equal(reloaded.exam?.topic, 'place-value');
+  });
+
+  test('topic exams update reviewQuestionIds: remove newly correct and add newly missed', () => {
+    const pvQuestions = fullLesson.questions.filter(q => q.topic === 'place-value');
+    const topicExam1: MathsResult = {
+      mode: 'exam',
+      completedAt: new Date().toISOString(),
+      topic: 'place-value',
+      answers: pvQuestions.map((q, idx) => ({
+        questionId: q.id,
+        answer: idx === 0 ? 'wrong' : q.answer,
+        correct: idx !== 0
+      }))
+    };
+    const saved1 = saveMathsResult('fazia', topicExam1);
+    assert.ok(saved1);
+    assert.deepEqual(saved1?.reviewQuestionIds, [pvQuestions[0].id]);
+
+    const topicExam2: MathsResult = {
+      mode: 'exam',
+      completedAt: new Date().toISOString(),
+      topic: 'place-value',
+      answers: [
+        { questionId: pvQuestions[0].id, answer: pvQuestions[0].answer, correct: true }
+      ]
+    };
+    const saved2 = saveMathsResult('fazia', topicExam2);
+    assert.ok(saved2);
+    assert.deepEqual(saved2?.reviewQuestionIds, []);
+  });
 });

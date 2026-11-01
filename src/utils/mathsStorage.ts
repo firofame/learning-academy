@@ -13,6 +13,7 @@ export interface MathsAnswer {
 export interface MathsResult {
   mode: MathsQuizMode;
   completedAt: string;
+  topic?: string;
   answers: MathsAnswer[];
 }
 
@@ -55,7 +56,8 @@ function isValidResult(value: unknown, mode: MathsQuizMode, lesson: MathsLesson)
   if (!isPlainObject(value)) return false;
   if (value.mode !== mode) return false;
   if (typeof value.completedAt !== 'string' || Number.isNaN(Date.parse(value.completedAt))) return false;
-  if (!Array.isArray(value.answers)) return false;
+  if (value.topic !== undefined && typeof value.topic !== 'string') return false;
+  if (!Array.isArray(value.answers) || value.answers.length === 0) return false;
 
   const validAnswers = value.answers.filter(entry => isValidAnswer(entry, lesson));
   if (validAnswers.length !== value.answers.length) return false;
@@ -63,8 +65,7 @@ function isValidResult(value: unknown, mode: MathsQuizMode, lesson: MathsLesson)
   const answeredIds = new Set(validAnswers.map(a => a.questionId));
   if (answeredIds.size !== validAnswers.length) return false;
 
-  // Practice can be partial or review of missed questions; Exam must answer all questions in the lesson
-  if (mode === 'exam' && validAnswers.length !== lesson.questions.length) return false;
+  if (validAnswers.length > lesson.questions.length) return false;
 
   return true;
 }
@@ -106,20 +107,25 @@ export function saveMathsResult(studentId: StudentId, result: MathsResult): Math
   }
 
   const previous = loadMathsProgress(studentId);
+  const newlyCorrectIds = new Set(result.answers.filter(a => a.correct).map(a => a.questionId));
+  const newlyIncorrectIds = result.answers.filter(a => !a.correct).map(a => a.questionId);
+
+  const isFullExam = result.mode === 'exam' && result.answers.length === lesson.questions.length;
+  const reviewQuestionIds = isFullExam
+    ? newlyIncorrectIds
+    : Array.from(
+        new Set([
+          ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
+          ...newlyIncorrectIds
+        ])
+      );
+
   const next: MathsProgress = {
     studentId,
     lessonId: lesson.id,
     practice: result.mode === 'practice' ? result : previous.practice,
     exam: result.mode === 'exam' ? result : previous.exam,
-    reviewQuestionIds:
-      result.mode === 'exam'
-        ? result.answers.filter(a => !a.correct).map(a => a.questionId)
-        : Array.from(
-            new Set([
-              ...previous.reviewQuestionIds.filter(id => !result.answers.some(a => a.questionId === id && a.correct)),
-              ...result.answers.filter(a => !a.correct).map(a => a.questionId)
-            ])
-          )
+    reviewQuestionIds
   };
 
   try {

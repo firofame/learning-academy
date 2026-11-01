@@ -163,7 +163,7 @@ export const GRADE_2_MATHS_QUESTIONS: MathsQuestion[] = [
   fill(
     'g2-pv-1',
     'place-value',
-    'Write the place value of the underlined digit 7 in 78:',
+    'Write the place value of the digit 7 in 78:',
     '70',
     'In 78, 7 is in the tens place, so its place value is 7 tens = 70.',
     ['7 tens', '70 (tens)']

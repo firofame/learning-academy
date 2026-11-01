@@ -58,10 +58,15 @@ function ResultSummary({ result }: { result: MathsResult }) {
   const correct = result.answers.filter(answer => answer.correct).length;
   const total = result.answers.length;
   const pct = Math.round((correct / total) * 100);
+  const topicLabel =
+    result.topic && result.topic !== 'all'
+      ? MATHS_TOPICS.find(t => t.id === result.topic)?.shortLabel
+      : null;
   return (
     <div>
       <p className="font-bold text-slate-900">
-        {result.mode === 'exam' ? 'Last exam quiz' : 'Last practice'}: {correct} / {total} correct ({pct}%)
+        {result.mode === 'exam' ? 'Last exam quiz' : 'Last practice'}
+        {topicLabel ? ` (${topicLabel})` : ''}: {correct} / {total} correct ({pct}%)
       </p>
       <p className="text-xs text-slate-600 mt-0.5">
         Completed on {new Date(result.completedAt).toLocaleString()}
@@ -108,6 +113,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
     mode: MathsQuizMode;
     questions: MathsQuestion[];
     title: string;
+    topic: MathsTopic | 'all';
   } | null>(null);
   const [result, setResult] = useState<MathsResult | null>(null);
   const [saved, setSaved] = useState(false);
@@ -138,12 +144,13 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
     questions = filteredQuestions,
     title = selectedTopic === 'all'
       ? 'All Grade 2 Maths Questions'
-      : MATHS_TOPICS.find(t => t.id === selectedTopic)?.label || 'Topic Quiz'
+      : MATHS_TOPICS.find(t => t.id === selectedTopic)?.label || 'Topic Quiz',
+    topic: MathsTopic | 'all' = selectedTopic
   ) => {
     audioService.stopAll();
     setResult(null);
     setSaved(false);
-    setQuiz({ mode, questions, title });
+    setQuiz({ mode, questions, title, topic });
   };
 
   const persist = (completed: MathsResult) => {
@@ -207,6 +214,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
           <MathsQuiz
             mode={quiz.mode}
             title={quiz.title}
+            topic={quiz.topic}
             questions={quiz.questions}
             settings={settings}
             onComplete={completed => {
@@ -468,12 +476,14 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
 function MathsQuiz({
   mode,
   title,
+  topic,
   questions,
   settings,
   onComplete
 }: {
   mode: MathsQuizMode;
   title: string;
+  topic?: string;
   questions: MathsQuestion[];
   settings: AppSettings;
   onComplete: (result: MathsResult) => void;
@@ -496,6 +506,7 @@ function MathsQuiz({
     onComplete({
       mode,
       completedAt: new Date().toISOString(),
+      topic,
       answers: completed
     });
   };
