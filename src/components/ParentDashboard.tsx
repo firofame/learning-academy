@@ -16,6 +16,8 @@ import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data
 import { getAllProgress, resetStudentProgress, getWordProgress, isWordDueForReview } from '../utils/storage';
 import { loadRoboticsProgress } from '../utils/roboticsStorage';
 import { getRoboticsLesson } from '../data/robotics';
+import { loadMathsProgress } from '../utils/mathsStorage';
+import { getMathsLesson } from '../data/maths';
 import { isSubjectAvailableForGrade } from '../data/subjects';
 
 interface ParentDashboardProps {
@@ -24,6 +26,7 @@ interface ParentDashboardProps {
   onOpenWorksheet: () => void;
   onResetComplete: () => void;
   onOpenRobotics?: () => void;
+  onOpenMaths?: () => void;
 }
 
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({
@@ -31,7 +34,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   onStartTargetedSession,
   onOpenWorksheet,
   onResetComplete,
-  onOpenRobotics
+  onOpenRobotics,
+  onOpenMaths
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const currentProfile = getStudentProfile(activeStudent);
@@ -41,6 +45,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   const robotics = roboticsAvailable ? loadRoboticsProgress(activeStudent) : null;
   const roboticsLesson = roboticsAvailable ? getRoboticsLesson(activeStudent) : null;
   const roboticsExam = robotics?.exam;
+  const mathsAvailable = isSubjectAvailableForGrade('maths', currentProfile.grade);
+  const maths = mathsAvailable ? loadMathsProgress(activeStudent) : null;
+  const mathsLesson = mathsAvailable ? getMathsLesson(activeStudent) : null;
+  const mathsExam = maths?.exam;
 
   // Categorize words by evidence-based test-readiness mastery
   const rememberedWords: WordEntry[] = [];
@@ -226,6 +234,23 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           {onOpenRobotics && (
             <button onClick={onOpenRobotics} className="min-h-12 px-4 py-3 rounded-xl bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer">
               Open robotics revision
+            </button>
+          )}
+        </section>
+      )}
+
+      {maths && mathsLesson && (
+        <section className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3" aria-label="Maths progress">
+          <h2 className="text-lg font-bold text-slate-900">Maths: {mathsLesson.title}</h2>
+          <p className="text-sm">
+            {mathsExam
+              ? `Last exam quiz: ${mathsExam.answers.filter(answer => answer.correct).length} / ${mathsExam.answers.length} correct.`
+              : 'No completed maths exam quiz yet.'}
+          </p>
+          <p className="text-sm">{maths.reviewQuestionIds.length} question(s) to revisit. Maths results are separate from spelling mastery and are not cleared by the spelling reset.</p>
+          {onOpenMaths && (
+            <button onClick={onOpenMaths} className="min-h-12 px-4 py-3 rounded-xl bg-indigo-700 text-white font-semibold hover:bg-indigo-800 cursor-pointer">
+              Open maths revision
             </button>
           )}
         </section>

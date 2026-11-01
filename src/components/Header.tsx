@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, Sparkles, BookOpen, HeartHandshake, Printer, ArrowRightLeft, Bot } from 'lucide-react';
+import { Volume2, VolumeX, Sparkles, BookOpen, HeartHandshake, Printer, ArrowRightLeft, Bot, Calculator } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import { AppSettings } from '../utils/storage';
 import { STUDENT_PROFILES, getStudentProfile, getWordsForStudent } from '../data/wordList';
@@ -93,7 +93,13 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              {subject.id === 'robotics' ? <Bot className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+              {subject.id === 'robotics' ? (
+                <Bot className="w-4 h-4" />
+              ) : subject.id === 'maths' ? (
+                <Calculator className="w-4 h-4" />
+              ) : (
+                <BookOpen className="w-4 h-4" />
+              )}
               {subject.name}
             </button>
           ))}

@@ -1,14 +1,14 @@
 # Learning Academy
 
-A grade-aware learning app with **Spell Bee** and **Robotics** as separate subjects,
+A grade-aware learning app with **Spell Bee**, **Robotics**, and **Maths** as separate subjects,
 designed for calm, systematic learning.
 
 ## Subjects & Grades
 
 - The app opens on a subject home screen for the active student and their grade.
-- Spell Bee and Robotics are currently available for both **Grade 2** and **Grade 6**.
+- Spell Bee and Robotics are available for **Grade 2** and **Grade 6**; Maths is available for **Grade 2** (based on school notebook revision notes).
 - EVS, Maths, English, Hindi, Malayalam, and the other spelling groupings are
-  **word categories within Spell Bee**, not separate academy subjects.
+  **word categories within Spell Bee**, distinct from the standalone **Maths** curriculum subject.
 - Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
