@@ -20,8 +20,8 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
   {
     id: 'maths',
     name: 'Maths',
-    description: 'Revise Grade 2 school maths: place value, expanded form, comparing numbers, shapes, ordering, and addition & subtraction.',
-    availableGrades: [2],
+    description: 'Master school mathematics with visual revision cards, assisted practice, and exam quizzes.',
+    availableGrades: [2, 6],
     startView: 'maths',
     views: ['maths']
   }

@@ -7,7 +7,11 @@ export type MathsTopic =
   | 'comparing'
   | 'shapes'
   | 'ordering-names'
-  | 'simplify';
+  | 'simplify'
+  | 'geometry-fundamentals'
+  | 'geometry-3d-shapes'
+  | 'geometry-lines-planes'
+  | 'geometry-curves-regions';
 
 export interface MathsCard {
   id: string;
@@ -17,6 +21,8 @@ export interface MathsCard {
   answer: string;
   keyRule: string;
   examples: string;
+  diagramType?: string;
+  symbolNotation?: string;
 }
 
 interface QuestionBase {
@@ -25,6 +31,7 @@ interface QuestionBase {
   prompt: string;
   answer: string;
   explanation: string;
+  diagramType?: string;
   verticalMath?: {
     operand1: number;
     operand2: number;
@@ -37,6 +44,21 @@ export type MathsQuestion =
   | (QuestionBase & { kind: 'choice'; options: string[] })
   | (QuestionBase & { kind: 'fill'; acceptedAnswers: string[] });
 
+export interface MathsSolutionStep {
+  part?: string;
+  questionText: string;
+  answer: string;
+  explanation: string;
+}
+
+export interface MathsSolutionItem {
+  questionNumber: number;
+  title: string;
+  prompt: string;
+  diagramType?: string;
+  steps: MathsSolutionStep[];
+}
+
 export interface MathsLesson {
   id: string;
   grade: number;
@@ -45,6 +67,7 @@ export interface MathsLesson {
   memoryTip: string;
   cards: MathsCard[];
   questions: MathsQuestion[];
+  solutions?: MathsSolutionItem[];
 }
 
 const choice = (
@@ -53,7 +76,8 @@ const choice = (
   prompt: string,
   options: string[],
   answer: string,
-  explanation: string
+  explanation: string,
+  diagramType?: string
 ): MathsQuestion => ({
   id,
   topic,
@@ -61,7 +85,8 @@ const choice = (
   prompt,
   options,
   answer,
-  explanation
+  explanation,
+  diagramType
 });
 
 const fill = (
@@ -71,7 +96,8 @@ const fill = (
   answer: string,
   explanation: string,
   aliases: string[] = [],
-  verticalMath?: MathsQuestion['verticalMath']
+  verticalMath?: MathsQuestion['verticalMath'],
+  diagramType?: string
 ): MathsQuestion => ({
   id,
   topic,
@@ -80,7 +106,8 @@ const fill = (
   answer,
   acceptedAnswers: [answer, ...aliases],
   explanation,
-  verticalMath
+  verticalMath,
+  diagramType
 });
 
 export const MATHS_TOPICS: { id: MathsTopic; label: string; shortLabel: string }[] = [
@@ -89,7 +116,11 @@ export const MATHS_TOPICS: { id: MathsTopic; label: string; shortLabel: string }
   { id: 'comparing', label: 'Comparing Numbers (<, >, =)', shortLabel: 'Compare' },
   { id: 'shapes', label: '2D & 3D Shapes', shortLabel: 'Shapes' },
   { id: 'ordering-names', label: 'Ordering & Number Names', shortLabel: 'Order & Names' },
-  { id: 'simplify', label: 'Addition & Subtraction (Simplify)', shortLabel: 'Simplify' }
+  { id: 'simplify', label: 'Addition & Subtraction (Simplify)', shortLabel: 'Simplify' },
+  { id: 'geometry-fundamentals', label: 'Points, Lines, Segments & Rays', shortLabel: 'Line Basics' },
+  { id: 'geometry-3d-shapes', label: '3D Solid (Cuboid)', shortLabel: 'Cuboid (3D)' },
+  { id: 'geometry-lines-planes', label: 'Parallel & Intersecting Lines', shortLabel: 'Lines & Transversals' },
+  { id: 'geometry-curves-regions', label: 'Open, Closed Figures & Regions', shortLabel: 'Curves & Regions' }
 ];
 
 const grade2Cards: MathsCard[] = [
@@ -580,6 +611,536 @@ export const GRADE_2_MATHS_QUESTIONS: MathsQuestion[] = [
   )
 ];
 
+const grade6Cards: MathsCard[] = [
+  {
+    id: 'g6-card-point',
+    topic: 'geometry-fundamentals',
+    title: 'Point',
+    prompt: 'What is a point in geometry?',
+    answer: 'A point is an exact location in space. It is represented by a fine dot and named with a capital letter (e.g. Point A).',
+    keyRule: 'A point has zero size, no length, width, or thickness (dimensionless). Infinite lines can pass through a single point.',
+    examples: 'A star on a map, the tip of a sharpened pencil, or vertex A of a square.',
+    diagramType: 'line-pqr',
+    symbolNotation: 'Point A, Point P'
+  },
+  {
+    id: 'g6-card-line',
+    topic: 'geometry-fundamentals',
+    title: 'Line (Straight Line)',
+    prompt: 'What is a line and how is it represented?',
+    answer: 'A line is a straight one-dimensional path that extends infinitely in both directions without endpoints.',
+    keyRule: 'Represented with arrowheads at both ends (<--->). It has infinite length and cannot be measured.',
+    examples: 'Line l passing through points P and Q, denoted as Line PQ or Line QP.',
+    diagramType: 'line-pqr',
+    symbolNotation: 'Line AB (AB) or Line l'
+  },
+  {
+    id: 'g6-card-segment',
+    topic: 'geometry-fundamentals',
+    title: 'Line Segment',
+    prompt: 'What is a line segment and how does it differ from a line?',
+    answer: 'A line segment is a definite part of a line bounded by two distinct endpoints. It has a definite, measurable length.',
+    keyRule: 'A line segment has 2 fixed endpoints (no arrows). It is the shortest distance between two points and can be measured with a ruler.',
+    examples: 'The edge of a ruler, side AB of a polygon, or segment PQ on line l.',
+    diagramType: 'line-pqr',
+    symbolNotation: 'Segment AB (AB)'
+  },
+  {
+    id: 'g6-card-ray',
+    topic: 'geometry-fundamentals',
+    title: 'Ray',
+    prompt: 'What is a ray and how is it named?',
+    answer: 'A ray is a straight path that starts at a fixed point (origin or initial point) and extends endlessly in one direction.',
+    keyRule: 'A ray has 1 fixed endpoint and 1 arrowhead. Order of letters matters: Ray AB starts at A and goes through B; it is not the same as Ray BA!',
+    examples: 'Light beam from a torch, laser beam, or ray OA from the sun.',
+    diagramType: 'line-pqr',
+    symbolNotation: 'Ray AB (AB)'
+  },
+  {
+    id: 'g6-card-cuboid',
+    topic: 'geometry-3d-shapes',
+    title: '3D Solid: The Cuboid',
+    prompt: 'How many vertices, planes (faces), and line segments (edges) does a cuboid have?',
+    answer: 'A cuboid has 8 vertices (points), 6 flat planes (faces), and 12 line segments (edges).',
+    keyRule: '8 Vertices (A, B, C, D, P, Q, R, S). 6 Planes (Top, Bottom, Front, Back, Left, Right). 12 Edges (4 top, 4 bottom, 4 vertical).',
+    examples: 'A shoebox, brick, textbook, or cereal box.',
+    diagramType: 'cuboid',
+    symbolNotation: 'Cuboid ABCD-PQRS'
+  },
+  {
+    id: 'g6-card-lines-relationship',
+    topic: 'geometry-lines-planes',
+    title: 'Parallel & Intersecting Lines',
+    prompt: 'What is the difference between parallel and intersecting lines?',
+    answer: 'Parallel lines never meet and remain at a constant distance. Intersecting lines cross each other at a single common point.',
+    keyRule: 'Parallel lines (l || m) never intersect. Intersecting lines cross at exactly one point of intersection. A transversal crosses two or more lines.',
+    examples: 'Railway tracks are parallel. A road crossroads or the letter X forms intersecting lines.',
+    diagramType: 'parallel-transversals',
+    symbolNotation: 'l || m (parallel), l x q at P (intersecting)'
+  },
+  {
+    id: 'g6-card-open-closed',
+    topic: 'geometry-curves-regions',
+    title: 'Open vs Closed Figures',
+    prompt: 'How do you tell if a geometric figure is open or closed?',
+    answer: 'A closed figure begins and ends at the exact same point, enclosing a boundary. An open figure has separate endpoints that do not meet.',
+    keyRule: 'Closed figure: Start point = End point, encloses an interior area. Open figure: Start point != End point, cannot enclose space.',
+    examples: 'Circle, rectangle, and figure-8 are closed. U-shape, C-shape, and zig-zag paths are open.',
+    diagramType: 'open-closed',
+    symbolNotation: 'Closed: O, rectangle | Open: U, C, zig-zag'
+  },
+  {
+    id: 'g6-card-regions',
+    topic: 'geometry-curves-regions',
+    title: 'Interior, Boundary, & Exterior Regions',
+    prompt: 'What are the three regions formed by a closed curve in a plane?',
+    answer: 'A closed curve divides the plane into the interior (inside), the boundary (the curve itself), and the exterior (outside).',
+    keyRule: 'Interior: points completely inside. Boundary: points lying directly on the outline. Exterior: points outside the shape.',
+    examples: 'In Exercise 14: K, L, M, N are interior; P, Q, R, S are boundary; A, B, C, D are exterior.',
+    diagramType: 'regions',
+    symbolNotation: 'Interior, Boundary, Exterior'
+  }
+];
+
+export const GRADE_6_MATHS_QUESTIONS: MathsQuestion[] = [
+  fill(
+    'g6-q1-pts',
+    'geometry-fundamentals',
+    'Look at the figure of a straight line extending both ways. Name the three marked points.',
+    'P, Q, R',
+    'The three distinct points marked with solid dots on the line are Point P, Point Q, and Point R.',
+    ['P, Q, R', 'P,Q,R', 'P Q R', 'Point P, Point Q, Point R', 'P, R, Q', 'Q, P, R'],
+    undefined,
+    'line-pqr'
+  ),
+  choice(
+    'g6-q1-segs',
+    'geometry-fundamentals',
+    'How many line segments are formed between the points P, Q, and R on the line?',
+    ['1', '2', '3', '4'],
+    '3',
+    'There are 3 segments: PQ (or QP), QR (or RQ), and the full span PR (or RP).',
+    'line-pqr'
+  ),
+  choice(
+    'g6-q2-rays',
+    'geometry-fundamentals',
+    'In Figure 2(i), three horizontal rays extend to the right from points A, B, and C. Name them.',
+    ['AE, BF, CG', 'AB, BC, CD', 'EA, FB, GC', 'EF, FG, GH'],
+    'AE, BF, CG',
+    'Each ray starts at an origin on the vertical line and shoots right: Ray AE (origin A), Ray BF (origin B), and Ray CG (origin C).',
+    'fig2-arms'
+  ),
+  choice(
+    'g6-q2-w-shape',
+    'geometry-fundamentals',
+    'In Figure 2(ii) (the W-shaped figure with vertices A, B, C, D, E), which parts represent rays?',
+    ['Rays BA and DE', 'Rays BC and CD', 'Rays AB and ED', 'Rays AC and CE'],
+    'Rays BA and DE',
+    'The upward arrows extend from vertex B through A (Ray BA) and from vertex D through E (Ray DE). BC and CD are bounded line segments.',
+    'fig2-w'
+  ),
+  choice(
+    'g6-q3-pts',
+    'geometry-3d-shapes',
+    'How many points (vertices) are marked on the 3D cuboid figure?',
+    ['6', '8', '10', '12'],
+    '8',
+    'A cuboid has 8 vertices: points A, B, C, D, P, Q, R, and S.',
+    'cuboid'
+  ),
+  choice(
+    'g6-q3-planes',
+    'geometry-3d-shapes',
+    'How many flat planes (faces) does a cuboid have?',
+    ['4', '6', '8', '12'],
+    '6',
+    'A cuboid has 6 rectangular faces (top, bottom, front, back, left, and right planes).',
+    'cuboid'
+  ),
+  choice(
+    'g6-q3-edges',
+    'geometry-3d-shapes',
+    'How many line segments form the edges of the cuboid?',
+    ['6', '8', '10', '12'],
+    '12',
+    'There are 12 line segments: 4 top edges (PB, BA, AC, CP), 4 bottom edges (QR, RD, DS, SQ), and 4 vertical edges (PQ, CR, AD, BS).',
+    'cuboid'
+  ),
+  choice(
+    'g6-q4-intersect',
+    'geometry-lines-planes',
+    'In Figure 4, which two lines intersect at point P?',
+    ['Line l and Line q', 'Line m and Line p', 'Line n and Line r', 'Line l and Line r'],
+    'Line l and Line q',
+    'Point P is the intersection of horizontal Line l and transversal Line q.',
+    'parallel-transversals'
+  ),
+  choice(
+    'g6-q4-parallel',
+    'geometry-lines-planes',
+    'Which set of lines are parallel to each other in Figure 4?',
+    ['Lines l, m, and n', 'Lines p, q, and r', 'Lines l and p', 'Lines m and q'],
+    'Lines l, m, and n',
+    'Lines l, m, and n are parallel horizontal lines that never meet: l || m, m || n, and l || n.',
+    'parallel-transversals'
+  ),
+  choice(
+    'g6-q5-naming',
+    'geometry-fundamentals',
+    'A straight line passing through points S and R can be named in other ways. Which of the following is correct?',
+    ['Line SR or Line RS', 'Only Line S', 'Line S + R', 'Ray SR'],
+    'Line SR or Line RS',
+    'Any line can be named by choosing any two distinct points that lie on it. Thus line t is also Line SR or Line RS.',
+    'line-m-t'
+  ),
+  choice(
+    'g6-q6-boat',
+    'geometry-curves-regions',
+    'Is an enclosed boat-shaped outline an open figure or a closed figure?',
+    ['Closed figure', 'Open figure'],
+    'Closed figure',
+    'It starts and ends at the exact same point with no breaks in the boundary, completely enclosing an area.',
+    'open-closed'
+  ),
+  choice(
+    'g6-q6-zigzag',
+    'geometry-curves-regions',
+    'Is a zig-zag line path with two separate ends an open figure or a closed figure?',
+    ['Open figure', 'Closed figure'],
+    'Open figure',
+    'Its starting and ending points are disconnected, so it does not enclose an interior region.',
+    'open-closed'
+  ),
+  choice(
+    'g6-q7-interior',
+    'geometry-curves-regions',
+    'In Figure 7, which points lie in the INTERIOR of the closed curve?',
+    ['K, L, M, N', 'P, Q, R, S', 'A, B, C, D', 'A, K, P'],
+    'K, L, M, N',
+    'Points K, L, M, and N lie entirely inside the enclosed region of the curve.',
+    'regions'
+  ),
+  choice(
+    'g6-q7-boundary',
+    'geometry-curves-regions',
+    'In Figure 7, which points lie directly ON THE BOUNDARY of the curve?',
+    ['P, Q, R, S', 'K, L, M, N', 'A, B, C, D', 'None'],
+    'P, Q, R, S',
+    'Points P, Q, R, and S are plotted directly on the perimeter curve itself.',
+    'regions'
+  ),
+  choice(
+    'g6-q7-exterior',
+    'geometry-curves-regions',
+    'In Figure 7, which points lie in the EXTERIOR of the closed curve?',
+    ['A, B, C, D', 'P, Q, R, S', 'K, L, M, N', 'K, A, B'],
+    'A, B, C, D',
+    'Points A, B, C, and D are situated outside the boundary in the surrounding plane.',
+    'regions'
+  ),
+  choice(
+    'g6-q8-mcq',
+    'geometry-fundamentals',
+    'In a figure showing a horizontal ray with origin A passing through B to the right, which of the following does NOT represent a ray?',
+    ['BA', 'OA', 'OB', 'AB'],
+    'BA',
+    'Ray AB originates at point A and extends through B indefinitely to the right. It has no extension in the direction toward A, so BA is NOT a ray in this figure.',
+    'mcq-rays'
+  ),
+  choice(
+    'g6-q9-mcq',
+    'geometry-fundamentals',
+    'A figure shows a fixed starting point A extending in one direction through B and D. Which of the following is NOT found in this figure?',
+    ['Line', 'Point', 'Ray', 'Line segment'],
+    'Line',
+    'The figure contains Points (A, B, D), a Ray (origin A extending through D), and Line Segments (AB, BD, AD). A Line requires arrows extending endlessly in BOTH directions, which is absent here.',
+    'mcq-line'
+  ),
+  choice(
+    'g6-q10-mcq',
+    'geometry-fundamentals',
+    'Which of the following geometric figures has a definite length and can be measured?',
+    ['Line segment', 'Line', 'Ray', 'Point'],
+    'Line segment',
+    'A line segment has two fixed endpoints, giving it a fixed and measurable length. Lines and rays extend endlessly without fixed bounds, and points have no dimensions.'
+  )
+];
+
+export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
+  {
+    questionNumber: 1,
+    title: 'Points and Line Segments on a Straight Line',
+    prompt: 'Look at the given figure and answer the following questions: (i) Name the three points. (ii) Name all the line segments.',
+    diagramType: 'line-pqr',
+    steps: [
+      {
+        part: '(i)',
+        questionText: 'Name the three points.',
+        answer: 'Point P, Point Q, and Point R.',
+        explanation: 'Three locations on the line are marked with clear dots and capital letters P, Q, and R.'
+      },
+      {
+        part: '(ii)',
+        questionText: 'Name all the line segments.',
+        answer: '3 line segments: PQ (or QP), QR (or RQ), and PR (or RP).',
+        explanation: 'A line segment connects two endpoints. The segments between P, Q, and R are the two smaller segments PQ and QR, plus the full outer segment PR.'
+      }
+    ]
+  },
+  {
+    questionNumber: 2,
+    title: 'Naming Line Segments and Rays in Figures',
+    prompt: 'Name the line segments and rays in the following figures.',
+    diagramType: 'fig2-all',
+    steps: [
+      {
+        part: 'Figure (i)',
+        questionText: 'Vertical line with points A, B, C and three horizontal arms E, F, G.',
+        answer: 'Line Segments: AB, BC, AC, AE, BF, CG. Rays: Ray AE, Ray BF, Ray CG, Ray AB (downward).',
+        explanation: 'Segments are bounded between pairs of marked points. Rays have a fixed starting point on the vertical line and extend outwards indefinitely through the arrowheads.'
+      },
+      {
+        part: 'Figure (ii)',
+        questionText: 'W-shaped figure with marked points A, B, C, D, E.',
+        answer: 'Line Segments: BC, CD, BA, DE. Rays: Ray BA (origin B) and Ray DE (origin D).',
+        explanation: 'The segments BC and CD join internal corners. Rays BA and DE start at vertices B and D and shoot upwards.'
+      },
+      {
+        part: 'Figure (iii)',
+        questionText: 'Slanted line segment QR with rays QP and RS.',
+        answer: 'Line Segments: QR, QP, RS. Rays: Ray QP (origin Q) and Ray RS (origin R).',
+        explanation: 'QR connects the two main turning points. Ray QP starts at Q extending left past P; Ray RS starts at R extending right past S.'
+      }
+    ]
+  },
+  {
+    questionNumber: 3,
+    title: '3D Cuboid: Vertices, Faces (Planes), and Edges (Segments)',
+    prompt: 'In the given figure of a 3D box (cuboid ABCD-PQRS): (i) How many points are marked? Name them. (ii) How many planes are shown? Name them. (iii) How many line segments are shown? Name them.',
+    diagramType: 'cuboid',
+    steps: [
+      {
+        part: '(i)',
+        questionText: 'How many points are marked in the figure? Name them.',
+        answer: '8 points: A, B, C, D, P, Q, R, S.',
+        explanation: 'These 8 points form the 8 corner vertices of the cuboid.'
+      },
+      {
+        part: '(ii)',
+        questionText: 'How many planes are shown in the figure? Name them.',
+        answer: '6 planes: Top (PBAC), Bottom (QRDS), Front (CARD), Back (PBSQ), Left (PCRQ), Right (BADS).',
+        explanation: 'Each flat rectangular surface of the solid is a plane face.'
+      },
+      {
+        part: '(iii)',
+        questionText: 'How many line segments are shown in the figure? Name them.',
+        answer: '12 line segments: Top edges (PB, BA, AC, CP), Bottom edges (QR, RD, DS, SQ), and Vertical edges (PQ, CR, AD, BS).',
+        explanation: 'A cuboid has 12 edges, each bounded by two corner vertices as a line segment.'
+      }
+    ]
+  },
+  {
+    questionNumber: 4,
+    title: 'Parallel and Intersecting Lines',
+    prompt: 'In the figure showing lines l, m, n and transversals p, q, r:',
+    diagramType: 'parallel-transversals',
+    steps: [
+      {
+        part: '(i)',
+        questionText: 'Lines whose point of intersection is P:',
+        answer: 'Line l and Line q.',
+        explanation: 'Point P is where the transversal q crosses horizontal line l.'
+      },
+      {
+        part: '(ii)',
+        questionText: 'Lines whose point of intersection is T:',
+        answer: 'Line m and Line r.',
+        explanation: 'Point T is the crossing point of line m and line r.'
+      },
+      {
+        part: '(iii)',
+        questionText: 'All pairs of parallel lines:',
+        answer: '(Line l, Line m), (Line m, Line n), and (Line l, Line n).',
+        explanation: 'Lines l, m, and n are equidistant horizontal lines that never meet.'
+      },
+      {
+        part: '(iv)',
+        questionText: 'All pairs of intersecting lines:',
+        answer: '(l, q), (l, p), (l, r), (m, q), (m, p), (m, r), (n, q), (n, p), (n, r), plus transversals (p, q) and (p, r).',
+        explanation: 'Any pair of non-parallel lines in the same plane intersect at a unique point.'
+      },
+      {
+        part: '(v)',
+        questionText: 'Lines whose point of intersection is I:',
+        answer: 'Line m and Line p.',
+        explanation: 'Point I is the intersection of line m and line p.'
+      },
+      {
+        part: '(vi)',
+        questionText: 'Lines whose point of intersection is S:',
+        answer: 'Line l and Line r.',
+        explanation: 'Point S is where line l crosses line r.'
+      }
+    ]
+  },
+  {
+    questionNumber: 5,
+    title: 'Segments, Rays, and Line Naming',
+    prompt: 'In the figure alongside (lines l, m, n, t):',
+    diagramType: 'line-m-t',
+    steps: [
+      {
+        part: '(i)',
+        questionText: 'Name 3 line segments on line l:',
+        answer: 'Segment PQ, Segment QR, and Segment PR.',
+        explanation: 'Between points P, Q, and R on line l, three distinct line segments are defined.'
+      },
+      {
+        part: '(ii)',
+        questionText: 'Name 2 rays on line t:',
+        answer: 'Ray SR and Ray RS.',
+        explanation: 'Starting at S and extending past R, or starting at R and extending past S.'
+      },
+      {
+        part: '(iii)',
+        questionText: 'Name line t in two other ways:',
+        answer: 'Line SR and Line RS.',
+        explanation: 'A line is named by identifying any two points that lie on it.'
+      },
+      {
+        part: '(iv)',
+        questionText: 'Name a line segment on line m:',
+        answer: 'Segment SP (or Segment PS).',
+        explanation: 'Line m passes through points S and P; the section between them is Segment SP.'
+      }
+    ]
+  },
+  {
+    questionNumber: 6,
+    title: 'Classifying Open and Closed Figures',
+    prompt: 'Identify the following figures as open or closed figures:',
+    diagramType: 'open-closed',
+    steps: [
+      {
+        part: '(i)',
+        questionText: 'Curved line with separate endpoints:',
+        answer: 'Open figure',
+        explanation: 'The start and end points do not meet, leaving the curve unclosed.'
+      },
+      {
+        part: '(ii)',
+        questionText: 'Enclosed boat-like shape:',
+        answer: 'Closed figure',
+        explanation: 'Begins and ends at the same point, completely enclosing an interior area.'
+      },
+      {
+        part: '(iii)',
+        questionText: 'Curved loops with open lower ends:',
+        answer: 'Open figure',
+        explanation: 'The two ends remain disconnected.'
+      },
+      {
+        part: '(iv)',
+        questionText: 'Figure-8 / two touching enclosed loops:',
+        answer: 'Closed figure',
+        explanation: 'Both loops form completely enclosed boundaries with no open ends.'
+      },
+      {
+        part: '(v)',
+        questionText: 'U-shaped open curve:',
+        answer: 'Open figure',
+        explanation: 'The top ends do not join.'
+      },
+      {
+        part: '(vi)',
+        questionText: 'Tilted four-sided polygon (rectangle):',
+        answer: 'Closed figure',
+        explanation: 'A polygon is always a closed plane figure formed by line segments.'
+      },
+      {
+        part: '(vii)',
+        questionText: 'Zig-zag path:',
+        answer: 'Open figure',
+        explanation: 'Start and end vertices are open.'
+      },
+      {
+        part: '(viii)',
+        questionText: 'Bowtie-shaped polygon:',
+        answer: 'Closed figure',
+        explanation: 'Enclosed perimeter formed by straight line segments.'
+      }
+    ]
+  },
+  {
+    questionNumber: 7,
+    title: 'Regions of a Closed Figure: Interior, Boundary, Exterior',
+    prompt: 'Look at the given figure of a closed shape and answer the following questions:',
+    diagramType: 'regions',
+    steps: [
+      {
+        part: '(i)',
+        questionText: 'Which points lie in the interior of the figure?',
+        answer: 'Points K, L, M, N.',
+        explanation: 'These points are situated entirely inside the perimeter curve.'
+      },
+      {
+        part: '(ii)',
+        questionText: 'Which points lie on the boundary of the figure?',
+        answer: 'Points P, Q, R, S.',
+        explanation: 'These points lie directly on the outline curve that separates the interior from the exterior.'
+      },
+      {
+        part: '(iii)',
+        questionText: 'Which points lie in the exterior of the figure?',
+        answer: 'Points A, B, C, D.',
+        explanation: 'These points are located outside the enclosed region in the surrounding plane.'
+      }
+    ]
+  },
+  {
+    questionNumber: 8,
+    title: 'MCQ: Direction and Origin of a Ray',
+    prompt: 'Which of the following does not represent a ray in the given figure? (a) OA (b) OB (c) BA (d) AB',
+    diagramType: 'mcq-rays',
+    steps: [
+      {
+        part: 'Answer',
+        questionText: 'Choose the correct option:',
+        answer: '(c) BA',
+        explanation: 'In the figure, point A is the fixed origin and the ray shoots rightward through B (Ray AB). There is no ray originating at B and continuing indefinitely in the direction of A. Therefore, BA does not represent a ray.'
+      }
+    ]
+  },
+  {
+    questionNumber: 9,
+    title: 'MCQ: Components of a Geometric Figure',
+    prompt: 'Which of the following is not found in the given figure? (a) Point (b) Ray (c) Line (d) Line segment',
+    diagramType: 'mcq-line',
+    steps: [
+      {
+        part: 'Answer',
+        questionText: 'Choose the correct option:',
+        answer: '(c) Line',
+        explanation: 'The figure shows an initial point A with a ray extending rightward through points B and D. It includes points (A, B, D), a ray (AD), and line segments (AB, BD, AD). A line extends endlessly in BOTH directions with two arrowheads, which is not present here.'
+      }
+    ]
+  },
+  {
+    questionNumber: 10,
+    title: 'MCQ: Measurable Geometric Figures',
+    prompt: 'Which of the following can be measured? (a) Line (b) Ray (c) Point (d) Line segment',
+    steps: [
+      {
+        part: 'Answer',
+        questionText: 'Choose the correct option:',
+        answer: '(d) Line segment',
+        explanation: 'A line segment has two fixed endpoints, giving it a definite length that can be measured with a ruler. Lines and rays extend endlessly without bound, and a point has zero dimensions.'
+      }
+    ]
+  }
+];
+
 export const MATHS_LESSONS: MathsLesson[] = [
   {
     id: 'maths-grade-2-revision',
@@ -589,6 +1150,16 @@ export const MATHS_LESSONS: MathsLesson[] = [
     memoryTip: 'Place Value & Forms: 36 = 30 + 6. Shapes: Square (4 sides), Triangle (3 sides), Cone (party hat), Cylinder (can). Addition & Subtraction: Always start with the ones column on the right!',
     cards: grade2Cards,
     questions: GRADE_2_MATHS_QUESTIONS
+  },
+  {
+    id: 'maths-grade-6-lesson-1',
+    grade: 6,
+    title: 'Chapter 14: Basic Geometry',
+    sourceName: 'Grade 6 Mathematics — Chapter 14: Basic Geometry (Exercise 14)',
+    memoryTip: 'Point = zero dimension. Line = extends forever in both directions. Line segment = 2 fixed endpoints, measurable. Ray = 1 fixed endpoint, extends forever in one direction.',
+    cards: grade6Cards,
+    questions: GRADE_6_MATHS_QUESTIONS,
+    solutions: MATHS_GRADE_6_SOLUTIONS
   }
 ];
 

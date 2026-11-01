@@ -50,7 +50,8 @@ describe('Grade 2 Maths Curriculum & Notebook Coverage', () => {
     assert.ok(lesson.cards.length >= 7, 'Includes cards for all core math concepts');
     assert.equal(lesson.questions.length, 49, 'Includes all notebook questions');
 
-    for (const topic of MATHS_TOPICS) {
+    const grade2Topics = MATHS_TOPICS.filter(t => lesson.cards.some(c => c.topic === t.id));
+    for (const topic of grade2Topics) {
       const topicQuestions = lesson.questions.filter(q => q.topic === topic.id);
       assert.ok(topicQuestions.length > 0, `Topic ${topic.id} has questions`);
     }
@@ -379,5 +380,52 @@ describe('Maths Progress Storage & Isolation', () => {
     assert.ok(saved);
     assert.equal(saved?.practice?.answers.length, 2);
     assert.equal(saved?.practice?.topic, 'all');
+  });
+});
+
+describe('Grade 6 Maths Curriculum: Chapter 14 Basic Geometry', () => {
+  const lesson = getMathsLesson('shiza');
+
+  test('lesson covers basic geometry cards, questions, and textbook solutions', () => {
+    assert.equal(lesson.grade, 6);
+    assert.equal(lesson.title, 'Chapter 14: Basic Geometry');
+    assert.ok(lesson.cards.length >= 8);
+    assert.ok(lesson.questions.length >= 17);
+    assert.equal(lesson.solutions?.length, 10);
+  });
+
+  test('answers to Chapter 14 questions are checked accurately', () => {
+    const q1 = lesson.questions.find(q => q.id === 'g6-q1-pts')!;
+    assert.ok(checkMathsAnswer(q1, 'P, Q, R'));
+    assert.ok(checkMathsAnswer(q1, 'p, q, r'));
+    assert.ok(checkMathsAnswer(q1, 'P,Q,R'));
+
+    const q3 = lesson.questions.find(q => q.id === 'g6-q3-edges')!;
+    assert.ok(checkMathsAnswer(q3, '12'));
+
+    const q8 = lesson.questions.find(q => q.id === 'g6-q8-mcq')!;
+    assert.ok(checkMathsAnswer(q8, 'BA'));
+
+    const q10 = lesson.questions.find(q => q.id === 'g6-q10-mcq')!;
+    assert.ok(checkMathsAnswer(q10, 'Line segment'));
+  });
+
+  test('Grade 6 Maths results persist and isolate review questions', () => {
+    const topicQuestions = lesson.questions.filter(q => q.topic === 'geometry-fundamentals');
+    const examResult: MathsResult = {
+      mode: 'exam',
+      completedAt: new Date().toISOString(),
+      topic: 'geometry-fundamentals',
+      answers: topicQuestions.map((q, idx) => ({
+        questionId: q.id,
+        answer: idx === 0 ? 'wrong' : q.answer,
+        correct: idx !== 0
+      }))
+    };
+
+    const saved = saveMathsResult('shiza', examResult);
+    assert.ok(saved);
+    assert.deepEqual(saved?.reviewQuestionIds, [topicQuestions[0].id]);
+    assert.equal(loadMathsProgress('shiza').exam?.answers.length, topicQuestions.length);
   });
 });
