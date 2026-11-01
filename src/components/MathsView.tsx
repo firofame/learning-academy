@@ -151,7 +151,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
     mode: MathsQuizMode,
     questions = filteredQuestions,
     title = selectedTopic === 'all'
-      ? 'All Grade 2 Maths Questions'
+      ? `All ${profile.gradeLabel} Maths Questions`
       : MATHS_TOPICS.find(t => t.id === selectedTopic)?.label || 'Topic Quiz',
     topic: MathsTopic | 'all' = selectedTopic
   ) => {

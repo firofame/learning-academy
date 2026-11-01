@@ -55,8 +55,8 @@ export const MathsDiagram: React.FC<MathsDiagramProps> = ({ type, className = ''
                     <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f172a" />
                   </marker>
                 </defs>
-                {/* Vertical line extending downward */}
-                <line x1="40" y1="20" x2="40" y2="140" stroke="#0f172a" strokeWidth="2.5" markerEnd="url(#arr-f2)" />
+                {/* Vertical ray with origin A extending downward through B and C */}
+                <line x1="40" y1="40" x2="40" y2="140" stroke="#0f172a" strokeWidth="2.5" markerEnd="url(#arr-f2)" />
                 <circle cx="40" cy="40" r="4" fill="#2563eb" />
                 <text x="25" y="44" className="text-xs font-bold fill-blue-700">A</text>
                 <circle cx="40" cy="80" r="4" fill="#2563eb" />
@@ -145,7 +145,7 @@ export const MathsDiagram: React.FC<MathsDiagramProps> = ({ type, className = ''
     case 'cuboid':
       return (
         <div className={`p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center ${className}`}>
-          <svg viewBox="0 0 340 240" className="w-full max-w-sm h-auto" aria-label="3D Cuboid ABCD-PQRS">
+          <svg viewBox="0 0 340 240" className="w-full max-w-sm h-auto" aria-label="3D Cuboid with vertices A, B, C, D, P, Q, R, S">
             {/* Back face dashed edges */}
             <line x1="110" y1="60" x2="250" y2="60" stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 4" />
             <line x1="110" y1="60" x2="110" y2="170" stroke="#94a3b8" strokeWidth="2" strokeDasharray="4 4" />
@@ -266,7 +266,7 @@ export const MathsDiagram: React.FC<MathsDiagramProps> = ({ type, className = ''
     case 'line-m-t':
       return (
         <div className={`p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center ${className}`}>
-          <svg viewBox="0 0 340 180" className="w-full max-w-sm h-auto" aria-label="Lines l, m, and t with points P, Q, R, S">
+          <svg viewBox="0 0 360 280" className="w-full max-w-sm h-auto" aria-label="Lines l, m, n and t with points A, B, C, and D">
             <defs>
               <marker id="arr-mt" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f172a" />
@@ -275,31 +275,36 @@ export const MathsDiagram: React.FC<MathsDiagramProps> = ({ type, className = ''
                 <path d="M 10 0 L 0 5 L 10 10 z" fill="#0f172a" />
               </marker>
             </defs>
-            {/* Horizontal Line l */}
-            <line x1="30" y1="130" x2="310" y2="130" stroke="#0f172a" strokeWidth="2.5" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
-            <text x="320" y="135" className="text-sm font-bold fill-slate-700 font-serif">l</text>
 
-            {/* Point P, Q, R on line l */}
-            <circle cx="80" cy="130" r="4" fill="#2563eb" />
-            <text x="80" y="150" textAnchor="middle" className="text-xs font-bold fill-blue-700">P</text>
+            {/* Horizontal line t through A, B, and C */}
+            <line x1="25" y1="215" x2="325" y2="215" stroke="#d97706" strokeWidth="2.5" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
+            <text x="338" y="220" className="text-sm font-bold fill-amber-700 font-serif">t</text>
 
-            <circle cx="160" cy="130" r="4" fill="#2563eb" />
-            <text x="160" y="150" textAnchor="middle" className="text-xs font-bold fill-blue-700">Q</text>
+            {/* Line l through C and D */}
+            <line x1="144" y1="20" x2="293" y2="270" stroke="#0284c7" strokeWidth="2.5" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
+            <text x="132" y="16" textAnchor="end" className="text-sm font-bold fill-sky-700 font-serif">l</text>
 
-            <circle cx="240" cy="130" r="4" fill="#2563eb" />
-            <text x="240" y="150" textAnchor="middle" className="text-xs font-bold fill-blue-700">R</text>
+            {/* Line m through B and D */}
+            <line x1="180" y1="20" x2="180" y2="270" stroke="#0f172a" strokeWidth="2.5" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
+            <text x="188" y="16" className="text-sm font-bold fill-slate-700 font-serif">m</text>
 
-            {/* Line m passing through S and P */}
-            <line x1="200" y1="20" x2="40" y2="165" stroke="#0284c7" strokeWidth="2" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
-            <text x="30" y="175" className="text-sm font-bold fill-sky-700 font-serif">m</text>
+            {/* Line n through A and D */}
+            <line x1="216" y1="20" x2="67" y2="270" stroke="#059669" strokeWidth="2.5" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
+            <text x="228" y="16" className="text-sm font-bold fill-emerald-700 font-serif">n</text>
 
-            {/* Line t passing through S and R */}
-            <line x1="120" y1="20" x2="280" y2="165" stroke="#d97706" strokeWidth="2" markerStart="url(#arr-mt-rev)" markerEnd="url(#arr-mt)" />
-            <text x="290" y="175" className="text-sm font-bold fill-amber-700 font-serif">t</text>
+            {/* Points A, B, C on line t */}
+            <circle cx="100" cy="215" r="4" fill="#2563eb" />
+            <text x="100" y="236" textAnchor="middle" className="text-xs font-bold fill-blue-700">A</text>
 
-            {/* Vertex S at intersection of line m and line t */}
-            <circle cx="160" cy="56" r="4.5" fill="#dc2626" />
-            <text x="160" y="44" textAnchor="middle" className="text-xs font-bold fill-rose-700">S</text>
+            <circle cx="180" cy="215" r="4" fill="#2563eb" />
+            <text x="166" y="236" textAnchor="end" className="text-xs font-bold fill-blue-700">B</text>
+
+            <circle cx="260" cy="215" r="4" fill="#2563eb" />
+            <text x="260" y="236" textAnchor="middle" className="text-xs font-bold fill-blue-700">C</text>
+
+            {/* Point D: common intersection of l, m, and n */}
+            <circle cx="180" cy="80" r="4.5" fill="#dc2626" />
+            <text x="192" y="84" className="text-xs font-bold fill-rose-700">D</text>
           </svg>
         </div>
       );
@@ -451,20 +456,24 @@ export const MathsDiagram: React.FC<MathsDiagramProps> = ({ type, className = ''
     case 'mcq-rays':
       return (
         <div className={`p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col items-center justify-center ${className}`}>
-          <svg viewBox="0 0 320 80" className="w-full max-w-xs h-auto" aria-label="Ray AB">
+          <svg viewBox="0 0 320 80" className="w-full max-w-xs h-auto" aria-label="Ray with origin O passing through A and B">
             <defs>
               <marker id="arr-ray" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
                 <path d="M 0 0 L 10 5 L 0 10 z" fill="#0f172a" />
               </marker>
             </defs>
-            <line x1="60" y1="40" x2="280" y2="40" stroke="#0f172a" strokeWidth="3" markerEnd="url(#arr-ray)" />
-            {/* Fixed origin A */}
-            <circle cx="60" cy="40" r="5" fill="#2563eb" />
-            <text x="60" y="24" textAnchor="middle" className="text-sm font-bold fill-blue-700">A</text>
-            
+            <line x1="40" y1="40" x2="280" y2="40" stroke="#0f172a" strokeWidth="3" markerEnd="url(#arr-ray)" />
+            {/* Fixed origin O */}
+            <circle cx="40" cy="40" r="5" fill="#2563eb" />
+            <text x="40" y="24" textAnchor="middle" className="text-sm font-bold fill-blue-700">O</text>
+
+            {/* Point A */}
+            <circle cx="130" cy="40" r="4.5" fill="#2563eb" />
+            <text x="130" y="24" textAnchor="middle" className="text-sm font-bold fill-blue-700">A</text>
+
             {/* Point B */}
-            <circle cx="170" cy="40" r="4.5" fill="#2563eb" />
-            <text x="170" y="24" textAnchor="middle" className="text-sm font-bold fill-blue-700">B</text>
+            <circle cx="220" cy="40" r="4.5" fill="#2563eb" />
+            <text x="220" y="24" textAnchor="middle" className="text-sm font-bold fill-blue-700">B</text>
           </svg>
         </div>
       );

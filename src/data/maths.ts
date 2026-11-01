@@ -665,7 +665,7 @@ const grade6Cards: MathsCard[] = [
     keyRule: '8 Vertices (A, B, C, D, P, Q, R, S). 6 Planes (Top, Bottom, Front, Back, Left, Right). 12 Edges (4 top, 4 bottom, 4 vertical).',
     examples: 'A shoebox, brick, textbook, or cereal box.',
     diagramType: 'cuboid',
-    symbolNotation: 'Cuboid ABCD-PQRS'
+    symbolNotation: 'Vertices A, B, C, D, P, Q, R, S'
   },
   {
     id: 'g6-card-lines-relationship',
@@ -788,10 +788,10 @@ export const GRADE_6_MATHS_QUESTIONS: MathsQuestion[] = [
   choice(
     'g6-q5-naming',
     'geometry-fundamentals',
-    'A straight line passing through points S and R can be named in other ways. Which of the following is correct?',
-    ['Line SR or Line RS', 'Only Line S', 'Line S + R', 'Ray SR'],
-    'Line SR or Line RS',
-    'Any line can be named by choosing any two distinct points that lie on it. Thus line t is also Line SR or Line RS.',
+    'In the figure, line t passes through points A, B, and C. Which is another correct name for line t?',
+    ['Line AB', 'Line AD', 'Line BD', 'Line CD'],
+    'Line AB',
+    'Line t contains A, B, and C, so any two of these points name the same line: Line AB, Line BC, or Line AC.',
     'line-m-t'
   ),
   choice(
@@ -842,17 +842,17 @@ export const GRADE_6_MATHS_QUESTIONS: MathsQuestion[] = [
   choice(
     'g6-q8-mcq',
     'geometry-fundamentals',
-    'In a figure showing a horizontal ray with origin A passing through B to the right, which of the following does NOT represent a ray?',
-    ['BA', 'OA', 'OB', 'AB'],
+    'In a figure showing a horizontal ray with origin O passing through A and then B to the right, which of the following does NOT represent a ray?',
+    ['OA', 'OB', 'BA', 'AB'],
     'BA',
-    'Ray AB originates at point A and extends through B indefinitely to the right. It has no extension in the direction toward A, so BA is NOT a ray in this figure.',
+    'Ray OA starts at O and passes through A, Ray OB starts at O and passes through B, and Ray AB starts at A and passes through B. All three extend to the right. BA would need to start at B and extend left through A, which is not shown, so BA is NOT a ray in this figure.',
     'mcq-rays'
   ),
   choice(
     'g6-q9-mcq',
     'geometry-fundamentals',
     'A figure shows a fixed starting point A extending in one direction through B and D. Which of the following is NOT found in this figure?',
-    ['Line', 'Point', 'Ray', 'Line segment'],
+    ['Point', 'Ray', 'Line', 'Line segment'],
     'Line',
     'The figure contains Points (A, B, D), a Ray (origin A extending through D), and Line Segments (AB, BD, AD). A Line requires arrows extending endlessly in BOTH directions, which is absent here.',
     'mcq-line'
@@ -861,7 +861,7 @@ export const GRADE_6_MATHS_QUESTIONS: MathsQuestion[] = [
     'g6-q10-mcq',
     'geometry-fundamentals',
     'Which of the following geometric figures has a definite length and can be measured?',
-    ['Line segment', 'Line', 'Ray', 'Point'],
+    ['Line', 'Ray', 'Point', 'Line segment'],
     'Line segment',
     'A line segment has two fixed endpoints, giving it a fixed and measurable length. Lines and rays extend endlessly without fixed bounds, and points have no dimensions.'
   )
@@ -896,15 +896,15 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
     steps: [
       {
         part: 'Figure (i)',
-        questionText: 'Vertical line with points A, B, C and three horizontal arms E, F, G.',
+        questionText: 'Vertical ray with origin A passing through B and C, plus three horizontal arms E, F, G.',
         answer: 'Line Segments: AB, BC, AC, AE, BF, CG. Rays: Ray AE, Ray BF, Ray CG, Ray AB (downward).',
-        explanation: 'Segments are bounded between pairs of marked points. Rays have a fixed starting point on the vertical line and extend outwards indefinitely through the arrowheads.'
+        explanation: 'Segments are bounded between pairs of marked points. Ray AB starts at A and continues downward through B, while Rays AE, BF, and CG start on the vertical ray and extend rightwards indefinitely through their arrowheads.'
       },
       {
         part: 'Figure (ii)',
         questionText: 'W-shaped figure with marked points A, B, C, D, E.',
-        answer: 'Line Segments: BC, CD, BA, DE. Rays: Ray BA (origin B) and Ray DE (origin D).',
-        explanation: 'The segments BC and CD join internal corners. Rays BA and DE start at vertices B and D and shoot upwards.'
+        answer: 'Line Segments: AB, BC, CD, DE. Rays: Ray BA (origin B) and Ray DE (origin D).',
+        explanation: 'The four segments AB, BC, CD, and DE join consecutive marked points. Rays BA and DE start at vertices B and D and shoot upwards through A and E.'
       },
       {
         part: 'Figure (iii)',
@@ -917,7 +917,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   {
     questionNumber: 3,
     title: '3D Cuboid: Vertices, Faces (Planes), and Edges (Segments)',
-    prompt: 'In the given figure of a 3D box (cuboid ABCD-PQRS): (i) How many points are marked? Name them. (ii) How many planes are shown? Name them. (iii) How many line segments are shown? Name them.',
+    prompt: 'In the given figure of a 3D box (cuboid): (i) How many points are marked? Name them. (ii) How many planes are shown? Name them. (iii) How many line segments are shown? Name them.',
     diagramType: 'cuboid',
     steps: [
       {
@@ -929,7 +929,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
       {
         part: '(ii)',
         questionText: 'How many planes are shown in the figure? Name them.',
-        answer: '6 planes: Top (PBAC), Bottom (QRDS), Front (CARD), Back (PBSQ), Left (PCRQ), Right (BADS).',
+        answer: '6 planes: Top (PBAC), Bottom (QRDS), Front (CADR), Back (PBSQ), Left (PCRQ), Right (BADS).',
         explanation: 'Each flat rectangular surface of the solid is a plane face.'
       },
       {
@@ -967,7 +967,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
       {
         part: '(iv)',
         questionText: 'All pairs of intersecting lines:',
-        answer: '(l, q), (l, p), (l, r), (m, q), (m, p), (m, r), (n, q), (n, p), (n, r), plus transversals (p, q) and (p, r).',
+        answer: '(l, q), (l, p), (l, r), (m, q), (m, p), (m, r), (n, q), (n, p), (n, r), plus transversals (p, q), (p, r), and (q, r).',
         explanation: 'Any pair of non-parallel lines in the same plane intersect at a unique point.'
       },
       {
@@ -986,33 +986,45 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 5,
-    title: 'Segments, Rays, and Line Naming',
-    prompt: 'In the figure alongside (lines l, m, n, t):',
+    title: 'Naming Lines, Line Segments, and Rays',
+    prompt: 'In the figure (lines l, m, n and t): (i) Name line l in two other ways. (ii) Name line m in two other ways. (iii) Name a line segment on line n. (iv) Name 3 line segments on line t. (v) Name 2 rays on line l. (vi) Name 4 rays on line t.',
     diagramType: 'line-m-t',
     steps: [
       {
         part: '(i)',
-        questionText: 'Name 3 line segments on line l:',
-        answer: 'Segment PQ, Segment QR, and Segment PR.',
-        explanation: 'Between points P, Q, and R on line l, three distinct line segments are defined.'
+        questionText: 'Name line l in two other ways.',
+        answer: 'Line CD or Line DC.',
+        explanation: 'Line l passes through points C and D, so those two points give it another name.'
       },
       {
         part: '(ii)',
-        questionText: 'Name 2 rays on line t:',
-        answer: 'Ray SR and Ray RS.',
-        explanation: 'Starting at S and extending past R, or starting at R and extending past S.'
+        questionText: 'Name line m in two other ways.',
+        answer: 'Line BD or Line DB.',
+        explanation: 'Line m is the vertical line through points B and D.'
       },
       {
         part: '(iii)',
-        questionText: 'Name line t in two other ways:',
-        answer: 'Line SR and Line RS.',
-        explanation: 'A line is named by identifying any two points that lie on it.'
+        questionText: 'Name a line segment on line n.',
+        answer: 'Segment AD (or Segment DA).',
+        explanation: 'Line n passes through A and D, so the part between these two points is segment AD.'
       },
       {
         part: '(iv)',
-        questionText: 'Name a line segment on line m:',
-        answer: 'Segment SP (or Segment PS).',
-        explanation: 'Line m passes through points S and P; the section between them is Segment SP.'
+        questionText: 'Name 3 line segments on line t (printed as line l in the book).',
+        answer: 'Segment AB, Segment BC, and Segment AC.',
+        explanation: 'Line t carries the three marked points A, B, and C. The segments between them are AB, BC, and the full span AC. The printed part says "line l", but line l has only two marked points (C and D), so the three-segment answer must refer to line t.'
+      },
+      {
+        part: '(v)',
+        questionText: 'Name 2 rays on line l.',
+        answer: 'Ray CD and Ray DC.',
+        explanation: 'Ray CD starts at C and passes through D; Ray DC starts at D and passes through C. They are opposite rays on line l.'
+      },
+      {
+        part: '(vi)',
+        questionText: 'Name 4 rays on line t.',
+        answer: 'Ray AB, Ray BA, Ray BC, and Ray CB.',
+        explanation: 'The three points on line t give exactly four different rays: from A through B (also named ray AC), from B through A, from B through C, and from C through B (also named ray CA).'
       }
     ]
   },
@@ -1108,7 +1120,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
         part: 'Answer',
         questionText: 'Choose the correct option:',
         answer: '(c) BA',
-        explanation: 'In the figure, point A is the fixed origin and the ray shoots rightward through B (Ray AB). There is no ray originating at B and continuing indefinitely in the direction of A. Therefore, BA does not represent a ray.'
+        explanation: 'In the figure, point O is the fixed origin and the ray shoots rightward through A and B. Ray OA and Ray OB both start at O, and Ray AB starts at A and passes through B, so all three are rays. BA would need to start at B and continue leftward through A; no such ray is drawn. Therefore, BA does not represent a ray.'
       }
     ]
   },
