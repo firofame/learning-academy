@@ -429,7 +429,10 @@ describe('Grade 6 Maths Curriculum: Chapter 14 Basic Geometry', () => {
     assert.match(q3.steps[1].answer, /Front \(CADR\)/);
 
     const q8 = lesson.solutions?.find(solution => solution.questionNumber === 8)!;
-    assert.match(q8.steps[0].explanation, /point O is the fixed origin/);
+    assert.match(q8.prompt, /rays is NOT shown/);
+    assert.match(q8.steps[0].explanation, /Ray BA starts at B and extends leftward through A/);
+    assert.match(q8.steps[0].explanation, /Therefore, BA is not shown/);
+    assert.doesNotMatch(q8.steps[0].explanation, /does not represent a ray/);
   });
 
   test('Question 5 matches the six-part textbook figure and resolves the line-l typo', () => {
@@ -466,6 +469,7 @@ describe('Grade 6 Maths Curriculum: Chapter 14 Basic Geometry', () => {
     const q8 = lesson.questions.find(q => q.id === 'g6-q8-mcq')!;
     assert.equal(q8.kind, 'choice');
     assert.deepEqual(q8.kind === 'choice' ? q8.options : [], ['OA', 'OB', 'BA', 'AB']);
+    assert.match(q8.kind === 'choice' ? q8.prompt : '', /which of the following rays is NOT shown\?/);
     assert.equal(q8.answer, 'BA');
 
     const q9 = lesson.questions.find(q => q.id === 'g6-q9-mcq')!;
@@ -488,6 +492,17 @@ describe('Grade 6 Maths Curriculum: Chapter 14 Basic Geometry', () => {
     assert.match(q8Markup, />O</);
     assert.match(q8Markup, />A</);
     assert.match(q8Markup, />B</);
+  });
+
+  test('textbook figure 6(iv) draws a figure-eight with two loops meeting at one point', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(MathsDiagram, { type: 'open-closed' })
+    );
+    assert.doesNotMatch(markup, /<ellipse/);
+    assert.match(
+      markup,
+      /d="M 40 30 C 28 12, 10 12, 10 30 C 10 48, 28 48, 40 30 C 52 12, 70 12, 70 30 C 70 48, 52 48, 40 30 Z"/
+    );
   });
 
   test('Grade 6 Maths results persist and isolate review questions', () => {

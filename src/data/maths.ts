@@ -842,10 +842,10 @@ export const GRADE_6_MATHS_QUESTIONS: MathsQuestion[] = [
   choice(
     'g6-q8-mcq',
     'geometry-fundamentals',
-    'In a figure showing a horizontal ray with origin O passing through A and then B to the right, which of the following does NOT represent a ray?',
+    'In a figure showing a horizontal ray with origin O passing through A and then B to the right, which of the following rays is NOT shown?',
     ['OA', 'OB', 'BA', 'AB'],
     'BA',
-    'Ray OA starts at O and passes through A, Ray OB starts at O and passes through B, and Ray AB starts at A and passes through B. All three extend to the right. BA would need to start at B and extend left through A, which is not shown, so BA is NOT a ray in this figure.',
+    'Ray OA starts at O and passes through A, Ray OB starts at O and passes through B, and Ray AB starts at A and passes through B. All three extend rightward. Ray BA would start at B and extend leftward through A, so BA is not shown in the figure.',
     'mcq-rays'
   ),
   choice(
@@ -1113,14 +1113,14 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   {
     questionNumber: 8,
     title: 'MCQ: Direction and Origin of a Ray',
-    prompt: 'Which of the following does not represent a ray in the given figure? (a) OA (b) OB (c) BA (d) AB',
+    prompt: 'Which of the following rays is NOT shown in the given figure? (a) OA (b) OB (c) BA (d) AB',
     diagramType: 'mcq-rays',
     steps: [
       {
         part: 'Answer',
         questionText: 'Choose the correct option:',
         answer: '(c) BA',
-        explanation: 'In the figure, point O is the fixed origin and the ray shoots rightward through A and B. Ray OA and Ray OB both start at O, and Ray AB starts at A and passes through B, so all three are rays. BA would need to start at B and continue leftward through A; no such ray is drawn. Therefore, BA does not represent a ray.'
+        explanation: 'Ray BA starts at B and extends leftward through A. The given figure only shows a ray extending rightward from O. Therefore, BA is not shown. Ray OA, Ray OB, and Ray AB all extend rightward in this figure, so those rays are shown.'
       }
     ]
   },

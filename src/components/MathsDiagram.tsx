@@ -341,12 +341,11 @@ export const MathsDiagram: React.FC<MathsDiagramProps> = ({ type, className = ''
               <span className="text-[11px] font-bold text-amber-700 mt-1">Open figure</span>
             </div>
 
-            {/* (iv) Figure 8 closed */}
+            {/* (iv) Figure-eight closed: two loops meeting at one common point */}
             <div className="bg-white p-3 rounded-lg border border-slate-200 flex flex-col items-center">
               <span className="text-xs font-semibold text-slate-500 mb-1">(iv)</span>
               <svg viewBox="0 0 80 60" className="w-16 h-12">
-                <ellipse cx="30" cy="30" rx="15" ry="18" fill="#ecfdf5" stroke="#059669" strokeWidth="2.5" />
-                <ellipse cx="50" cy="30" rx="15" ry="18" fill="#ecfdf5" stroke="#059669" strokeWidth="2.5" />
+                <path d="M 40 30 C 28 12, 10 12, 10 30 C 10 48, 28 48, 40 30 C 52 12, 70 12, 70 30 C 70 48, 52 48, 40 30 Z" fill="#ecfdf5" stroke="#059669" strokeWidth="2.5" />
               </svg>
               <span className="text-[11px] font-bold text-emerald-700 mt-1">Closed figure</span>
             </div>
