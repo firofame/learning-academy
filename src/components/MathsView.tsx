@@ -262,15 +262,16 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
               <button
                 type="button"
                 className={secondaryButton}
-                onClick={() =>
-                  start(
-                    'practice',
-                    lesson.questions.filter(q =>
-                      result.answers.some(a => a.questionId === q.id && !a.correct)
-                    ),
-                    'Review Missed Questions'
-                  )
-                }
+                onClick={() => {
+                  const missedFromQuiz = lesson.questions.filter(q =>
+                    result.answers.some(a => a.questionId === q.id && !a.correct)
+                  );
+                  const allSameTopic =
+                    missedFromQuiz.length > 0 &&
+                    missedFromQuiz.every(q => q.topic === missedFromQuiz[0].topic);
+                  const reviewTopic = allSameTopic ? missedFromQuiz[0].topic : 'all';
+                  start('practice', missedFromQuiz, 'Review Missed Questions', reviewTopic);
+                }}
               >
                 Practise missed questions
               </button>
@@ -354,7 +355,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
                 <button
                   type="button"
                   className={`${secondaryButton} inline-flex items-center gap-2`}
-                  onClick={() => start('practice', missedQuestions, 'Missed Questions Review')}
+                  onClick={() => start('practice', missedQuestions, 'Missed Questions Review', 'all')}
                 >
                   <RotateCcw className="w-4 h-4 text-amber-700" />
                   Review missed ({missedQuestions.length})

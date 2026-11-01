@@ -361,4 +361,23 @@ describe('Maths Progress Storage & Isolation', () => {
       unsubscribe();
     }
   });
+
+  test('practice review combining questions across multiple topics saves cleanly with topic: all', () => {
+    const pvQuestion = fullLesson.questions.find(q => q.topic === 'place-value')!;
+    const shapeQuestion = fullLesson.questions.find(q => q.topic === 'shapes')!;
+    const crossTopicPractice: MathsResult = {
+      mode: 'practice',
+      completedAt: new Date().toISOString(),
+      topic: 'all',
+      answers: [
+        { questionId: pvQuestion.id, answer: pvQuestion.answer, correct: true },
+        { questionId: shapeQuestion.id, answer: shapeQuestion.answer, correct: true }
+      ]
+    };
+
+    const saved = saveMathsResult('fazia', crossTopicPractice);
+    assert.ok(saved);
+    assert.equal(saved?.practice?.answers.length, 2);
+    assert.equal(saved?.practice?.topic, 'all');
+  });
 });
