@@ -90,15 +90,11 @@ describe('Learning Academy subject catalog', () => {
       }
     }
     for (const profile of STUDENT_PROFILES) {
-      const expectedSubjectIds = profile.grade === 2 ? ['spell-bee', 'robotics', 'maths'] : ['spell-bee', 'robotics'];
+      const expectedSubjectIds = ['spell-bee', 'robotics', 'maths'];
       assert.deepEqual(getAvailableSubjectsForGrade(profile.grade).map(subject => subject.id), expectedSubjectIds);
       assert.ok(getWordsForStudent(profile.id).every(word => word.studentGrade === profile.grade));
       assert.equal(getRoboticsLesson(profile.id).grade, profile.grade);
-      if (profile.grade === 2) {
-        assert.equal(getMathsLesson(profile.id).grade, profile.grade);
-      } else {
-        assert.throws(() => getMathsLesson(profile.id), /Maths is not available/);
-      }
+      assert.equal(getMathsLesson(profile.id).grade, profile.grade);
     }
   });
 
@@ -116,7 +112,7 @@ describe('Learning Academy subject catalog', () => {
       profile.grade = 6;
       assert.deepEqual(getWordsForStudent('fazia'), GRADE_6_WORDS);
       assert.equal(getRoboticsLesson('fazia'), getRoboticsLessonForGrade(6));
-      assert.throws(() => getMathsLesson('fazia'), /Maths is not available/);
+      assert.equal(getMathsLesson('fazia'), getMathsLessonForGrade(6));
       profile.grade = 3;
       assert.deepEqual(getWordsForStudent('fazia'), []);
       assert.throws(() => getRoboticsLesson('fazia'), /Robotics is not available/);

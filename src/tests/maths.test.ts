@@ -1,5 +1,7 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import {
   getMathsLesson,
   getMathsLessonForGrade,
@@ -8,6 +10,7 @@ import {
   MATHS_TOPICS,
   GRADE_2_MATHS_QUESTIONS
 } from '../data/maths';
+import { MathsDiagram } from '../components/MathsDiagram';
 import {
   loadMathsProgress,
   saveMathsResult,
@@ -50,7 +53,8 @@ describe('Grade 2 Maths Curriculum & Notebook Coverage', () => {
     assert.ok(lesson.cards.length >= 7, 'Includes cards for all core math concepts');
     assert.equal(lesson.questions.length, 49, 'Includes all notebook questions');
 
-    for (const topic of MATHS_TOPICS) {
+    const grade2Topics = MATHS_TOPICS.filter(t => lesson.cards.some(c => c.topic === t.id));
+    for (const topic of grade2Topics) {
       const topicQuestions = lesson.questions.filter(q => q.topic === topic.id);
       assert.ok(topicQuestions.length > 0, `Topic ${topic.id} has questions`);
     }
@@ -379,5 +383,144 @@ describe('Maths Progress Storage & Isolation', () => {
     assert.ok(saved);
     assert.equal(saved?.practice?.answers.length, 2);
     assert.equal(saved?.practice?.topic, 'all');
+  });
+});
+
+describe('Grade 6 Maths Curriculum: Chapter 14 Basic Geometry', () => {
+  const lesson = getMathsLesson('shiza');
+
+  test('lesson covers basic geometry cards, questions, and textbook solutions', () => {
+    assert.equal(lesson.grade, 6);
+    assert.equal(lesson.title, 'Chapter 14: Basic Geometry');
+    assert.ok(lesson.cards.length >= 8);
+    assert.ok(lesson.questions.length >= 17);
+    assert.equal(lesson.solutions?.length, 10);
+  });
+
+  test('answers to Chapter 14 questions are checked accurately', () => {
+    const q1 = lesson.questions.find(q => q.id === 'g6-q1-pts')!;
+    assert.ok(checkMathsAnswer(q1, 'P, Q, R'));
+    assert.ok(checkMathsAnswer(q1, 'p, q, r'));
+    assert.ok(checkMathsAnswer(q1, 'P,Q,R'));
+
+    const q3 = lesson.questions.find(q => q.id === 'g6-q3-edges')!;
+    assert.ok(checkMathsAnswer(q3, '12'));
+
+    const q8 = lesson.questions.find(q => q.id === 'g6-q8-mcq')!;
+    assert.ok(checkMathsAnswer(q8, 'BA'));
+
+    const q10 = lesson.questions.find(q => q.id === 'g6-q10-mcq')!;
+    assert.ok(checkMathsAnswer(q10, 'Line segment'));
+  });
+
+  test('textbook solutions include every intersecting pair and the corrected ray wording', () => {
+    const q2 = lesson.solutions?.find(solution => solution.questionNumber === 2)!;
+    assert.match(q2.steps[0].questionText, /Vertical ray with origin A/);
+    assert.match(q2.steps[0].answer, /Ray AB \(downward\)/);
+
+    const q4 = lesson.solutions?.find(solution => solution.questionNumber === 4)!;
+    const intersecting = q4.steps.find(step => step.part === '(iv)')!;
+    const pairs = intersecting.answer.match(/\([^)]+\)/g) ?? [];
+    assert.equal(pairs.length, 12);
+    assert.ok(pairs.includes('(q, r)'));
+
+    const q3 = lesson.solutions?.find(solution => solution.questionNumber === 3)!;
+    assert.doesNotMatch(q3.prompt, /ABCD-PQRS/);
+    assert.match(q3.steps[1].answer, /Front \(CADR\)/);
+
+    const q8 = lesson.solutions?.find(solution => solution.questionNumber === 8)!;
+    assert.match(q8.prompt, /rays is NOT shown/);
+    assert.match(q8.steps[0].explanation, /Ray BA starts at B and extends leftward through A/);
+    assert.match(q8.steps[0].explanation, /Therefore, BA is not shown/);
+    assert.doesNotMatch(q8.steps[0].explanation, /does not represent a ray/);
+  });
+
+  test('Question 5 matches the six-part textbook figure and resolves the line-l typo', () => {
+    const q5 = lesson.solutions?.find(solution => solution.questionNumber === 5)!;
+    assert.equal(q5.steps.length, 6);
+    assert.match(q5.prompt, /Name line l in two other ways/);
+    assert.equal(q5.steps[0].answer, 'Line CD or Line DC.');
+    assert.equal(q5.steps[1].answer, 'Line BD or Line DB.');
+    assert.equal(q5.steps[2].answer, 'Segment AD (or Segment DA).');
+    assert.match(q5.steps[3].questionText, /line t/);
+    assert.equal(q5.steps[3].answer, 'Segment AB, Segment BC, and Segment AC.');
+    assert.match(q5.steps[3].explanation, /line l has only two marked points/);
+    assert.equal(q5.steps[4].answer, 'Ray CD and Ray DC.');
+    assert.equal(q5.steps[5].answer, 'Ray AB, Ray BA, Ray BC, and Ray CB.');
+
+    const q5mcq = lesson.questions.find(q => q.id === 'g6-q5-naming')!;
+    assert.deepEqual(q5mcq.kind === 'choice' ? q5mcq.options : [], ['Line AB', 'Line AD', 'Line BD', 'Line CD']);
+    assert.equal(q5mcq.answer, 'Line AB');
+
+    const q5Markup = renderToStaticMarkup(
+      React.createElement(MathsDiagram, { type: 'line-m-t' })
+    );
+    assert.match(q5Markup, /aria-label="Lines l, m, n and t with points A, B, C, and D"/);
+    assert.equal((q5Markup.match(/<line /g) ?? []).length, 4);
+    assert.match(q5Markup, /x1="144" y1="20" x2="293" y2="270"/);
+    assert.match(q5Markup, /x1="216" y1="20" x2="67" y2="270"/);
+    assert.match(q5Markup, />A</);
+    assert.match(q5Markup, />B</);
+    assert.match(q5Markup, />C</);
+    assert.match(q5Markup, />D</);
+  });
+
+  test('MCQ options are ordered to match their lettered textbook prompts', () => {
+    const q8 = lesson.questions.find(q => q.id === 'g6-q8-mcq')!;
+    assert.equal(q8.kind, 'choice');
+    assert.deepEqual(q8.kind === 'choice' ? q8.options : [], ['OA', 'OB', 'BA', 'AB']);
+    assert.match(q8.kind === 'choice' ? q8.prompt : '', /which of the following rays is NOT shown\?/);
+    assert.equal(q8.answer, 'BA');
+
+    const q9 = lesson.questions.find(q => q.id === 'g6-q9-mcq')!;
+    assert.deepEqual(q9.kind === 'choice' ? q9.options : [], ['Point', 'Ray', 'Line', 'Line segment']);
+
+    const q10 = lesson.questions.find(q => q.id === 'g6-q10-mcq')!;
+    assert.deepEqual(q10.kind === 'choice' ? q10.options : [], ['Line', 'Ray', 'Point', 'Line segment']);
+  });
+
+  test('geometry diagrams show the corrected ray origins', () => {
+    const q2Markup = renderToStaticMarkup(
+      React.createElement(MathsDiagram, { type: 'fig2-arms' })
+    );
+    assert.match(q2Markup, /x1="40" y1="40" x2="40" y2="140"/);
+
+    const q8Markup = renderToStaticMarkup(
+      React.createElement(MathsDiagram, { type: 'mcq-rays' })
+    );
+    assert.match(q8Markup, /aria-label="Ray with origin O passing through A and B"/);
+    assert.match(q8Markup, />O</);
+    assert.match(q8Markup, />A</);
+    assert.match(q8Markup, />B</);
+  });
+
+  test('textbook figure 6(iv) draws a figure-eight with two loops meeting at one point', () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(MathsDiagram, { type: 'open-closed' })
+    );
+    assert.doesNotMatch(markup, /<ellipse/);
+    assert.match(
+      markup,
+      /d="M 40 30 C 28 12, 10 12, 10 30 C 10 48, 28 48, 40 30 C 52 12, 70 12, 70 30 C 70 48, 52 48, 40 30 Z"/
+    );
+  });
+
+  test('Grade 6 Maths results persist and isolate review questions', () => {
+    const topicQuestions = lesson.questions.filter(q => q.topic === 'geometry-fundamentals');
+    const examResult: MathsResult = {
+      mode: 'exam',
+      completedAt: new Date().toISOString(),
+      topic: 'geometry-fundamentals',
+      answers: topicQuestions.map((q, idx) => ({
+        questionId: q.id,
+        answer: idx === 0 ? 'wrong' : q.answer,
+        correct: idx !== 0
+      }))
+    };
+
+    const saved = saveMathsResult('shiza', examResult);
+    assert.ok(saved);
+    assert.deepEqual(saved?.reviewQuestionIds, [topicQuestions[0].id]);
+    assert.equal(loadMathsProgress('shiza').exam?.answers.length, topicQuestions.length);
   });
 });

@@ -6,7 +6,7 @@ designed for calm, systematic learning.
 ## Subjects & Grades
 
 - The app opens on a subject home screen for the active student and their grade.
-- Spell Bee and Robotics are available for **Grade 2** and **Grade 6**; Maths is available for **Grade 2** (based on school notebook revision notes).
+- Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
 - EVS, Maths, English, Hindi, Malayalam, and the other spelling groupings are
   **word categories within Spell Bee**, distinct from the standalone **Maths** curriculum subject.
 - Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.

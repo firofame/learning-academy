@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Calculator, Volume2, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calculator, Volume2, CheckCircle2, XCircle, RotateCcw, BookOpen, Sparkles } from 'lucide-react';
 import { StudentId } from '../types';
 import { getStudentProfile } from '../data/wordList';
 import {
@@ -18,6 +18,7 @@ import {
   MathsResult,
   saveMathsResult
 } from '../utils/mathsStorage';
+import { MathsDiagram } from './MathsDiagram';
 
 interface MathsViewProps {
   activeStudent: StudentId;
@@ -109,6 +110,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
   const profile = getStudentProfile(activeStudent);
   const [progress, setProgress] = useState(() => loadMathsProgress(activeStudent));
   const [selectedTopic, setSelectedTopic] = useState<MathsTopic | 'all'>('all');
+  const [viewMode, setViewMode] = useState<'notes' | 'solutions'>('notes');
   const [quiz, setQuiz] = useState<{
     mode: MathsQuizMode;
     questions: MathsQuestion[];
@@ -124,6 +126,12 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
   useEffect(() => {
     headingRef.current?.focus();
   }, [quiz, result]);
+
+  const availableTopics = MATHS_TOPICS.filter(
+    t =>
+      lesson.questions.some(q => q.topic === t.id) ||
+      lesson.cards.some(c => c.topic === t.id)
+  );
 
   const filteredQuestions =
     selectedTopic === 'all'
@@ -143,7 +151,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
     mode: MathsQuizMode,
     questions = filteredQuestions,
     title = selectedTopic === 'all'
-      ? 'All Grade 2 Maths Questions'
+      ? `All ${profile.gradeLabel} Maths Questions`
       : MATHS_TOPICS.find(t => t.id === selectedTopic)?.label || 'Topic Quiz',
     topic: MathsTopic | 'all' = selectedTopic
   ) => {
@@ -169,8 +177,36 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
           {lesson.title}
         </h1>
         <p className="text-sm text-slate-600">
-          Full school revision from Fazia's Grade 2 maths notebook: Place Value, Expanded Form, Comparing, Shapes, Number Names, Ordering, and Addition & Subtraction.
+          {profile.grade === 2
+            ? "Full school revision from Fazia's Grade 2 maths notebook: Place Value, Expanded Form, Comparing, Shapes, Number Names, Ordering, and Addition & Subtraction."
+            : "Complete school revision for Grade 6: Points, Lines, Line Segments, Rays, 3D Cuboids, Parallel & Intersecting Lines, Open & Closed Figures, Regions, and Textbook Solutions."}
         </p>
+        {lesson.solutions && lesson.solutions.length > 0 && !quiz && !result && (
+          <div className="flex flex-wrap gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('notes')}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === 'notes'
+                  ? 'bg-indigo-700 text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" /> Revision Notes & Cards
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('solutions')}
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer ${
+                viewMode === 'solutions'
+                  ? 'bg-indigo-700 text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <BookOpen className="w-4 h-4" /> Textbook Solutions (Q1 - Q10)
+            </button>
+          </div>
+        )}
       </header>
 
       {quiz && !result ? (
@@ -302,6 +338,10 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
                     )}
                   </div>
 
+                  {question.diagramType && (
+                    <MathsDiagram type={question.diagramType} className="my-2" />
+                  )}
+
                   {question.verticalMath && (
                     <VerticalMathDisplay
                       operand1={question.verticalMath.operand1}
@@ -389,7 +429,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
               >
                 All Topics ({lesson.questions.length})
               </button>
-              {MATHS_TOPICS.map(topic => {
+              {availableTopics.map(topic => {
                 const count = lesson.questions.filter(q => q.topic === topic.id).length;
                 return (
                   <button
@@ -409,41 +449,94 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
             </div>
           </section>
 
-          {/* Revision Concept Cards */}
-          <section className="grid gap-4 sm:grid-cols-2" aria-label="Revision notes">
-            {filteredCards.map(card => (
-              <article
-                key={card.id}
-                className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs flex flex-col justify-between"
-              >
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-bold text-slate-900">{card.title}</h3>
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800">
-                      {MATHS_TOPICS.find(t => t.id === card.topic)?.shortLabel}
-                    </span>
+          {/* Conditional Content: Revision Cards vs Textbook Solutions */}
+          {viewMode === 'solutions' && lesson.solutions && lesson.solutions.length > 0 ? (
+            <section className="space-y-4" aria-label="Textbook solutions">
+              <h2 className="text-xl font-bold text-slate-900">
+                Exercise 14 — Step-by-Step Textbook Solutions
+              </h2>
+              <div className="space-y-4">
+                {lesson.solutions.map(sol => (
+                  <article key={sol.questionNumber} className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs">
+                    <div className="border-b border-slate-100 pb-2">
+                      <span className="text-xs font-bold text-indigo-700 uppercase tracking-wide">
+                        Question {sol.questionNumber}
+                      </span>
+                      <h3 className="text-lg font-bold text-slate-900 mt-0.5">{sol.title}</h3>
+                      <p className="text-xs text-slate-600 italic mt-0.5">{sol.prompt}</p>
+                    </div>
+
+                    {sol.diagramType && (
+                      <MathsDiagram type={sol.diagramType} className="my-2" />
+                    )}
+
+                    <div className="space-y-2 pt-1">
+                      {sol.steps.map((step, idx) => (
+                        <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-1">
+                          <p className="text-xs font-semibold text-slate-800">
+                            {step.part ? `${step.part} ` : ''}{step.questionText}
+                          </p>
+                          <p className="text-xs font-bold text-emerald-800">
+                            Answer: <span className="font-normal text-slate-900">{step.answer}</span>
+                          </p>
+                          <p className="text-[11px] text-slate-600 leading-relaxed">
+                            💡 <strong>Explanation:</strong> {step.explanation}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
+            /* Revision Concept Cards */
+            <section className="grid gap-4 sm:grid-cols-2" aria-label="Revision notes">
+              {filteredCards.map(card => (
+                <article
+                  key={card.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 shadow-xs flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-bold text-slate-900">{card.title}</h3>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-800">
+                        {MATHS_TOPICS.find(t => t.id === card.topic)?.shortLabel}
+                      </span>
+                    </div>
+
+                    {card.symbolNotation && (
+                      <p className="text-xs font-mono text-indigo-800 bg-indigo-50 px-2 py-0.5 rounded-md inline-block">
+                        Notation: {card.symbolNotation}
+                      </p>
+                    )}
+
+                    {card.diagramType && (
+                      <MathsDiagram type={card.diagramType} className="my-2" />
+                    )}
+
+                    <p className="text-xs font-semibold text-slate-600">{card.prompt}</p>
+                    <p className="text-sm text-slate-800 leading-relaxed">{card.answer}</p>
+                    <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 text-xs text-amber-900">
+                      <strong>Rule:</strong> {card.keyRule}
+                    </div>
+                    {card.examples && (
+                      <p className="text-xs text-slate-500">
+                        <strong>Examples:</strong> {card.examples}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-xs font-semibold text-slate-600">{card.prompt}</p>
-                  <p className="text-sm text-slate-800 leading-relaxed">{card.answer}</p>
-                  <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-2.5 text-xs text-amber-900">
-                    <strong>Rule:</strong> {card.keyRule}
+                  <div className="pt-2">
+                    <ListenButton
+                      text={`${card.title}. ${card.prompt} ${card.answer}. Key rule: ${card.keyRule}. Examples: ${card.examples}`}
+                      label={`Listen to ${card.title}`}
+                      enabled={settings.speechAudio}
+                    />
                   </div>
-                  {card.examples && (
-                    <p className="text-xs text-slate-500">
-                      <strong>Examples:</strong> {card.examples}
-                    </p>
-                  )}
-                </div>
-                <div className="pt-2">
-                  <ListenButton
-                    text={`${card.title}. ${card.prompt} ${card.answer}. Key rule: ${card.keyRule}. Examples: ${card.examples}`}
-                    label={`Listen to ${card.title}`}
-                    enabled={settings.speechAudio}
-                  />
-                </div>
-              </article>
-            ))}
-          </section>
+                </article>
+              ))}
+            </section>
+          )}
 
           {/* Saved Results Card */}
           <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4" aria-label="Saved maths results">
@@ -462,10 +555,9 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
 
           {/* Notebook Attribution & Quick Revision Plan */}
           <aside className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
-            <h2 className="text-sm font-bold text-amber-950">Notebook Revision Guide</h2>
+            <h2 className="text-sm font-bold text-amber-950">Curriculum Source</h2>
             <p className="text-xs text-slate-700 leading-relaxed">
-              Source: <span className="font-semibold">{lesson.sourceName}</span> (Fazia Grade 2 Revision Notebook, dated 12-10-26 to 26-10-26).
-              Covers all 7 sections: Place Value, Expanded Form, Standard Form, Comparing (&gt;, &lt;, =), Matching Shapes, Do as Directed (Greatest Numbers, Number Names, Ascending/Descending), and Simplify (Addition &amp; Subtraction with regrouping).
+              Source: <span className="font-semibold">{lesson.sourceName}</span>.
             </p>
           </aside>
         </>
@@ -588,6 +680,10 @@ function MathsQuiz({
             enabled={settings.speechAudio}
           />
         </div>
+
+        {question.diagramType && (
+          <MathsDiagram type={question.diagramType} className="my-2" />
+        )}
 
         {/* Vertical Math Display if arithmetic problem */}
         {question.verticalMath && (
