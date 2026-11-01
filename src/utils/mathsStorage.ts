@@ -1,5 +1,5 @@
 import { StudentId } from '../types';
-import { checkMathsAnswer, getMathsLesson, MathsLesson } from '../data/maths';
+import { checkMathsAnswer, getMathsLesson, MATHS_TOPICS, MathsLesson } from '../data/maths';
 import { emitStorageError } from './storage';
 
 export type MathsQuizMode = 'practice' | 'exam';
@@ -62,10 +62,45 @@ function isValidResult(value: unknown, mode: MathsQuizMode, lesson: MathsLesson)
   const validAnswers = value.answers.filter(entry => isValidAnswer(entry, lesson));
   if (validAnswers.length !== value.answers.length) return false;
 
-  const answeredIds = new Set(validAnswers.map(a => a.questionId));
+  const answeredIds = new Set(validAnswers.map(a => (a as MathsAnswer).questionId));
   if (answeredIds.size !== validAnswers.length) return false;
 
-  if (validAnswers.length > lesson.questions.length) return false;
+  const topic = typeof value.topic === 'string' ? value.topic : undefined;
+
+  if (mode === 'exam') {
+    // Determine the expected question set based on the declared topic
+    let expectedQuestionIds: Set<string>;
+    if (!topic || topic === 'all') {
+      // Full-curriculum exam: must contain every question
+      expectedQuestionIds = new Set(lesson.questions.map(q => q.id));
+    } else {
+      // Topic-specific exam: topic must be a known topic
+      if (!MATHS_TOPICS.some(t => t.id === topic)) return false;
+      // Must contain exactly the questions belonging to that topic
+      expectedQuestionIds = new Set(
+        lesson.questions.filter(q => q.topic === topic).map(q => q.id)
+      );
+      if (expectedQuestionIds.size === 0) return false;
+    }
+    // Answers must match the expected set exactly
+    if (answeredIds.size !== expectedQuestionIds.size) return false;
+    for (const id of answeredIds) {
+      if (!expectedQuestionIds.has(id)) return false;
+    }
+  } else {
+    // Practice: any valid subset of lesson questions is fine, but reject unknown topics
+    if (topic && topic !== 'all' && !MATHS_TOPICS.some(t => t.id === topic)) return false;
+    // All answered questions must belong to the declared topic (if one is set)
+    if (topic && topic !== 'all') {
+      const topicQuestionIds = new Set(
+        lesson.questions.filter(q => q.topic === topic).map(q => q.id)
+      );
+      for (const id of answeredIds) {
+        if (!topicQuestionIds.has(id)) return false;
+      }
+    }
+    if (validAnswers.length > lesson.questions.length) return false;
+  }
 
   return true;
 }

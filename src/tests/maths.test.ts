@@ -277,6 +277,7 @@ describe('Maths Progress Storage & Isolation', () => {
 
   test('topic exams update reviewQuestionIds: remove newly correct and add newly missed', () => {
     const pvQuestions = fullLesson.questions.filter(q => q.topic === 'place-value');
+    // First exam: miss the first question
     const topicExam1: MathsResult = {
       mode: 'exam',
       completedAt: new Date().toISOString(),
@@ -291,16 +292,73 @@ describe('Maths Progress Storage & Isolation', () => {
     assert.ok(saved1);
     assert.deepEqual(saved1?.reviewQuestionIds, [pvQuestions[0].id]);
 
+    // Second exam: answer all correctly, clearing the previously missed question
     const topicExam2: MathsResult = {
       mode: 'exam',
       completedAt: new Date().toISOString(),
       topic: 'place-value',
-      answers: [
-        { questionId: pvQuestions[0].id, answer: pvQuestions[0].answer, correct: true }
-      ]
+      answers: pvQuestions.map(q => ({
+        questionId: q.id,
+        answer: q.answer,
+        correct: true
+      }))
     };
     const saved2 = saveMathsResult('fazia', topicExam2);
     assert.ok(saved2);
     assert.deepEqual(saved2?.reviewQuestionIds, []);
+  });
+
+  test('rejects exam results with unknown topics, cross-topic answers, or incomplete topic sets', () => {
+    const messages: string[] = [];
+    const unsubscribe = subscribeStorageError(msg => messages.push(msg));
+    try {
+      const pvQuestions = fullLesson.questions.filter(q => q.topic === 'place-value');
+      const simplifyQuestions = fullLesson.questions.filter(q => q.topic === 'simplify');
+
+      // Unknown topic
+      const unknownTopic: MathsResult = {
+        mode: 'exam',
+        completedAt: new Date().toISOString(),
+        topic: 'nonexistent-topic',
+        answers: pvQuestions.map(q => ({
+          questionId: q.id, answer: q.answer, correct: true
+        }))
+      };
+      assert.equal(saveMathsResult('fazia', unknownTopic), null);
+
+      // Cross-topic: labelled place-value but contains simplify answers
+      const crossTopic: MathsResult = {
+        mode: 'exam',
+        completedAt: new Date().toISOString(),
+        topic: 'place-value',
+        answers: simplifyQuestions.map(q => ({
+          questionId: q.id, answer: q.answer, correct: true
+        }))
+      };
+      assert.equal(saveMathsResult('fazia', crossTopic), null);
+
+      // Incomplete: labelled place-value but only has one answer
+      const incomplete: MathsResult = {
+        mode: 'exam',
+        completedAt: new Date().toISOString(),
+        topic: 'place-value',
+        answers: [{ questionId: pvQuestions[0].id, answer: pvQuestions[0].answer, correct: true }]
+      };
+      assert.equal(saveMathsResult('fazia', incomplete), null);
+
+      // Full-curriculum exam missing questions
+      const partialFull: MathsResult = {
+        mode: 'exam',
+        completedAt: new Date().toISOString(),
+        answers: pvQuestions.map(q => ({
+          questionId: q.id, answer: q.answer, correct: true
+        }))
+      };
+      assert.equal(saveMathsResult('fazia', partialFull), null);
+
+      assert.ok(messages.length >= 4, 'all invalid results reported errors');
+    } finally {
+      unsubscribe();
+    }
   });
 });
