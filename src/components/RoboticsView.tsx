@@ -1,14 +1,37 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Bot, Volume2 } from 'lucide-react';
 import { StudentId } from '../types';
-import { getStudentProfile } from '../data/wordList';
+import { getStudentProfile } from '../data/profiles';
 import { checkRoboticsAnswer, getRoboticsLesson, RoboticsQuestion } from '../data/robotics';
 import { audioService } from '../utils/audio';
-import { AppSettings } from '../utils/storage';
+import type { AppSettings } from '../utils/appStorage';
 import { gradeRoboticsAnswer, MAX_WRITTEN_ANSWER_LENGTH } from '../utils/roboticsGrading';
 import {
   loadRoboticsProgress, RoboticsAnswer, RoboticsQuizMode, RoboticsResult, saveRoboticsResult
 } from '../utils/roboticsStorage';
+import { createSessionId } from '../learning/sessionController';
+import { recordQuizAnswerAttempt } from '../learning/attemptRecords';
+import { usePersistentDraft } from '../learning/usePersistentDraft';
+
+interface RoboticsSessionDraftState {
+  mode: RoboticsQuizMode;
+  questionIds: string[];
+  index: number;
+  input: string;
+  answers: RoboticsAnswer[];
+  feedback: RoboticsAnswer | null;
+}
+
+function isRoboticsAnswer(value: unknown): value is RoboticsAnswer {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const answer = value as Record<string, unknown>;
+  return typeof answer.questionId === 'string' && typeof answer.answer === 'string' &&
+    typeof answer.correct === 'boolean' && typeof answer.parentChecked === 'boolean' &&
+    (answer.aiChecked === undefined || typeof answer.aiChecked === 'boolean') &&
+    (answer.aiFeedback === undefined || typeof answer.aiFeedback === 'string') &&
+    (answer.attemptId === undefined || typeof answer.attemptId === 'string') &&
+    (answer.attemptedAt === undefined || (typeof answer.attemptedAt === 'string' && Number.isFinite(Date.parse(answer.attemptedAt))));
+}
 
 interface RoboticsViewProps {
   activeStudent: StudentId;
@@ -57,21 +80,59 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
 }) => {
   const lesson = getRoboticsLesson(activeStudent);
   const profile = getStudentProfile(activeStudent);
+  const { restoredDraft, loadingDraft, saveDraft, discardDraft, forgetRestoredDraft } = usePersistentDraft<RoboticsSessionDraftState>({
+    learnerId: activeStudent, subjectId: 'robotics', lessonId: lesson.id
+  });
   const [progress, setProgress] = useState(() => loadRoboticsProgress(activeStudent));
-  const [quiz, setQuiz] = useState<{ mode: RoboticsQuizMode; questions: RoboticsQuestion[] } | null>(null);
+  const [quiz, setQuiz] = useState<{ mode: RoboticsQuizMode; questions: RoboticsQuestion[]; sessionId: string; draft?: RoboticsSessionDraftState } | null>(null);
   const [result, setResult] = useState<RoboticsResult | null>(null);
   const [saved, setSaved] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [draftError, setDraftError] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => audioService.stopAll(), []);
   useEffect(() => { headingRef.current?.focus(); }, [quiz, result]);
 
   const start = (mode: RoboticsQuizMode, questions = lesson.questions) => {
+    if (quiz) void discardDraft(quiz.sessionId).catch(() => undefined);
+    if (restoredDraft) void discardDraft(restoredDraft.sessionId).catch(() => undefined);
     audioService.stopAll();
     setResult(null);
     setSaved(false);
-    setQuiz({ mode, questions });
+    setQuiz({ mode, questions, sessionId: createSessionId() });
+    setDraftError('');
+  };
+
+  const resumeSavedQuiz = () => {
+    if (!restoredDraft) return;
+    const value = restoredDraft.state as unknown;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      setDraftError('The saved quiz could not be restored. Its data has been kept for recovery.');
+      return;
+    }
+    const draft = value as Partial<RoboticsSessionDraftState>;
+    const questions = Array.isArray(draft.questionIds)
+      ? draft.questionIds.map(id => typeof id === 'string' ? lesson.questions.find(question => question.id === id) : undefined)
+      : [];
+    const valid = (draft.mode === 'practice' || draft.mode === 'exam') &&
+      Number.isInteger(draft.index) && draft.index! >= 0 && draft.index! < questions.length &&
+      questions.length > 0 && questions.every((question): question is RoboticsQuestion => question !== undefined) &&
+      Array.isArray(draft.answers) && draft.answers.every(isRoboticsAnswer) && typeof draft.input === 'string' &&
+      (draft.feedback === null || isRoboticsAnswer(draft.feedback)) &&
+      (draft.mode !== 'exam' || draft.feedback === null) &&
+      draft.answers.every((answer, index) => answer.questionId === draft.questionIds?.[index]) &&
+      (!draft.feedback || draft.feedback.questionId === draft.questionIds?.[draft.index!]);
+    if (!valid) {
+      setDraftError('This saved quiz does not match the current Robotics lesson. It has been kept, and you can start a new quiz.');
+      return;
+    }
+    setQuiz({ mode: draft.mode!, questions: questions as RoboticsQuestion[], sessionId: restoredDraft.sessionId, draft: draft as RoboticsSessionDraftState });
+    setResult(null);
+    setSaved(false);
+    setConfirmExit(false);
+    setDraftError('');
+    forgetRestoredDraft();
   };
 
   const persist = (completed: RoboticsResult) => {
@@ -92,6 +153,17 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
         <p className="text-sm text-slate-600">Lesson 1 · Based on your school robotics notes.</p>
       </header>
 
+      {!quiz && !result && !loadingDraft && restoredDraft && (
+        <section className="rounded-xl border border-teal-200 bg-teal-50 p-4 space-y-3" aria-label="Saved Robotics quiz">
+          <p className="font-semibold text-teal-950">An unfinished Robotics quiz is saved on this device.</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className={primaryButton} onClick={resumeSavedQuiz}>Resume saved quiz</button>
+            <button type="button" className={secondaryButton} onClick={() => void discardDraft(restoredDraft.sessionId).catch(() => undefined)}>Discard saved quiz</button>
+          </div>
+        </section>
+      )}
+      {draftError && <p role="alert" className="text-amber-900">{draftError}</p>}
+
       {quiz && !result ? (
         <>
           <button type="button" className={`${secondaryButton} inline-flex items-center gap-2`} onClick={() => setConfirmExit(true)}>
@@ -99,20 +171,26 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
           </button>
           {confirmExit && (
             <div role="alert" className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
-              <p>This quiz is not finished. Leaving will discard its answers. Completed results stay saved.</p>
+              <p>This quiz is unfinished. Its answers are saved on this device until you discard it. Completed results stay saved too.</p>
               <div className="flex flex-wrap gap-3">
                 <button className={secondaryButton} onClick={() => setConfirmExit(false)}>Keep answering</button>
                 <button className={secondaryButton} onClick={() => {
-                  audioService.stopAll(); setQuiz(null); setConfirmExit(false);
+                  audioService.stopAll();
+                  void discardDraft(quiz.sessionId).catch(() => undefined);
+                  setQuiz(null); setConfirmExit(false);
                 }}>Discard unfinished quiz</button>
               </div>
             </div>
           )}
           <RoboticsQuiz
+            learnerId={activeStudent}
             mode={quiz.mode} questions={quiz.questions} settings={settings}
-            lessonId={lesson.id} gradingApiUrl={gradingApiUrl}
+            lessonId={lesson.id} provenance={lesson.sourceName} gradingApiUrl={gradingApiUrl} sessionId={quiz.sessionId}
+            initialDraft={quiz.draft} onDraftChange={saveDraft}
             onComplete={completed => {
-              audioService.stopAll(); setResult(completed); persist(completed);
+              audioService.stopAll();
+              void discardDraft(quiz.sessionId).catch(() => undefined);
+              setQuiz(null); setResult(completed); persist(completed);
             }}
           />
         </>
@@ -164,7 +242,7 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
                 <button className={secondaryButton} onClick={() => start('practice', missedQuestions)}>Review missed ({missedQuestions.length})</button>
               )}
             </div>
-            <p className="text-sm text-slate-600">Practice is assisted. Exam feedback stays hidden until all questions are finished. Written answers are checked automatically; service failures leave your answer unmarked so you can retry. Results save only when a quiz is complete. Leaving Robotics or switching student discards an unfinished quiz.</p>
+            <p className="text-sm text-slate-600">Practice is assisted. Exam feedback stays hidden until all questions are finished. Written answers are checked online; if checking is unavailable, your answer stays unmarked so you can retry. Completed results save after the quiz, and unfinished quizzes can be resumed later.</p>
           </section>
           <section className="grid gap-4 sm:grid-cols-2" aria-label="Revision notes">
             {lesson.cards.map(card => (
@@ -196,19 +274,24 @@ export const RoboticsView: React.FC<RoboticsViewProps> = ({
 };
 
 function RoboticsQuiz({
-  mode, questions, settings, lessonId, gradingApiUrl, onComplete
+  learnerId, mode, questions, settings, lessonId, provenance, gradingApiUrl, sessionId, initialDraft, onDraftChange, onComplete
 }: {
+  learnerId: StudentId;
   mode: RoboticsQuizMode;
   questions: RoboticsQuestion[];
   settings: AppSettings;
   lessonId: string;
+  provenance: string;
   gradingApiUrl: string;
+  sessionId: string;
+  initialDraft?: RoboticsSessionDraftState;
+  onDraftChange: (sessionId: string, state: RoboticsSessionDraftState) => void;
   onComplete: (result: RoboticsResult) => void;
 }) {
-  const [index, setIndex] = useState(0);
-  const [input, setInput] = useState('');
-  const [answers, setAnswers] = useState<RoboticsAnswer[]>([]);
-  const [feedback, setFeedback] = useState<RoboticsAnswer | null>(null);
+  const [index, setIndex] = useState(initialDraft?.index ?? 0);
+  const [input, setInput] = useState(initialDraft?.input ?? '');
+  const [answers, setAnswers] = useState<RoboticsAnswer[]>(initialDraft?.answers ?? []);
+  const [feedback, setFeedback] = useState<RoboticsAnswer | null>(initialDraft?.feedback ?? null);
   const [checking, setChecking] = useState(false);
   const [checkingError, setCheckingError] = useState('');
   const controllerRef = useRef<AbortController | null>(null);
@@ -219,6 +302,16 @@ function RoboticsQuiz({
   useEffect(() => () => controllerRef.current?.abort(), []);
   useEffect(() => { promptRef.current?.focus(); }, [index]);
   useEffect(() => { submittedRef.current = false; }, [index]);
+  useEffect(() => {
+    onDraftChange(sessionId, {
+      mode,
+      questionIds: questions.map(item => item.id),
+      index,
+      input,
+      answers,
+      feedback
+    });
+  }, [sessionId, mode, questions, index, input, answers, feedback, onDraftChange]);
 
   const finish = (completed: RoboticsAnswer[]) => {
     onComplete({ mode, completedAt: new Date().toISOString(), answers: completed });
@@ -249,7 +342,9 @@ function RoboticsQuiz({
     const entry: RoboticsAnswer = {
       questionId: question.id, answer,
       correct: question.kind !== 'short' && checkRoboticsAnswer(question, answer),
-      parentChecked: false
+      parentChecked: false,
+      attemptId: `${sessionId}:${question.id}`,
+      attemptedAt: new Date().toISOString()
     };
     if (question.kind === 'short' && answer) {
       const controller = new AbortController();
@@ -265,6 +360,18 @@ function RoboticsQuiz({
         entry.aiChecked = true;
         entry.aiFeedback = grade.feedback;
       } catch (error) {
+        void recordQuizAnswerAttempt({
+          learnerId, subjectId: 'robotics', lessonId, mode,
+          answer: {
+            ...entry,
+            correct: false,
+            ungraded: true,
+            prompt: question.prompt,
+            referenceAnswer: question.answer,
+            explanation: question.explanation,
+            provenance
+          }
+        }).catch(() => undefined);
         if (!controller.signal.aborted) {
           submittedRef.current = false;
           setCheckingError(error instanceof Error ? error.message : 'Checking failed. Your answer has not been marked. Please retry.');
@@ -277,6 +384,16 @@ function RoboticsQuiz({
         }
       }
     }
+    void recordQuizAnswerAttempt({
+      learnerId, subjectId: 'robotics', lessonId, mode,
+      answer: {
+        ...entry,
+        prompt: question.prompt,
+        referenceAnswer: question.answer,
+        explanation: question.explanation,
+        provenance
+      }
+    }).catch(() => undefined);
     if (mode === 'exam') advance([...answers, entry]);
     else setFeedback(entry);
   };

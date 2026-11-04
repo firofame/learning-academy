@@ -1,6 +1,11 @@
 import { StudentId } from '../types';
 import { checkMalayalamAnswer, getMalayalamLesson, MalayalamLesson } from '../data/malayalam';
-import { emitStorageError } from './storage';
+import { emitStorageError } from './appStorage';
+import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
+import { CONTENT_VERSIONS } from '../data/contentVersions';
+import { createQuizAttempts } from '../learning/attemptRecords';
+import { saveLearningAttempts } from '../learning/persistence';
 import { isWrittenGrade } from './roboticsGrading';
 
 export type MalayalamQuizMode = 'practice' | 'exam';
@@ -11,6 +16,8 @@ export interface MalayalamAnswer {
   correct: boolean;
   aiChecked?: boolean;
   aiFeedback?: string;
+  attemptId?: string;
+  attemptedAt?: string;
 }
 
 export interface MalayalamResult {
@@ -47,6 +54,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isValidAnswer(value: unknown, lesson: MalayalamLesson): value is MalayalamAnswer {
   if (!isRecord(value) || typeof value.questionId !== 'string' ||
       typeof value.answer !== 'string' || typeof value.correct !== 'boolean') return false;
+  if (value.attemptId !== undefined && (typeof value.attemptId !== 'string' || !value.attemptId) ||
+      value.attemptedAt !== undefined && (typeof value.attemptedAt !== 'string' || !Number.isFinite(Date.parse(value.attemptedAt)))) return false;
   const question = lesson.questions.find(entry => entry.id === value.questionId);
   if (!question || !value.answer.trim() ||
       value.aiChecked !== undefined && typeof value.aiChecked !== 'boolean') return false;
@@ -113,9 +122,12 @@ export function saveMalayalamResult(
   }
 
   const previous = loadMalayalamProgress(studentId);
-  const newlyCorrectIds = new Set(result.answers.filter(answer => answer.correct).map(answer => answer.questionId));
+  const isFullExam = result.mode === 'exam' && result.answers.length === lesson.questions.length;
+  const newlyCorrectIds = new Set(result.answers
+    .filter(answer => shouldClearMissedQuestion(SUBJECT_REVIEW_POLICIES.malayalam, result.mode, isFullExam, answer.correct ? 'correct' : 'incorrect', false))
+    .map(answer => answer.questionId));
   const newlyIncorrectIds = result.answers.filter(answer => !answer.correct).map(answer => answer.questionId);
-  const reviewQuestionIds = result.mode === 'exam'
+  const reviewQuestionIds = isFullExam
     ? newlyIncorrectIds
     : Array.from(new Set([
         ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
@@ -131,7 +143,20 @@ export function saveMalayalamResult(
 
   if (typeof window === 'undefined') return next;
   try {
-    localStorage.setItem(getMalayalamStorageKey(studentId), JSON.stringify(next));
+    const serialized = JSON.stringify(next);
+    localStorage.setItem(getMalayalamStorageKey(studentId), serialized);
+    if (typeof indexedDB !== 'undefined') {
+      const repository = getDefaultLearningRepository();
+      void persistProgressSnapshot(repository, studentId, 'malayalam', serialized, CONTENT_VERSIONS.malayalam).catch(() => undefined);
+      void saveLearningAttempts(repository, createQuizAttempts({
+        learnerId: studentId, subjectId: 'malayalam', lessonId: lesson.id, mode: result.mode,
+        completedAt: result.completedAt, provenance: lesson.sourceNote,
+        answers: result.answers.map(answer => {
+          const question = lesson.questions.find(item => item.id === answer.questionId)!;
+          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer };
+        })
+      })).catch(() => undefined);
+    }
     return next;
   } catch {
     emitStorageError('Storage save failed: unable to save this Malayalam result. Keep this page open and retry.');

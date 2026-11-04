@@ -1,7 +1,12 @@
 import { StudentId } from '../types';
 import { checkRoboticsAnswer, getRoboticsLesson, RoboticsLesson } from '../data/robotics';
-import { emitStorageError } from './storage';
+import { emitStorageError } from './appStorage';
 import { isWrittenGrade } from './roboticsGrading';
+import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
+import { CONTENT_VERSIONS } from '../data/contentVersions';
+import { createQuizAttempts } from '../learning/attemptRecords';
+import { saveLearningAttempts } from '../learning/persistence';
 
 export type RoboticsQuizMode = 'practice' | 'exam';
 
@@ -12,6 +17,8 @@ export interface RoboticsAnswer {
   parentChecked: boolean;
   aiChecked?: boolean;
   aiFeedback?: string;
+  attemptId?: string;
+  attemptedAt?: string;
 }
 
 export interface RoboticsResult {
@@ -49,7 +56,9 @@ function isValidResult(value: unknown, mode: RoboticsQuizMode, lesson: RoboticsL
   for (const entry of value.answers) {
     if (!isRecord(entry) || typeof entry.questionId !== 'string' || ids.has(entry.questionId) ||
         typeof entry.answer !== 'string' || typeof entry.correct !== 'boolean' ||
-        typeof entry.parentChecked !== 'boolean') return false;
+        typeof entry.parentChecked !== 'boolean' ||
+        entry.attemptId !== undefined && (typeof entry.attemptId !== 'string' || !entry.attemptId) ||
+        entry.attemptedAt !== undefined && (typeof entry.attemptedAt !== 'string' || !Number.isFinite(Date.parse(entry.attemptedAt)))) return false;
     if (entry.aiChecked !== undefined && typeof entry.aiChecked !== 'boolean') return false;
     const aiChecked = entry.aiChecked === true;
     if (aiChecked && !isWrittenGrade({ correct: entry.correct, feedback: entry.aiFeedback })) return false;
@@ -99,17 +108,32 @@ export function saveRoboticsResult(studentId: StudentId, result: RoboticsResult)
   }
   const previous = loadRoboticsProgress(studentId);
   const review = new Set(previous.reviewQuestionIds);
+  const isFullExam = result.mode === 'exam' && result.answers.length === lesson.questions.length;
   for (const answer of result.answers) {
     if (!answer.correct) review.add(answer.questionId);
-    // Assisted practice must not erase a missed exam question.
-    else if (result.mode === 'exam') review.delete(answer.questionId);
+    else if (shouldClearMissedQuestion(SUBJECT_REVIEW_POLICIES.robotics, result.mode, isFullExam, 'correct', false)) {
+      review.delete(answer.questionId);
+    }
   }
   const next: RoboticsProgress = {
     ...previous, [result.mode]: result, reviewQuestionIds: [...review]
   };
   if (typeof window === 'undefined') return next;
   try {
-    localStorage.setItem(getRoboticsStorageKey(studentId), JSON.stringify(next));
+    const serialized = JSON.stringify(next);
+    localStorage.setItem(getRoboticsStorageKey(studentId), serialized);
+    if (typeof indexedDB !== 'undefined') {
+      const repository = getDefaultLearningRepository();
+      void persistProgressSnapshot(repository, studentId, 'robotics', serialized, CONTENT_VERSIONS.robotics).catch(() => undefined);
+      void saveLearningAttempts(repository, createQuizAttempts({
+        learnerId: studentId, subjectId: 'robotics', lessonId: lesson.id, mode: result.mode,
+        completedAt: result.completedAt, provenance: lesson.sourceName,
+        answers: result.answers.map(answer => {
+          const question = lesson.questions.find(item => item.id === answer.questionId)!;
+          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer, explanation: question.explanation };
+        })
+      })).catch(() => undefined);
+    }
     return next;
   } catch {
     emitStorageError('Storage save failed: unable to save this robotics result. Keep this page open and retry.');

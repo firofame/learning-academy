@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Calculator, Volume2, CheckCircle2, XCircle, RotateCcw, BookOpen, Sparkles } from 'lucide-react';
 import { StudentId } from '../types';
-import { getStudentProfile } from '../data/wordList';
+import { getStudentProfile } from '../data/profiles';
 import {
   checkMathsAnswer,
   getMathsLesson,
@@ -10,7 +10,7 @@ import {
   MathsTopic
 } from '../data/maths';
 import { audioService } from '../utils/audio';
-import { AppSettings } from '../utils/storage';
+import type { AppSettings } from '../utils/appStorage';
 import {
   loadMathsProgress,
   MathsAnswer,
@@ -19,6 +19,11 @@ import {
   saveMathsResult
 } from '../utils/mathsStorage';
 import { MathsDiagram } from './MathsDiagram';
+import { createSessionId, sessionReducer, startSession } from '../learning/sessionController';
+import type { AssistanceKind } from '../learning/contracts';
+import { CONTENT_VERSIONS, RUBRIC_VERSIONS } from '../data/contentVersions';
+import { recordQuizAnswerAttempt } from '../learning/attemptRecords';
+import { usePersistentDraft } from '../learning/usePersistentDraft';
 
 interface MathsViewProps {
   activeStudent: StudentId;
@@ -29,6 +34,26 @@ const primaryButton =
   'min-h-12 px-5 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs';
 const secondaryButton =
   'min-h-12 px-4 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors';
+
+interface MathsSessionDraftState {
+  mode: MathsQuizMode;
+  questionIds: string[];
+  index: number;
+  input: string;
+  answers: MathsAnswer[];
+  feedback: MathsAnswer | null;
+  title: string;
+  topic: MathsTopic | 'all';
+  assistance?: AssistanceKind[];
+}
+
+function isMathsAnswer(value: unknown): value is MathsAnswer {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const answer = value as Record<string, unknown>;
+  return typeof answer.questionId === 'string' && typeof answer.answer === 'string' && typeof answer.correct === 'boolean' &&
+    (answer.assistance === undefined || (Array.isArray(answer.assistance) && answer.assistance.every(item =>
+      ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(item)))));
+}
 
 function ListenButton({ text, label, enabled }: { text: string; label: string; enabled: boolean }) {
   const [unavailable, setUnavailable] = useState(false);
@@ -108,6 +133,9 @@ function VerticalMathDisplay({
 export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings }) => {
   const lesson = getMathsLesson(activeStudent);
   const profile = getStudentProfile(activeStudent);
+  const { restoredDraft, loadingDraft, saveDraft, discardDraft, forgetRestoredDraft } = usePersistentDraft<MathsSessionDraftState>({
+    learnerId: activeStudent, subjectId: 'maths', lessonId: lesson.id
+  });
   const [progress, setProgress] = useState(() => loadMathsProgress(activeStudent));
   const [selectedTopic, setSelectedTopic] = useState<MathsTopic | 'all'>('all');
   const [viewMode, setViewMode] = useState<'notes' | 'solutions'>('notes');
@@ -116,10 +144,13 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
     questions: MathsQuestion[];
     title: string;
     topic: MathsTopic | 'all';
+    sessionId: string;
+    draft?: MathsSessionDraftState;
   } | null>(null);
   const [result, setResult] = useState<MathsResult | null>(null);
   const [saved, setSaved] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [draftError, setDraftError] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => () => audioService.stopAll(), []);
@@ -155,10 +186,46 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
       : MATHS_TOPICS.find(t => t.id === selectedTopic)?.label || 'Topic Quiz',
     topic: MathsTopic | 'all' = selectedTopic
   ) => {
+    if (quiz) void discardDraft(quiz.sessionId).catch(() => undefined);
+    if (restoredDraft) void discardDraft(restoredDraft.sessionId).catch(() => undefined);
     audioService.stopAll();
     setResult(null);
     setSaved(false);
-    setQuiz({ mode, questions, title, topic });
+    setQuiz({ mode, questions, title, topic, sessionId: createSessionId() });
+    setDraftError('');
+  };
+
+  const resumeSavedQuiz = () => {
+    if (!restoredDraft) return;
+    const value = restoredDraft.state as unknown;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      setDraftError('The saved quiz could not be restored. Its data has been kept for recovery.');
+      return;
+    }
+    const draft = value as Partial<MathsSessionDraftState>;
+    const questions = Array.isArray(draft.questionIds)
+      ? draft.questionIds.map(id => typeof id === 'string' ? lesson.questions.find(question => question.id === id) : undefined)
+      : [];
+    const valid = (draft.mode === 'practice' || draft.mode === 'exam') &&
+      Number.isInteger(draft.index) && draft.index! >= 0 && draft.index! < questions.length &&
+      questions.length > 0 && questions.every((question): question is MathsQuestion => question !== undefined) &&
+      Array.isArray(draft.answers) && draft.answers.every(isMathsAnswer) && typeof draft.input === 'string' &&
+      (draft.assistance === undefined || (Array.isArray(draft.assistance) && draft.assistance.every(item =>
+        ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(item))))) &&
+      (draft.feedback === null || isMathsAnswer(draft.feedback)) &&
+      typeof draft.title === 'string' && (draft.topic === 'all' || MATHS_TOPICS.some(topic => topic.id === draft.topic)) &&
+      draft.answers.every((answer, index) => answer.questionId === draft.questionIds?.[index]) &&
+      (!draft.feedback || draft.feedback.questionId === draft.questionIds?.[draft.index!]);
+    if (!valid) {
+      setDraftError('This saved quiz does not match the current Maths lesson. It has been kept, and you can start a new quiz.');
+      return;
+    }
+    setQuiz({ mode: draft.mode!, questions: questions as MathsQuestion[], title: draft.title!, topic: draft.topic!, sessionId: restoredDraft.sessionId, draft: { ...draft as MathsSessionDraftState, assistance: draft.assistance ?? [] } });
+    setResult(null);
+    setSaved(false);
+    setConfirmExit(false);
+    setDraftError('');
+    forgetRestoredDraft();
   };
 
   const persist = (completed: MathsResult) => {
@@ -209,6 +276,17 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
         )}
       </header>
 
+      {!quiz && !result && !loadingDraft && restoredDraft && (
+        <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3" aria-label="Saved Maths quiz">
+          <p className="font-semibold text-indigo-950">An unfinished Maths quiz is saved on this device.</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className={primaryButton} onClick={resumeSavedQuiz}>Resume saved quiz</button>
+            <button type="button" className={secondaryButton} onClick={() => void discardDraft(restoredDraft.sessionId).catch(() => undefined)}>Discard saved quiz</button>
+          </div>
+        </section>
+      )}
+      {draftError && <p role="alert" className="text-amber-900">{draftError}</p>}
+
       {quiz && !result ? (
         <>
           <button
@@ -222,7 +300,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
           {confirmExit && (
             <div role="alert" className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
               <p className="text-sm font-semibold text-amber-900">
-                This quiz is in progress. Leaving now will discard your current answers. Previously completed results remain safely saved.
+                This quiz is in progress. Its answers are saved on this device until you discard it. Completed results remain saved too.
               </p>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -237,6 +315,7 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
                   className={secondaryButton}
                   onClick={() => {
                     audioService.stopAll();
+                    void discardDraft(quiz.sessionId).catch(() => undefined);
                     setQuiz(null);
                     setConfirmExit(false);
                   }}
@@ -249,12 +328,20 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
 
           <MathsQuiz
             mode={quiz.mode}
+            learnerId={activeStudent}
+            lessonId={lesson.id}
             title={quiz.title}
             topic={quiz.topic}
             questions={quiz.questions}
+            provenance={lesson.sourceName}
             settings={settings}
+            sessionId={quiz.sessionId}
+            initialDraft={quiz.draft}
+            onDraftChange={saveDraft}
             onComplete={completed => {
               audioService.stopAll();
+              void discardDraft(quiz.sessionId).catch(() => undefined);
+              setQuiz(null);
               setResult(completed);
               persist(completed);
             }}
@@ -567,33 +654,85 @@ export const MathsView: React.FC<MathsViewProps> = ({ activeStudent, settings })
 };
 
 function MathsQuiz({
+  learnerId,
+  lessonId,
   mode,
   title,
   topic,
   questions,
+  provenance,
   settings,
+  sessionId,
+  initialDraft,
+  onDraftChange,
   onComplete
 }: {
+  learnerId: StudentId;
+  lessonId: string;
   mode: MathsQuizMode;
   title: string;
   topic?: string;
   questions: MathsQuestion[];
+  provenance?: string;
   settings: AppSettings;
+  sessionId: string;
+  initialDraft?: MathsSessionDraftState;
+  onDraftChange: (sessionId: string, state: MathsSessionDraftState) => void;
   onComplete: (result: MathsResult) => void;
 }) {
-  const [index, setIndex] = useState(0);
-  const [input, setInput] = useState('');
-  const [answers, setAnswers] = useState<MathsAnswer[]>([]);
-  const [feedback, setFeedback] = useState<MathsAnswer | null>(null);
+  const [lifecycle, dispatchLifecycle] = useReducer(sessionReducer, {
+    ...startSession({
+      sessionId,
+      learnerId,
+      subjectId: 'maths',
+      lessonId,
+      contentVersion: CONTENT_VERSIONS.maths,
+      rubricVersion: RUBRIC_VERSIONS.maths,
+      mode,
+      questionIds: questions.map(item => item.id)
+    }),
+    questionIndex: initialDraft?.index ?? 0,
+    phase: initialDraft?.feedback ? 'feedback' : 'answering',
+    draftAnswer: initialDraft?.input ?? '',
+    assistance: initialDraft?.assistance ?? [],
+    answers: (initialDraft?.answers ?? []).map(answer => ({
+      questionId: answer.questionId,
+      answer: answer.answer,
+      outcome: answer.correct ? 'correct' as const : 'incorrect' as const,
+      assisted: (answer.assistance?.length ?? 0) > 0
+    })),
+    feedbackVisible: mode !== 'exam'
+  });
+  const index = lifecycle.questionIndex;
+  const [input, setInput] = useState(initialDraft?.input ?? '');
+  const [answers, setAnswers] = useState<MathsAnswer[]>(initialDraft?.answers ?? []);
+  const [feedback, setFeedback] = useState<MathsAnswer | null>(initialDraft?.feedback ?? null);
   const [checkingError, setCheckingError] = useState('');
+  const submittedRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const promptRef = useRef<HTMLHeadingElement>(null);
   const question = questions[index];
 
   useEffect(() => {
     promptRef.current?.focus();
-    inputRef.current?.focus();
-  }, [index]);
+    submittedRef.current = false;
+    if (mode === 'practice' && question.verticalMath && lifecycle.phase === 'answering') {
+      dispatchLifecycle({ type: 'mark-assisted', reason: 'hint' });
+    }
+  }, [index, mode, question.verticalMath, lifecycle.phase]);
+  useEffect(() => {
+    onDraftChange(sessionId, {
+      mode,
+      questionIds: questions.map(item => item.id),
+      index,
+      input,
+      answers,
+      feedback,
+      title,
+      topic: topic === 'all' || MATHS_TOPICS.some(item => item.id === topic) ? topic as MathsTopic | 'all' : 'all',
+      assistance: [...lifecycle.assistance]
+    });
+  }, [sessionId, mode, questions, index, input, answers, feedback, title, topic, onDraftChange, lifecycle.assistance]);
 
   const finish = (completed: MathsAnswer[]) => {
     onComplete({
@@ -606,11 +745,11 @@ function MathsQuiz({
 
   const advance = (completed: MathsAnswer[]) => {
     audioService.stopAll();
+    if (mode === 'practice') dispatchLifecycle({ type: 'advance' });
     if (index + 1 === questions.length) {
       finish(completed);
     } else {
       setAnswers(completed);
-      setIndex(index + 1);
       setInput('');
       setFeedback(null);
       setCheckingError('');
@@ -618,6 +757,7 @@ function MathsQuiz({
   };
 
   const submit = (submittedAnswer: string) => {
+    if (submittedRef.current || lifecycle.phase !== 'answering') return;
     audioService.stopAll();
     const answer = submittedAnswer.trim();
     if (!answer) {
@@ -626,11 +766,34 @@ function MathsQuiz({
     }
 
     const correct = checkMathsAnswer(question, answer);
+    const submissionId = `${sessionId}:${question.id}:${Math.random().toString(36).slice(2, 9)}`;
+    submittedRef.current = true;
+    dispatchLifecycle({ type: 'edit-answer', answer });
+    dispatchLifecycle({ type: 'begin-check', submissionId });
+    dispatchLifecycle({
+      type: 'check-resolved',
+      submissionId,
+      outcome: correct ? 'correct' : 'incorrect',
+      feedback: correct ? 'Correct' : question.explanation
+    });
     const entry: MathsAnswer = {
       questionId: question.id,
       answer,
-      correct
+      correct,
+      attemptId: `${sessionId}:${question.id}`,
+      attemptedAt: new Date().toISOString(),
+      ...(lifecycle.assistance.length > 0 ? { assistance: [...lifecycle.assistance] } : {})
     };
+    void recordQuizAnswerAttempt({
+      learnerId, subjectId: 'maths', lessonId, mode,
+      answer: {
+        ...entry,
+        prompt: question.prompt,
+        referenceAnswer: question.answer,
+        explanation: question.explanation,
+        provenance
+      }
+    }).catch(() => undefined);
 
     if (mode === 'practice') {
       setFeedback(entry);
@@ -742,6 +905,7 @@ function MathsQuiz({
                 disabled={feedback !== null}
                 onChange={e => {
                   setInput(e.target.value);
+                  dispatchLifecycle({ type: 'edit-answer', answer: e.target.value });
                   setCheckingError('');
                 }}
                 placeholder="Type your answer here..."

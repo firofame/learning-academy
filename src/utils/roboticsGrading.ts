@@ -1,5 +1,6 @@
 export const GRADING_MODEL = 'gemini-3.5-flash-lite';
 export const ROBOTICS_GRADING_MODEL = GRADING_MODEL;
+export const GEMINI_MODEL_UNAVAILABLE_MESSAGE = 'The configured Gemini 3.5 Flash-Lite model is unavailable. Your answer has not been marked. Please retry later.';
 export const MAX_WRITTEN_ANSWER_LENGTH = 1200;
 
 export interface WrittenGrade {
@@ -38,10 +39,18 @@ export async function gradeWrittenAnswer(
     });
   } catch (error) {
     if (signal.aborted) throw error;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new Error('Automatic checking needs an internet connection. Your answer has not been marked. Reconnect and retry.');
+    }
     throw new Error('Could not reach automatic checking. Your answer is unchanged. Please retry.');
   }
   if (!response.ok) {
     if (response.status === 429) throw new Error('Checking is busy. Wait a minute and retry. Your answer has not been marked.');
+    let failure: unknown;
+    try { failure = await response.clone().json(); } catch { /* A non-JSON error still remains ungraded. */ }
+    if (isRecord(failure) && failure.error === GEMINI_MODEL_UNAVAILABLE_MESSAGE) {
+      throw new Error(GEMINI_MODEL_UNAVAILABLE_MESSAGE);
+    }
     throw new Error('Automatic checking is unavailable. Your answer has not been marked. Please retry.');
   }
   let grade: unknown;

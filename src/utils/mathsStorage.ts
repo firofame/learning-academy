@@ -1,6 +1,12 @@
 import { StudentId } from '../types';
 import { checkMathsAnswer, getMathsLesson, MATHS_TOPICS, MathsLesson } from '../data/maths';
-import { emitStorageError } from './storage';
+import { emitStorageError } from './appStorage';
+import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
+import { CONTENT_VERSIONS } from '../data/contentVersions';
+import { createQuizAttempts } from '../learning/attemptRecords';
+import { saveLearningAttempts } from '../learning/persistence';
+import type { AssistanceKind } from '../learning/contracts';
 
 export type MathsQuizMode = 'practice' | 'exam';
 
@@ -8,6 +14,9 @@ export interface MathsAnswer {
   questionId: string;
   answer: string;
   correct: boolean;
+  assistance?: AssistanceKind[];
+  attemptId?: string;
+  attemptedAt?: string;
 }
 
 export interface MathsResult {
@@ -47,6 +56,10 @@ function isValidAnswer(value: unknown, lesson: MathsLesson): value is MathsAnswe
   const answer = value.answer;
   const correct = value.correct;
   if (typeof questionId !== 'string' || typeof answer !== 'string' || typeof correct !== 'boolean') return false;
+  if (value.assistance !== undefined && (!Array.isArray(value.assistance) || !value.assistance.every(item =>
+    ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(item))))) return false;
+  if (value.attemptId !== undefined && (typeof value.attemptId !== 'string' || !value.attemptId) ||
+      value.attemptedAt !== undefined && (typeof value.attemptedAt !== 'string' || !Number.isFinite(Date.parse(value.attemptedAt)))) return false;
   const question = lesson.questions.find(q => q.id === questionId);
   if (!question) return false;
   return correct === checkMathsAnswer(question, answer);
@@ -142,10 +155,12 @@ export function saveMathsResult(studentId: StudentId, result: MathsResult): Math
   }
 
   const previous = loadMathsProgress(studentId);
-  const newlyCorrectIds = new Set(result.answers.filter(a => a.correct).map(a => a.questionId));
   const newlyIncorrectIds = result.answers.filter(a => !a.correct).map(a => a.questionId);
 
   const isFullExam = result.mode === 'exam' && result.answers.length === lesson.questions.length;
+  const newlyCorrectIds = new Set(result.answers
+    .filter(answer => shouldClearMissedQuestion(SUBJECT_REVIEW_POLICIES.maths, result.mode, isFullExam, answer.correct ? 'correct' : 'incorrect', false))
+    .map(answer => answer.questionId));
   const reviewQuestionIds = isFullExam
     ? newlyIncorrectIds
     : Array.from(
@@ -164,7 +179,20 @@ export function saveMathsResult(studentId: StudentId, result: MathsResult): Math
   };
 
   try {
-    localStorage.setItem(getMathsStorageKey(studentId), JSON.stringify(next));
+    const serialized = JSON.stringify(next);
+    localStorage.setItem(getMathsStorageKey(studentId), serialized);
+    if (typeof indexedDB !== 'undefined') {
+      const repository = getDefaultLearningRepository();
+      void persistProgressSnapshot(repository, studentId, 'maths', serialized, CONTENT_VERSIONS.maths).catch(() => undefined);
+      void saveLearningAttempts(repository, createQuizAttempts({
+        learnerId: studentId, subjectId: 'maths', lessonId: lesson.id, mode: result.mode,
+        completedAt: result.completedAt, provenance: lesson.sourceName,
+        answers: result.answers.map(answer => {
+          const question = lesson.questions.find(item => item.id === answer.questionId)!;
+          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer, explanation: question.explanation };
+        })
+      })).catch(() => undefined);
+    }
     return next;
   } catch {
     emitStorageError('Storage save failed: unable to save this maths result. Keep this page open and retry.');

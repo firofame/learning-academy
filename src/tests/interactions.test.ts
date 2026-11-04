@@ -35,11 +35,13 @@ const { render, fireEvent, cleanup, waitFor } = await import('@testing-library/r
 const { SessionView } = await import('../components/SessionView');
 const { ParentDashboard } = await import('../components/ParentDashboard');
 const { RoboticsView } = await import('../components/RoboticsView');
+const { MathsView } = await import('../components/MathsView');
 const { MalayalamView } = await import('../components/MalayalamView');
 const { HindiView } = await import('../components/HindiView');
 const { default: App } = await import('../App');
 const { getWordsForStudent } = await import('../data/wordList');
 const { getRoboticsLesson } = await import('../data/robotics');
+const { getMathsLesson } = await import('../data/maths');
 const { LEARNING_SUBJECTS } = await import('../data/subjects');
 const { getRoboticsStorageKey, loadRoboticsProgress, saveRoboticsResult } = await import('../utils/roboticsStorage');
 const {
@@ -84,7 +86,7 @@ describe('Production component interactions', () => {
     });
   });
 
-  test('Learning Academy opens on a grade-specific subject home with separate spelling navigation', () => {
+  test('Learning Academy opens on a grade-specific subject home with separate spelling navigation', async () => {
     const view = render(React.createElement(App));
     assert.ok(view.getByRole('button', { name: 'Learning Academy home' }));
     assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
@@ -92,22 +94,23 @@ describe('Production component interactions', () => {
     assert.ok(view.getByRole('heading', { name: 'Robotics' }));
     assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
     fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+    await view.findByRole('combobox', { name: 'Word category' });
     assert.ok(view.getByRole('navigation', { name: 'Spell Bee navigation' }));
     assert.ok(view.getByRole('combobox', { name: 'Word category' }));
     assert.equal(view.getByRole('button', { name: 'Spell Bee' }).getAttribute('aria-current'), 'page');
     fireEvent.click(view.getByRole('button', { name: 'Learning Academy home' }));
     assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
     fireEvent.click(view.getByRole('button', { name: 'Open Robotics' }));
-    assert.ok(view.getByRole('heading', { name: 'Simple and Complex Machines' }));
+    await view.findByRole('heading', { name: 'Simple and Complex Machines' });
     assert.equal(view.queryByRole('combobox', { name: 'Practice session length' }), null);
     assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
   });
 
-  test('Fazia can practise her Grade 2 Malayalam exam portions and the subject is hidden for Grade 6', () => {
+  test('Fazia can practise her Grade 2 Malayalam exam portions and the subject is hidden for Grade 6', async () => {
     const view = render(React.createElement(App));
     assert.ok(view.getByRole('button', { name: 'Open Malayalam' }));
     fireEvent.click(view.getByRole('button', { name: 'Open Malayalam' }));
-    assert.ok(view.getByRole('heading', { name: 'First Semester Exam Portions' }));
+    await view.findByRole('heading', { name: 'First Semester Exam Portions' });
     assert.ok(view.getByRole('button', { name: 'Full mock exam (77)' }));
     fireEvent.click(view.getByRole('button', { name: 'Practice this section (15)' }));
     assert.ok(view.getByText('Question 1 of 15'));
@@ -125,25 +128,26 @@ describe('Production component interactions', () => {
     assert.equal(view.queryByRole('button', { name: 'Open Malayalam' }), null);
   });
 
-  test('Shiza can open her Grade 6 Hindi revision from the grade-specific subject home', () => {
+  test('Shiza can open her Grade 6 Hindi revision from the grade-specific subject home', async () => {
     const view = render(React.createElement(App));
     fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
     assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
     fireEvent.click(view.getByRole('button', { name: 'Open Hindi' }));
-    assert.ok(view.getByRole('heading', { name: 'Grade 6 Hindi Exam Revision' }));
+    await view.findByRole('heading', { name: 'Grade 6 Hindi Exam Revision' });
     assert.ok(view.getByRole('button', { name: /Full mock exam \(74\)/ }));
     assert.ok(view.getByRole('button', { name: /Word meanings/ }));
     assert.ok(view.getByText(/A question leaves Review missed after one correct practice answer/));
   });
 
-  test('Shiza Hindi progress is shown independently in Parent Insights', () => {
+  test('Shiza Hindi progress is shown independently in Parent Insights', async () => {
     const view = render(React.createElement(App));
     fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
     fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+    await view.findByRole('navigation', { name: 'Spell Bee navigation' });
     fireEvent.click(view.getByRole('button', { name: /Parent Insights/ }));
-    assert.ok(view.getByRole('region', { name: 'Hindi progress' }));
+    await view.findByRole('region', { name: 'Hindi progress' });
     fireEvent.click(view.getByRole('button', { name: 'Open Hindi revision' }));
-    assert.ok(view.getByRole('heading', { name: 'Grade 6 Hindi Exam Revision' }));
+    await view.findByRole('heading', { name: 'Grade 6 Hindi Exam Revision' });
   });
 
   test('Hindi written practice checks equivalent answers with Gemini 3.5 Flash-Lite', async t => {
@@ -197,20 +201,34 @@ describe('Production component interactions', () => {
     assert.ok(view.getByText('AI feedback: നല്ല പകരം പദം!'));
   });
 
-  test('grade restrictions hide unavailable subjects everywhere and switching grades exits an unavailable subject', () => {
+  test('Maths quiz uses shared session phases while keeping its written-answer interaction', async () => {
+    const lesson = getMathsLesson('fazia');
+    const view = render(React.createElement(MathsView, { activeStudent: 'fazia', settings }));
+    fireEvent.click(view.getByRole('button', { name: /Start Practice/ }));
+    await view.findByRole('textbox', { name: 'Your answer' });
+    assert.notEqual(document.activeElement, view.getByRole('textbox', { name: 'Your answer' }));
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: lesson.questions[0].answer } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    assert.ok(view.getByText('Correct! Great job!'));
+    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
+    assert.ok(view.getByText(`Question 2 of ${lesson.questions.length}`));
+  });
+
+  test('grade restrictions hide unavailable subjects everywhere and switching grades exits an unavailable subject', async () => {
     LEARNING_SUBJECTS.find(subject => subject.id === 'robotics')!.availableGrades = [6];
     localStorage.setItem(getRoboticsStorageKey('fazia'), '{"exam":"bad"}');
     const view = render(React.createElement(App));
     assert.equal(view.queryByRole('button', { name: 'Robotics' }), null);
     assert.equal(view.queryByRole('button', { name: 'Open Robotics' }), null);
     fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+    await view.findByRole('navigation', { name: 'Spell Bee navigation' });
     fireEvent.click(view.getByRole('button', { name: /Parent Insights/ }));
     assert.equal(view.queryByRole('region', { name: 'Robotics progress' }), null);
     assert.equal(view.queryByRole('button', { name: 'Open robotics revision' }), null);
     assert.equal(view.queryByRole('alert'), null, 'unavailable robotics progress is not loaded');
     fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
     fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    assert.ok(view.getByRole('heading', { name: 'Exploring AI Domains' }));
+    await view.findByRole('heading', { name: 'Exploring AI Domains' });
     fireEvent.click(view.getByRole('button', { name: 'Start exam quiz' }));
     fireEvent.click(view.getByTitle('Switch student (currently Shiza)'));
     assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
@@ -218,20 +236,23 @@ describe('Production component interactions', () => {
     assert.equal(loadRoboticsProgress('shiza').exam, null);
   });
 
-  test('a robotics-only grade cannot retain spelling views after a profile switch', () => {
+  test('a robotics-only grade cannot retain spelling views after a profile switch', async () => {
     LEARNING_SUBJECTS.find(subject => subject.id === 'spell-bee')!.availableGrades = [6];
     localStorage.setItem(ACTIVE_PROFILE_KEY, 'shiza');
     const view = render(React.createElement(App));
     fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+    await view.findByRole('navigation', { name: 'Spell Bee navigation' });
     fireEvent.click(view.getByRole('button', { name: /Worksheets/ }));
+    await view.findByRole('combobox', { name: 'Word category' });
     fireEvent.change(view.getByRole('combobox', { name: 'Word category' }), { target: { value: 'Physics' } });
     fireEvent.click(view.getByTitle('Switch student (currently Shiza)'));
+    await view.findByRole('region', { name: 'Subjects for Grade 2' });
     assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
     assert.equal(view.queryByRole('button', { name: 'Spell Bee' }), null);
     assert.equal(view.queryByRole('button', { name: 'Open Spell Bee' }), null);
     assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
     fireEvent.click(view.getByRole('button', { name: 'Open Robotics' }));
-    assert.ok(view.getByRole('heading', { name: 'Simple and Complex Machines' }));
+    await view.findByRole('heading', { name: 'Simple and Complex Machines' });
   });
 
   test('a grade with no available subjects has a clear empty state and can switch profiles', () => {
@@ -246,19 +267,25 @@ describe('Production component interactions', () => {
     assert.ok(view.getByRole('button', { name: 'Open Robotics' }));
   });
 
-  test('switching profiles resets grade-specific word filters on spelling screens', () => {
+  test('switching profiles resets grade-specific word filters on spelling screens', async () => {
     localStorage.setItem(ACTIVE_PROFILE_KEY, 'shiza');
     const view = render(React.createElement(App));
     fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+    await view.findByRole('combobox', { name: 'Word category' });
     fireEvent.click(view.getByRole('button', { name: new RegExp(`All ${getWordsForStudent('shiza').length} Words`) }));
+    await view.findByRole('combobox', { name: 'Word category' });
     fireEvent.change(view.getByRole('combobox', { name: 'Word category' }), { target: { value: 'Physics' } });
     fireEvent.click(view.getByTitle('Switch student (currently Shiza)'));
-    assert.equal((view.getByRole('combobox', { name: 'Word category' }) as HTMLSelectElement).value, 'All');
+    await waitFor(() => {
+      assert.equal((view.getByRole('combobox', { name: 'Word category' }) as HTMLSelectElement).value, 'All');
+    });
     assert.equal(view.queryByRole('option', { name: 'Physics' }), null);
     assert.equal(view.getAllByRole('button', { name: 'Practice This Word' }).length, words.length);
     fireEvent.click(view.getByRole('button', { name: /Worksheets/ }));
+    await view.findByRole('combobox', { name: 'Word category' });
     fireEvent.change(view.getByRole('combobox', { name: 'Word category' }), { target: { value: 'Hindi' } });
     fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
+    await view.findByRole('combobox', { name: 'Word category' });
     assert.equal((view.getByRole('combobox', { name: 'Word category' }) as HTMLSelectElement).value, 'All');
   });
 
