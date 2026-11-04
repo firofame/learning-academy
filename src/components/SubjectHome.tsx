@@ -34,7 +34,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               <Bot className="w-8 h-8 text-teal-700" aria-hidden="true" />
             ) : subject.id === 'maths' ? (
               <Calculator className="w-8 h-8 text-indigo-700" aria-hidden="true" />
-            ) : subject.id === 'malayalam' ? (
+            ) : subject.id === 'malayalam' || subject.id === 'hindi' ? (
               <Languages className="w-8 h-8 text-amber-700" aria-hidden="true" />
             ) : (
               <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />

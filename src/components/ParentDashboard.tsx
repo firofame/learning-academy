@@ -20,6 +20,8 @@ import { loadMathsProgress } from '../utils/mathsStorage';
 import { getMathsLesson } from '../data/maths';
 import { loadMalayalamProgress } from '../utils/malayalamStorage';
 import { getMalayalamLesson } from '../data/malayalam';
+import { loadHindiProgress } from '../utils/hindiStorage';
+import { getHindiLesson } from '../data/hindi';
 import { isSubjectAvailableForGrade } from '../data/subjects';
 
 interface ParentDashboardProps {
@@ -30,6 +32,7 @@ interface ParentDashboardProps {
   onOpenRobotics?: () => void;
   onOpenMaths?: () => void;
   onOpenMalayalam?: () => void;
+  onOpenHindi?: () => void;
 }
 
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({
@@ -39,7 +42,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   onResetComplete,
   onOpenRobotics,
   onOpenMaths,
-  onOpenMalayalam
+  onOpenMalayalam,
+  onOpenHindi
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const currentProfile = getStudentProfile(activeStudent);
@@ -57,6 +61,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   const malayalam = malayalamAvailable ? loadMalayalamProgress(activeStudent) : null;
   const malayalamLesson = malayalamAvailable ? getMalayalamLesson(activeStudent) : null;
   const malayalamExam = malayalam?.exam;
+  const hindiAvailable = isSubjectAvailableForGrade('hindi', currentProfile.grade);
+  const hindi = hindiAvailable ? loadHindiProgress(activeStudent) : null;
+  const hindiLesson = hindiAvailable ? getHindiLesson(activeStudent) : null;
+  const hindiExam = hindi?.exam;
 
   // Categorize words by evidence-based test-readiness mastery
   const rememberedWords: WordEntry[] = [];
@@ -278,6 +286,26 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           {onOpenMalayalam && (
             <button onClick={onOpenMalayalam} className="min-h-12 px-4 py-3 rounded-xl bg-amber-700 text-white font-semibold hover:bg-amber-800 cursor-pointer">
               Open Malayalam revision
+            </button>
+          )}
+
+        </section>
+      )}
+
+      {hindi && hindiLesson && (
+        <section className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3" aria-label="Hindi progress">
+          <h2 className="text-lg font-bold text-slate-900">Hindi: {hindiLesson.title}</h2>
+          <p className="text-sm">
+            {hindiExam
+              ? `Last mock exam: ${hindiExam.answers.filter(answer => answer.correct).length} / ${hindiExam.answers.length} correct. ${hindiExam.answers.filter(answer => answer.aiChecked).length} written answer(s) AI-checked.`
+              : 'No completed Hindi mock exam yet.'}
+          </p>
+          <p className="text-sm">
+            {hindi.reviewQuestionIds.length} question(s) to revisit. Hindi exam results are separate from spelling mastery and are not cleared by the spelling reset.
+          </p>
+          {onOpenHindi && (
+            <button onClick={onOpenHindi} className="min-h-12 px-4 py-3 rounded-xl bg-indigo-700 text-white font-semibold hover:bg-indigo-800 cursor-pointer">
+              Open Hindi revision
             </button>
           )}
         </section>
