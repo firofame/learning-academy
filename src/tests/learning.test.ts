@@ -7,6 +7,7 @@ import {
 } from '../learning/domain';
 import { sessionReducer, startSession } from '../learning/sessionController';
 import { createQuizAttempts } from '../learning/attemptRecords';
+import { getRoboticsLesson } from '../data/robotics';
 import {
   exportLearnerBackup, importLearnerBackup, migrateLegacyProgress,
   MAX_BACKUP_BYTES, MAX_BACKUP_RECORDS,
@@ -207,8 +208,17 @@ describe('Shared IndexedDB persistence contracts', () => {
   test('backup export and restore round trip while preserving progress already on the device', async () => {
     const sourceStorage = new MemoryStorage();
     const sourceRepository = new MemoryRepository();
-    sourceStorage.setItem('spellbee_progress_fazia_v1', '{"word-1":{"attempts":2}}');
-    sourceStorage.setItem('academy_robotics_fazia_v1', '{"practice":{"answers":[]}}');
+    sourceStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({
+      'word-1': {
+        wordId: 'word-1', studentId: 'fazia', attempts: 2, unaidedCorrectCount: 0,
+        consecutiveUnaidedCorrect: 0, unaidedCorrectDates: [], lastAttemptDate: null,
+        lastUnaidedCorrectDate: null, level: 'learning', needsRevisit: false, history: []
+      }
+    }));
+    sourceStorage.setItem('academy_robotics_fazia_v1', JSON.stringify({
+      studentId: 'fazia', lessonId: getRoboticsLesson('fazia').id,
+      practice: null, exam: null, reviewQuestionIds: []
+    }));
     sourceStorage.setItem('academy_maths_shiza_v1', '{"exam":null}');
     await sourceRepository.put({
       id: 'result:fazia:robotics:1', schemaVersion: 1, learnerId: 'fazia', subjectId: 'robotics',
@@ -259,6 +269,16 @@ describe('Shared IndexedDB persistence contracts', () => {
     storage.setItem('academy_maths_fazia_v1', '{malformed progress');
 
     await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
+  });
+
+  test('backup export rejects syntactically valid progress with an invalid subject schema', async () => {
+    const storage = new MemoryStorage();
+    const repository = new MemoryRepository();
+    for (const raw of ['[]', 'null', '"invalid"', '{}']) {
+      storage.clear();
+      storage.setItem('academy_maths_fazia_v1', raw);
+      await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
+    }
   });
 
   test('malformed, oversized-shape, or cross-learner backups are rejected before writes', async () => {

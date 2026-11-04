@@ -84,7 +84,7 @@ function isValidResult(
     lesson.questions.every(question => answeredIds.has(question.id));
 }
 
-function isValidProgress(value: unknown, studentId: StudentId): value is MalayalamProgress {
+export function isValidMalayalamProgress(value: unknown, studentId: StudentId): value is MalayalamProgress {
   if (!isRecord(value) || value.studentId !== studentId) return false;
   const lesson = getMalayalamLesson(studentId);
   return value.lessonId === lesson.id &&
@@ -103,7 +103,7 @@ export function loadMalayalamProgress(studentId: StudentId): MalayalamProgress {
     const raw = localStorage.getItem(getMalayalamStorageKey(studentId));
     if (!raw) return emptyProgress(studentId);
     const parsed: unknown = JSON.parse(raw);
-    if (isValidProgress(parsed, studentId)) return parsed;
+    if (isValidMalayalamProgress(parsed, studentId)) return parsed;
     emitStorageError(`Malayalam progress for ${studentId} was malformed. Other progress is unchanged.`);
   } catch {
     emitStorageError(`Unable to read Malayalam progress for ${studentId}. Other progress is unchanged.`);

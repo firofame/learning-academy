@@ -76,7 +76,7 @@ function isValidResult(value: unknown, mode: RoboticsQuizMode, lesson: RoboticsL
   return mode !== 'exam' || ids.size === lesson.questions.length;
 }
 
-function isValidProgress(value: unknown, studentId: StudentId): value is RoboticsProgress {
+export function isValidRoboticsProgress(value: unknown, studentId: StudentId): value is RoboticsProgress {
   const lesson = getRoboticsLesson(studentId);
   return isRecord(value) && value.studentId === studentId && value.lessonId === lesson.id &&
     (value.practice === null || isValidResult(value.practice, 'practice', lesson)) &&
@@ -92,7 +92,7 @@ export function loadRoboticsProgress(studentId: StudentId): RoboticsProgress {
     const raw = localStorage.getItem(getRoboticsStorageKey(studentId));
     if (!raw) return emptyProgress(studentId);
     const parsed: unknown = JSON.parse(raw);
-    if (isValidProgress(parsed, studentId)) return parsed;
+    if (isValidRoboticsProgress(parsed, studentId)) return parsed;
     emitStorageError(`Robotics progress for ${studentId} was malformed. Spelling progress is unchanged.`);
   } catch {
     emitStorageError(`Unable to read robotics progress for ${studentId}. Spelling progress is unchanged.`);

@@ -1,6 +1,11 @@
 import type { LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from './contracts';
 import { emitStorageError } from '../utils/appStorage';
+import { isValidSpellingProgress } from '../utils/storage';
+import { isValidRoboticsProgress } from '../utils/roboticsStorage';
+import { isValidMathsProgress } from '../utils/mathsStorage';
+import { isValidMalayalamProgress } from '../utils/malayalamStorage';
+import { isValidHindiProgress } from '../utils/hindiStorage';
 
 export const LEARNING_DATABASE_NAME = 'learning-academy-progress';
 export const LEARNING_DATABASE_VERSION = 1;
@@ -438,7 +443,7 @@ export async function exportLearnerBackup(
     records
   };
   const formattedJson = JSON.stringify(backup, null, 2);
-  if (!validateBackup(backup, learnerId) || !hasValidProgressJson(backup.progress)) {
+  if (!validateBackup(backup, learnerId) || !hasValidProgress(backup.progress, learnerId)) {
     throw new Error('This learner history cannot be exported as a restorable backup. No backup file was created.');
   }
   if (new TextEncoder().encode(formattedJson).byteLength > MAX_BACKUP_BYTES) {
@@ -452,13 +457,25 @@ function isSupportedBackupProgressKey(key: string, learnerId: StudentId): boolea
   return classified?.learnerId === learnerId;
 }
 
-function hasValidProgressJson(progress: Record<string, string>): boolean {
-  return Object.values(progress).every(raw => {
+function hasValidProgress(progress: Record<string, string>, learnerId: StudentId): boolean {
+  return Object.entries(progress).every(([key, raw]) => {
+    const source = classifyLegacyKey(key);
+    if (!source || source.learnerId !== learnerId) return false;
+
+    let parsed: unknown;
     try {
-      JSON.parse(raw);
-      return true;
+      parsed = JSON.parse(raw);
     } catch {
       return false;
+    }
+
+    switch (source.subjectId) {
+      case 'spell-bee': return isValidSpellingProgress(parsed, learnerId);
+      case 'robotics': return isValidRoboticsProgress(parsed, learnerId);
+      case 'maths': return isValidMathsProgress(parsed, learnerId);
+      case 'malayalam': return isValidMalayalamProgress(parsed, learnerId);
+      case 'hindi': return isValidHindiProgress(parsed, learnerId);
+      default: return false;
     }
   });
 }

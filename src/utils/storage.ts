@@ -99,6 +99,13 @@ function isValidWordProgress(val: unknown): val is WordProgress {
   );
 }
 
+export function isValidSpellingProgress(value: unknown, studentId: StudentId): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).every(([wordId, progress]) =>
+    isValidWordProgress(progress) && progress.wordId === wordId && progress.studentId === studentId
+  );
+}
+
 export function getAllProgress(studentId: StudentId): Record<string, WordProgress> {
   if (typeof window === 'undefined') return {};
   try {

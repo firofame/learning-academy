@@ -118,7 +118,7 @@ function isValidResult(value: unknown, mode: MathsQuizMode, lesson: MathsLesson)
   return true;
 }
 
-function isValidProgress(value: unknown, studentId: StudentId): value is MathsProgress {
+export function isValidMathsProgress(value: unknown, studentId: StudentId): value is MathsProgress {
   if (!isPlainObject(value)) return false;
   if (value.studentId !== studentId) return false;
   const lesson = getMathsLesson(studentId);
@@ -136,7 +136,7 @@ export function loadMathsProgress(studentId: StudentId): MathsProgress {
     const raw = localStorage.getItem(getMathsStorageKey(studentId));
     if (!raw) return emptyProgress(studentId);
     const parsed = JSON.parse(raw);
-    if (!isValidProgress(parsed, studentId)) {
+    if (!isValidMathsProgress(parsed, studentId)) {
       emitStorageError(`Maths progress for ${studentId} was malformed. Other progress is unchanged.`);
       return emptyProgress(studentId);
     }
