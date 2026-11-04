@@ -7,7 +7,8 @@ export const LEARNING_DATABASE_VERSION = 1;
 export const LEARNING_RECORDS_STORE = 'records';
 const MIGRATION_RECORD_ID = 'migration:local-storage:v1';
 const BACKUP_FORMAT = 'learning-academy-backup';
-const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
+export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
+export const MAX_BACKUP_RECORDS = 5000;
 
 export type LearningRecordKind = 'progress' | 'attempt' | 'draft' | 'result' | 'legacy-summary';
 
@@ -428,7 +429,22 @@ export async function exportLearnerBackup(
     if (entry.learnerId === learnerId) progress[entry.key] = entry.value;
   }
   const records = (await repository.listForLearner(learnerId)).filter(record => record.kind !== 'legacy-summary');
-  return { format: BACKUP_FORMAT, schemaVersion: 1, learnerId, exportedAt: new Date().toISOString(), progress, records };
+  const backup: LearnerBackup = {
+    format: BACKUP_FORMAT,
+    schemaVersion: 1,
+    learnerId,
+    exportedAt: new Date().toISOString(),
+    progress,
+    records
+  };
+  const formattedJson = JSON.stringify(backup, null, 2);
+  if (!validateBackup(backup, learnerId)) {
+    throw new Error('This learner history cannot be exported as a restorable backup. No backup file was created.');
+  }
+  if (new TextEncoder().encode(formattedJson).byteLength > MAX_BACKUP_BYTES) {
+    throw new Error('This backup would exceed the 5 MB restore limit. No backup file was created.');
+  }
+  return backup;
 }
 
 function isSupportedBackupProgressKey(key: string, learnerId: StudentId): boolean {
@@ -442,7 +458,7 @@ function validateBackup(value: unknown, requestedLearner: StudentId): value is L
       !Number.isFinite(Date.parse(value.exportedAt)) || !isPlainRecord(value.progress) || !Array.isArray(value.records)) return false;
   if (Object.entries(value.progress).some(([key, raw]) => typeof raw !== 'string' || raw.length > 2_000_000 ||
       !isSupportedBackupProgressKey(key, requestedLearner))) return false;
-  return value.records.length <= 5000 && value.records.every(record => isLearningRecord(record) && record.learnerId === requestedLearner);
+  return value.records.length <= MAX_BACKUP_RECORDS && value.records.every(record => isLearningRecord(record) && record.learnerId === requestedLearner);
 }
 
 export async function importLearnerBackup(
@@ -452,7 +468,7 @@ export async function importLearnerBackup(
   storage: Storage = window.localStorage
 ): Promise<{ imported: number; skippedExisting: number }> {
   const encoded = JSON.stringify(value);
-  if (encoded.length > MAX_BACKUP_BYTES || !validateBackup(value, learnerId)) {
+  if (typeof encoded !== 'string' || new TextEncoder().encode(encoded).byteLength > MAX_BACKUP_BYTES || !validateBackup(value, learnerId)) {
     throw new Error('This backup is invalid, too large, or belongs to another learner. No progress was changed.');
   }
 

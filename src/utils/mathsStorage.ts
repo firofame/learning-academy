@@ -159,16 +159,20 @@ export function saveMathsResult(studentId: StudentId, result: MathsResult): Math
 
   const isFullExam = result.mode === 'exam' && result.answers.length === lesson.questions.length;
   const newlyCorrectIds = new Set(result.answers
-    .filter(answer => shouldClearMissedQuestion(SUBJECT_REVIEW_POLICIES.maths, result.mode, isFullExam, answer.correct ? 'correct' : 'incorrect', false))
+    .filter(answer => shouldClearMissedQuestion(
+      SUBJECT_REVIEW_POLICIES.maths,
+      result.mode,
+      isFullExam,
+      answer.correct ? 'correct' : 'incorrect',
+      (answer.assistance?.length ?? 0) > 0
+    ))
     .map(answer => answer.questionId));
-  const reviewQuestionIds = isFullExam
-    ? newlyIncorrectIds
-    : Array.from(
-        new Set([
-          ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
-          ...newlyIncorrectIds
-        ])
-      );
+  const reviewQuestionIds = Array.from(
+    new Set([
+      ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
+      ...newlyIncorrectIds
+    ])
+  );
 
   const next: MathsProgress = {
     studentId,

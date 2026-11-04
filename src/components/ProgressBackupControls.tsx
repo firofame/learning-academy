@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { StudentId } from '../types';
-import { exportLearnerBackup, importLearnerBackup } from '../learning/persistence';
+import { exportLearnerBackup, importLearnerBackup, MAX_BACKUP_BYTES } from '../learning/persistence';
 
 interface ProgressBackupControlsProps {
   learnerId: StudentId;
@@ -43,7 +43,7 @@ export const ProgressBackupControls: React.FC<ProgressBackupControlsProps> = ({ 
     setStatus('');
     setError('');
     try {
-      if (file.size > 5 * 1024 * 1024) throw new Error('This backup is larger than 5 MB. No progress was changed.');
+      if (file.size > MAX_BACKUP_BYTES) throw new Error('This backup is larger than 5 MB. No progress was changed.');
       const imported = await importLearnerBackup(JSON.parse(await file.text()), learnerId);
       setStatus(`Restored ${imported.imported} saved progress record(s). ${imported.skippedExisting} existing record(s) were kept.`);
       if (imported.imported > 0) onRestored();
