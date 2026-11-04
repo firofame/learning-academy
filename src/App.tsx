@@ -7,6 +7,7 @@ import { WorksheetView } from './components/WorksheetView';
 import { RoboticsView } from './components/RoboticsView';
 import { MathsView } from './components/MathsView';
 import { MalayalamView } from './components/MalayalamView';
+import { HindiView } from './components/HindiView';
 import { SubjectHome } from './components/SubjectHome';
 import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
 import { 
@@ -180,6 +181,7 @@ export default function App() {
             onOpenRobotics={() => handleNavigate('robotics')}
             onOpenMaths={() => handleNavigate('maths')}
             onOpenMalayalam={() => handleNavigate('malayalam')}
+            onOpenHindi={() => handleNavigate('hindi')}
           />
         )}
 
@@ -201,6 +203,10 @@ export default function App() {
 
         {currentView === 'malayalam' && (
           <MalayalamView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+        )}
+
+        {currentView === 'hindi' && (
+          <HindiView key={activeStudent} activeStudent={activeStudent} settings={settings} />
         )}
       </main>
 

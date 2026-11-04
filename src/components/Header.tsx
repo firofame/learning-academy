@@ -97,7 +97,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <Bot className="w-4 h-4" />
               ) : subject.id === 'maths' ? (
                 <Calculator className="w-4 h-4" />
-              ) : subject.id === 'malayalam' ? (
+              ) : subject.id === 'malayalam' || subject.id === 'hindi' ? (
                 <Languages className="w-4 h-4" />
               ) : (
                 <BookOpen className="w-4 h-4" />

@@ -32,6 +32,14 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     availableGrades: [2],
     startView: 'malayalam',
     views: ['malayalam']
+  },
+  {
+    id: 'hindi',
+    name: 'Hindi',
+    description: 'Revise Shiza’s Grade 6 Hindi notebook portions with recall practice and a full mock exam.',
+    availableGrades: [6],
+    startView: 'hindi',
+    views: ['hindi']
   }
 ];
 

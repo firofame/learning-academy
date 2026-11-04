@@ -1,17 +1,19 @@
 # Learning Academy
 
-A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, and **Malayalam** as
-separate subjects, designed for calm, systematic learning.
+A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, **Malayalam**, and
+**Hindi** as separate subjects, designed for calm, systematic learning.
 
 ## Subjects & Grades
 
 - The app opens on a subject home screen for the active student and their grade.
 - Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
 - Malayalam exam revision is available for **Grade 2** and covers Fazia's first-semester portions with section practice, a full mock exam, and saved missed questions.
+- Hindi exam revision is available for **Grade 6** and covers Shiza's supplied notebook portions with vocabulary, translations, synonyms, the trees poem and questions, Sreedharan questions, a paragraph prompt, section practice, a full mock exam, and saved missed questions. The incomplete `वचन बदलो` list and one unclear vocabulary entry are not guessed.
 - Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
 - EVS, English, Hindi, and the other spelling groupings are **word categories within Spell Bee**.
-  Malayalam is also available as a standalone Grade 2 exam-preparation subject, distinct from its
-  optional Spell Bee word category and the standalone **Maths** curriculum subject.
+  Malayalam and Hindi are also available as standalone exam-preparation subjects for Grade 2 and
+  Grade 6 respectively, distinct from their optional Spell Bee word categories and the standalone
+  **Maths** curriculum subject.
 - Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
@@ -80,10 +82,11 @@ local development URL does not transfer automatically to the published site.
 ## Automatic Written-Answer Grading (Cloudflare Workers)
 
 The website stays on GitHub Pages. A separate Cloudflare Worker checks typed
-robotics short answers and equivalent Malayalam synonym/name answers using
-**`gemini-3.5-flash-lite`**. Exact Malayalam word/sign recall, fixed-answer
-questions, and spelling continue to be checked locally. There is no parent-marking
-or notebook-answer step for new robotics quizzes. Historical parent-checked results remain readable.
+robotics short answers, equivalent Malayalam answers, and supported written answers
+for Shiza's Grade 6 Hindi lesson using **`gemini-3.5-flash-lite`**. Exact Hindi
+vocabulary, translations, synonyms, poem completions, fixed-answer questions, and
+spelling continue to be checked locally. There is no parent-marking or notebook-answer
+step for new robotics quizzes. Historical parent-checked results remain readable.
 
 Deployed grading endpoint:
 https://learning-academy-grading.firofame.workers.dev/grade
