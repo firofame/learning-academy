@@ -187,7 +187,7 @@ export const FAZIA_MALAYALAM_LESSON: MalayalamLesson = {
       textQuestion(
         `g2-mal-revision-${index + 1}`,
         'revision',
-        `${focus} വരുന്ന വാക്ക് എഴുതുക.`,
+        `ഈ അക്ഷരക്കൂട്ടങ്ങൾക്ക് നൽകിയിരിക്കുന്ന വാക്ക് എഴുതുക: ${focus}.`,
         word
       )
     ),
@@ -218,7 +218,7 @@ export const FAZIA_MALAYALAM_LESSON: MalayalamLesson = {
       textQuestion(
         `g2-mal-sign-${index + 1}`,
         'signs',
-        `${letter} എന്നതിന്റെ ചിഹ്നം എഴുതുക.`,
+        `പട്ടികയിൽ "${letter}" എന്നതിന് നൽകിയിരിക്കുന്ന ചിഹ്നം എഴുതുക.`,
         sign
       )
     ),

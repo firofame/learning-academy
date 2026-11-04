@@ -8,6 +8,7 @@ separate subjects, designed for calm, systematic learning.
 - The app opens on a subject home screen for the active student and their grade.
 - Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
 - Malayalam exam revision is available for **Grade 2** and covers Fazia's first-semester portions with section practice, a full mock exam, and saved missed questions.
+- Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
 - EVS, English, Hindi, and the other spelling groupings are **word categories within Spell Bee**.
   Malayalam is also available as a standalone Grade 2 exam-preparation subject, distinct from its
   optional Spell Bee word category and the standalone **Maths** curriculum subject.

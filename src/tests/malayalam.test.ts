@@ -65,6 +65,24 @@ describe('Fazia Grade 2 Malayalam exam portions', () => {
     assert.throws(() => getMalayalamLesson('shiza'), /not available/);
   });
 
+  test('frames revision cues as paired lookups and preserves the supplied final sign rows', () => {
+    const revisionQuestions = FAZIA_MALAYALAM_LESSON.questions.filter(question => question.section === 'revision');
+    assert.ok(revisionQuestions.every(question =>
+      question.prompt.startsWith('ഈ അക്ഷരക്കൂട്ടങ്ങൾക്ക് നൽകിയിരിക്കുന്ന വാക്ക് എഴുതുക:')
+    ));
+    assert.equal(revisionQuestions[2].prompt, 'ഈ അക്ഷരക്കൂട്ടങ്ങൾക്ക് നൽകിയിരിക്കുന്ന വാക്ക് എഴുതുക: ന്ത്, ന്ന്.');
+    assert.equal(revisionQuestions[2].answer, 'പന്ത്');
+    assert.equal(revisionQuestions[5].prompt, 'ഈ അക്ഷരക്കൂട്ടങ്ങൾക്ക് നൽകിയിരിക്കുന്ന വാക്ക് എഴുതുക: സ്ഥ, സ്ത.');
+    assert.equal(revisionQuestions[5].answer, 'പുസ്തകം');
+
+    const signQuestions = FAZIA_MALAYALAM_LESSON.questions.filter(question => question.section === 'signs');
+    assert.deepEqual(signQuestions.slice(-3).map(question => [question.prompt, question.answer]), [
+      ['പട്ടികയിൽ "്ര" എന്നതിന് നൽകിയിരിക്കുന്ന ചിഹ്നം എഴുതുക.', '്ര'],
+      ['പട്ടികയിൽ "വ" എന്നതിന് നൽകിയിരിക്കുന്ന ചിഹ്നം എഴുതുക.', '്വ'],
+      ['പട്ടികയിൽ "യ" എന്നതിന് നൽകിയിരിക്കുന്ന ചിഹ്നം എഴുതുക.', '്യ']
+    ]);
+  });
+
   test('two-word questions accept either order but require both distinct examples', () => {
     const question = FAZIA_MALAYALAM_LESSON.questions.find(entry => entry.kind === 'pair');
     assert.ok(question && question.kind === 'pair');
