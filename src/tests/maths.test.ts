@@ -229,6 +229,30 @@ describe('Maths Progress Storage & Isolation', () => {
     assert.deepEqual(saved?.reviewQuestionIds, [fullLesson.questions[0].id, fullLesson.questions[1].id]);
   });
 
+  test('full exams retain assisted correct misses, clear unaided correct answers, and add new misses', () => {
+    const initialExam = makeExamResult();
+    initialExam.answers[0] = {
+      questionId: fullLesson.questions[0].id,
+      answer: 'wrong',
+      correct: false
+    };
+    assert.deepEqual(saveMathsResult('fazia', initialExam)?.reviewQuestionIds, [fullLesson.questions[0].id]);
+
+    const assistedExam = makeExamResult();
+    assistedExam.answers[0].assistance = ['hint'];
+    assistedExam.answers[1] = {
+      questionId: fullLesson.questions[1].id,
+      answer: 'wrong',
+      correct: false
+    };
+    assert.deepEqual(
+      saveMathsResult('fazia', assistedExam)?.reviewQuestionIds,
+      [fullLesson.questions[0].id, fullLesson.questions[1].id]
+    );
+
+    assert.deepEqual(saveMathsResult('fazia', makeExamResult())?.reviewQuestionIds, []);
+  });
+
   test('rejects malformed progress safely and reports storage error', () => {
     const messages: string[] = [];
     const unsubscribe = subscribeStorageError(msg => messages.push(msg));

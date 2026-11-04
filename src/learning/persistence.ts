@@ -438,7 +438,7 @@ export async function exportLearnerBackup(
     records
   };
   const formattedJson = JSON.stringify(backup, null, 2);
-  if (!validateBackup(backup, learnerId)) {
+  if (!validateBackup(backup, learnerId) || !hasValidProgressJson(backup.progress)) {
     throw new Error('This learner history cannot be exported as a restorable backup. No backup file was created.');
   }
   if (new TextEncoder().encode(formattedJson).byteLength > MAX_BACKUP_BYTES) {
@@ -450,6 +450,17 @@ export async function exportLearnerBackup(
 function isSupportedBackupProgressKey(key: string, learnerId: StudentId): boolean {
   const classified = classifyLegacyKey(key);
   return classified?.learnerId === learnerId;
+}
+
+function hasValidProgressJson(progress: Record<string, string>): boolean {
+  return Object.values(progress).every(raw => {
+    try {
+      JSON.parse(raw);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 function validateBackup(value: unknown, requestedLearner: StudentId): value is LearnerBackup {

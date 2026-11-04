@@ -9,6 +9,7 @@ import { sessionReducer, startSession } from '../learning/sessionController';
 import { createQuizAttempts } from '../learning/attemptRecords';
 import {
   exportLearnerBackup, importLearnerBackup, migrateLegacyProgress,
+  MAX_BACKUP_BYTES, MAX_BACKUP_RECORDS,
   type LearningRepository, type LearningRecord as PersistedRecord,
   loadSessionDraft, saveSessionDraft
 } from '../learning/persistence';
@@ -45,6 +46,14 @@ class MemoryRepository implements LearningRepository {
     return [...this.records.values()].filter(record => record.learnerId === learnerId);
   }
   async delete(id: string) { this.records.delete(id); }
+}
+
+function backupRecord(id: string, data: unknown = { answer: 'A saved response.' }): PersistedRecord {
+  return {
+    id, schemaVersion: 1, learnerId: 'fazia', subjectId: 'robotics', kind: 'result',
+    contentVersion: 'robotics-v1', rubricVersion: 'robotics-rubric-v1',
+    updatedAt: '2026-11-04T10:00:00Z', data
+  };
 }
 
 describe('Shared learning domain', () => {
@@ -221,6 +230,35 @@ describe('Shared IndexedDB persistence contracts', () => {
     assert.equal(targetStorage.getItem('spellbee_progress_fazia_v1'), '{"word-1":{"attempts":9}}');
     assert.equal(targetStorage.getItem('academy_robotics_fazia_v1'), backup.progress['academy_robotics_fazia_v1']);
     assert.equal((await targetRepository.get('result:fazia:robotics:1'))?.contentVersion, 'robotics-v1');
+  });
+
+  test('backup export rejects histories beyond the restore record limit', async () => {
+    const storage = new MemoryStorage();
+    const repository = new MemoryRepository();
+    for (let index = 0; index <= MAX_BACKUP_RECORDS; index++) {
+      const record = backupRecord(`result:fazia:robotics:${index}`);
+      repository.records.set(record.id, record);
+    }
+
+    await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
+  });
+
+  test('backup export enforces the formatted download UTF-8 byte limit', async () => {
+    const storage = new MemoryStorage();
+    const repository = new MemoryRepository();
+    const unicodeContent = '📚'.repeat(Math.ceil(MAX_BACKUP_BYTES / 4));
+    const record = backupRecord('result:fazia:robotics:unicode', { response: unicodeContent });
+    repository.records.set(record.id, record);
+
+    await assert.rejects(exportLearnerBackup('fazia', repository, storage), /5 MB restore limit/);
+  });
+
+  test('backup export rejects malformed legacy progress JSON', async () => {
+    const storage = new MemoryStorage();
+    const repository = new MemoryRepository();
+    storage.setItem('academy_maths_fazia_v1', '{malformed progress');
+
+    await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
   });
 
   test('malformed, oversized-shape, or cross-learner backups are rejected before writes', async () => {
