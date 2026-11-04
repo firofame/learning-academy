@@ -18,6 +18,8 @@ import { loadRoboticsProgress } from '../utils/roboticsStorage';
 import { getRoboticsLesson } from '../data/robotics';
 import { loadMathsProgress } from '../utils/mathsStorage';
 import { getMathsLesson } from '../data/maths';
+import { loadMalayalamProgress } from '../utils/malayalamStorage';
+import { getMalayalamLesson } from '../data/malayalam';
 import { isSubjectAvailableForGrade } from '../data/subjects';
 
 interface ParentDashboardProps {
@@ -27,6 +29,7 @@ interface ParentDashboardProps {
   onResetComplete: () => void;
   onOpenRobotics?: () => void;
   onOpenMaths?: () => void;
+  onOpenMalayalam?: () => void;
 }
 
 export const ParentDashboard: React.FC<ParentDashboardProps> = ({
@@ -35,7 +38,8 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   onOpenWorksheet,
   onResetComplete,
   onOpenRobotics,
-  onOpenMaths
+  onOpenMaths,
+  onOpenMalayalam
 }) => {
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
   const currentProfile = getStudentProfile(activeStudent);
@@ -49,6 +53,10 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
   const maths = mathsAvailable ? loadMathsProgress(activeStudent) : null;
   const mathsLesson = mathsAvailable ? getMathsLesson(activeStudent) : null;
   const mathsExam = maths?.exam;
+  const malayalamAvailable = isSubjectAvailableForGrade('malayalam', currentProfile.grade);
+  const malayalam = malayalamAvailable ? loadMalayalamProgress(activeStudent) : null;
+  const malayalamLesson = malayalamAvailable ? getMalayalamLesson(activeStudent) : null;
+  const malayalamExam = malayalam?.exam;
 
   // Categorize words by evidence-based test-readiness mastery
   const rememberedWords: WordEntry[] = [];
@@ -251,6 +259,25 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           {onOpenMaths && (
             <button onClick={onOpenMaths} className="min-h-12 px-4 py-3 rounded-xl bg-indigo-700 text-white font-semibold hover:bg-indigo-800 cursor-pointer">
               Open maths revision
+            </button>
+          )}
+        </section>
+      )}
+
+      {malayalam && malayalamLesson && (
+        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3" aria-label="Malayalam progress">
+          <h2 className="text-lg font-bold text-slate-900">Malayalam: {malayalamLesson.title}</h2>
+          <p className="text-sm">
+            {malayalamExam
+              ? `Last mock exam: ${malayalamExam.answers.filter(answer => answer.correct).length} / ${malayalamExam.answers.length} correct. ${malayalamExam.answers.filter(answer => answer.aiChecked).length} equivalent answer(s) AI-checked.`
+              : 'No completed Malayalam mock exam yet.'}
+          </p>
+          <p className="text-sm">
+            {malayalam.reviewQuestionIds.length} question(s) to revisit. Malayalam exam results are separate from spelling mastery and are not cleared by the spelling reset.
+          </p>
+          {onOpenMalayalam && (
+            <button onClick={onOpenMalayalam} className="min-h-12 px-4 py-3 rounded-xl bg-amber-700 text-white font-semibold hover:bg-amber-800 cursor-pointer">
+              Open Malayalam revision
             </button>
           )}
         </section>

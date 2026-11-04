@@ -71,9 +71,9 @@ export interface WordProgress {
   }>;
 }
 
-export type ActiveAppView = 'home' | 'session' | 'curriculum' | 'parent' | 'worksheet' | 'robotics' | 'maths';
+export type ActiveAppView = 'home' | 'session' | 'curriculum' | 'parent' | 'worksheet' | 'robotics' | 'maths' | 'malayalam';
 
-export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths';
+export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam';
 
 export interface LearningSubject {
   id: LearningSubjectId;

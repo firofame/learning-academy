@@ -1,0 +1,140 @@
+import { StudentId } from '../types';
+import { checkMalayalamAnswer, getMalayalamLesson, MalayalamLesson } from '../data/malayalam';
+import { emitStorageError } from './storage';
+import { isWrittenGrade } from './roboticsGrading';
+
+export type MalayalamQuizMode = 'practice' | 'exam';
+
+export interface MalayalamAnswer {
+  questionId: string;
+  answer: string;
+  correct: boolean;
+  aiChecked?: boolean;
+  aiFeedback?: string;
+}
+
+export interface MalayalamResult {
+  mode: MalayalamQuizMode;
+  completedAt: string;
+  answers: MalayalamAnswer[];
+}
+
+export interface MalayalamProgress {
+  studentId: StudentId;
+  lessonId: string;
+  practice: MalayalamResult | null;
+  exam: MalayalamResult | null;
+  reviewQuestionIds: string[];
+}
+
+export const getMalayalamStorageKey = (studentId: StudentId): string =>
+  `academy_malayalam_${studentId}_v1`;
+
+function emptyProgress(studentId: StudentId): MalayalamProgress {
+  return {
+    studentId,
+    lessonId: getMalayalamLesson(studentId).id,
+    practice: null,
+    exam: null,
+    reviewQuestionIds: []
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isValidAnswer(value: unknown, lesson: MalayalamLesson): value is MalayalamAnswer {
+  if (!isRecord(value) || typeof value.questionId !== 'string' ||
+      typeof value.answer !== 'string' || typeof value.correct !== 'boolean') return false;
+  const question = lesson.questions.find(entry => entry.id === value.questionId);
+  if (!question || !value.answer.trim() ||
+      value.aiChecked !== undefined && typeof value.aiChecked !== 'boolean') return false;
+  if (value.aiChecked === true) {
+    return question.kind === 'text' && Boolean(question.markingCriteria) &&
+      isWrittenGrade({ correct: value.correct, feedback: value.aiFeedback });
+  }
+  return value.aiFeedback === undefined &&
+    value.correct === checkMalayalamAnswer(question, value.answer);
+}
+
+function isValidResult(
+  value: unknown,
+  mode: MalayalamQuizMode,
+  lesson: MalayalamLesson
+): value is MalayalamResult {
+  if (!isRecord(value) || value.mode !== mode ||
+      typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
+      !Array.isArray(value.answers) || value.answers.length === 0) return false;
+
+  const answers = value.answers.filter(answer => isValidAnswer(answer, lesson));
+  if (answers.length !== value.answers.length) return false;
+  const answeredIds = new Set(answers.map(answer => answer.questionId));
+  if (answeredIds.size !== answers.length) return false;
+  return mode !== 'exam' || answeredIds.size === lesson.questions.length &&
+    lesson.questions.every(question => answeredIds.has(question.id));
+}
+
+function isValidProgress(value: unknown, studentId: StudentId): value is MalayalamProgress {
+  if (!isRecord(value) || value.studentId !== studentId) return false;
+  const lesson = getMalayalamLesson(studentId);
+  return value.lessonId === lesson.id &&
+    (value.practice === null || isValidResult(value.practice, 'practice', lesson)) &&
+    (value.exam === null || isValidResult(value.exam, 'exam', lesson)) &&
+    Array.isArray(value.reviewQuestionIds) &&
+    value.reviewQuestionIds.every(id =>
+      typeof id === 'string' && lesson.questions.some(question => question.id === id)
+    ) &&
+    new Set(value.reviewQuestionIds).size === value.reviewQuestionIds.length;
+}
+
+export function loadMalayalamProgress(studentId: StudentId): MalayalamProgress {
+  if (typeof window === 'undefined') return emptyProgress(studentId);
+  try {
+    const raw = localStorage.getItem(getMalayalamStorageKey(studentId));
+    if (!raw) return emptyProgress(studentId);
+    const parsed: unknown = JSON.parse(raw);
+    if (isValidProgress(parsed, studentId)) return parsed;
+    emitStorageError(`Malayalam progress for ${studentId} was malformed. Other progress is unchanged.`);
+  } catch {
+    emitStorageError(`Unable to read Malayalam progress for ${studentId}. Other progress is unchanged.`);
+  }
+  return emptyProgress(studentId);
+}
+
+export function saveMalayalamResult(
+  studentId: StudentId,
+  result: MalayalamResult
+): MalayalamProgress | null {
+  const lesson = getMalayalamLesson(studentId);
+  if (!isValidResult(result, result.mode, lesson)) {
+    emitStorageError('Unable to save an invalid or incomplete Malayalam result.');
+    return null;
+  }
+
+  const previous = loadMalayalamProgress(studentId);
+  const newlyCorrectIds = new Set(result.answers.filter(answer => answer.correct).map(answer => answer.questionId));
+  const newlyIncorrectIds = result.answers.filter(answer => !answer.correct).map(answer => answer.questionId);
+  const reviewQuestionIds = result.mode === 'exam'
+    ? newlyIncorrectIds
+    : Array.from(new Set([
+        ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
+        ...newlyIncorrectIds
+      ]));
+  const next: MalayalamProgress = {
+    studentId,
+    lessonId: lesson.id,
+    practice: result.mode === 'practice' ? result : previous.practice,
+    exam: result.mode === 'exam' ? result : previous.exam,
+    reviewQuestionIds
+  };
+
+  if (typeof window === 'undefined') return next;
+  try {
+    localStorage.setItem(getMalayalamStorageKey(studentId), JSON.stringify(next));
+    return next;
+  } catch {
+    emitStorageError('Storage save failed: unable to save this Malayalam result. Keep this page open and retry.');
+    return null;
+  }
+}

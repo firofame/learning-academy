@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BookOpen, Bot, Calculator } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Calculator, Languages } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import { getStudentProfile } from '../data/wordList';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
@@ -34,6 +34,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               <Bot className="w-8 h-8 text-teal-700" aria-hidden="true" />
             ) : subject.id === 'maths' ? (
               <Calculator className="w-8 h-8 text-indigo-700" aria-hidden="true" />
+            ) : subject.id === 'malayalam' ? (
+              <Languages className="w-8 h-8 text-amber-700" aria-hidden="true" />
             ) : (
               <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
             )}

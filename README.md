@@ -1,14 +1,17 @@
 # Learning Academy
 
-A grade-aware learning app with **Spell Bee**, **Robotics**, and **Maths** as separate subjects,
-designed for calm, systematic learning.
+A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, and **Malayalam** as
+separate subjects, designed for calm, systematic learning.
 
 ## Subjects & Grades
 
 - The app opens on a subject home screen for the active student and their grade.
 - Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
-- EVS, Maths, English, Hindi, Malayalam, and the other spelling groupings are
-  **word categories within Spell Bee**, distinct from the standalone **Maths** curriculum subject.
+- Malayalam exam revision is available for **Grade 2** and covers Fazia's first-semester portions with section practice, a full mock exam, and saved missed questions.
+- Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
+- EVS, English, Hindi, and the other spelling groupings are **word categories within Spell Bee**.
+  Malayalam is also available as a standalone Grade 2 exam-preparation subject, distinct from its
+  optional Spell Bee word category and the standalone **Maths** curriculum subject.
 - Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
@@ -74,12 +77,13 @@ npm run preview -- --base /learning-academy/
 Learning progress is stored in each browser's local storage. Progress from a
 local development URL does not transfer automatically to the published site.
 
-## Automatic Robotics Grading (Cloudflare Workers)
+## Automatic Written-Answer Grading (Cloudflare Workers)
 
 The website stays on GitHub Pages. A separate Cloudflare Worker checks typed
-short answers using **`gemini-3.5-flash-lite`**. Fixed-answer questions and spelling
-continue to be checked locally. There is no parent-marking or notebook-answer
-step for new robotics quizzes. Historical parent-checked results remain readable.
+robotics short answers and equivalent Malayalam synonym/name answers using
+**`gemini-3.5-flash-lite`**. Exact Malayalam word/sign recall, fixed-answer
+questions, and spelling continue to be checked locally. There is no parent-marking
+or notebook-answer step for new robotics quizzes. Historical parent-checked results remain readable.
 
 Deployed grading endpoint:
 https://learning-academy-grading.firofame.workers.dev/grade

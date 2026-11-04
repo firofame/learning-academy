@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { WordProgress, StudentId } from '../types';
 import { checkRoboticsAnswer, getRoboticsLesson, getRoboticsLessonForGrade } from '../data/robotics';
 import { checkMathsAnswer, getMathsLesson, getMathsLessonForGrade } from '../data/maths';
+import { FAZIA_MALAYALAM_LESSON, getMalayalamLesson } from '../data/malayalam';
 import { LEARNING_SUBJECTS, getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 import {
   getRoboticsStorageKey, loadRoboticsProgress, RoboticsResult, saveRoboticsResult
@@ -71,8 +72,8 @@ const mockStorage = new MockLocalStorage();
 (global as any).localStorage = mockStorage;
 
 describe('Learning Academy subject catalog', () => {
-  test('Spell Bee, Robotics, and Maths are peer subjects with content for each offered grade', () => {
-    assert.deepEqual(LEARNING_SUBJECTS.map(subject => subject.name), ['Spell Bee', 'Robotics', 'Maths']);
+  test('subjects are grade-scoped peers with content for each offered grade', () => {
+    assert.deepEqual(LEARNING_SUBJECTS.map(subject => subject.name), ['Spell Bee', 'Robotics', 'Maths', 'Malayalam']);
     const views = LEARNING_SUBJECTS.flatMap(subject => subject.views);
     assert.equal(new Set(views).size, views.length);
     assert.equal(getSubjectForView('home'), undefined);
@@ -86,15 +87,22 @@ describe('Learning Academy subject catalog', () => {
           assert.ok(getRoboticsLessonForGrade(grade));
         } else if (subject.id === 'maths') {
           assert.ok(getMathsLessonForGrade(grade));
+        } else if (subject.id === 'malayalam') {
+          assert.equal(grade, 2);
+          assert.equal(FAZIA_MALAYALAM_LESSON.questions.length, 77);
         }
       }
     }
     for (const profile of STUDENT_PROFILES) {
-      const expectedSubjectIds = ['spell-bee', 'robotics', 'maths'];
+      const expectedSubjectIds = profile.grade === 2
+        ? ['spell-bee', 'robotics', 'maths', 'malayalam']
+        : ['spell-bee', 'robotics', 'maths'];
       assert.deepEqual(getAvailableSubjectsForGrade(profile.grade).map(subject => subject.id), expectedSubjectIds);
       assert.ok(getWordsForStudent(profile.id).every(word => word.studentGrade === profile.grade));
       assert.equal(getRoboticsLesson(profile.id).grade, profile.grade);
       assert.equal(getMathsLesson(profile.id).grade, profile.grade);
+      if (profile.grade === 2) assert.equal(getMalayalamLesson(profile.id).grade, profile.grade);
+      else assert.throws(() => getMalayalamLesson(profile.id), /not available/);
     }
   });
 
