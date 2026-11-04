@@ -9,7 +9,7 @@ import {
   HindiSectionId
 } from '../data/hindi';
 import { audioService } from '../utils/audio';
-import { AppSettings } from '../utils/storage';
+import type { AppSettings } from '../utils/appStorage';
 import {
   HindiAnswer,
   HindiQuizMode,
@@ -17,8 +17,11 @@ import {
   loadHindiProgress,
   saveHindiResult
 } from '../utils/hindiStorage';
-import { getStudentProfile } from '../data/wordList';
+import { getStudentProfile } from '../data/profiles';
 import { gradeWrittenAnswer, MAX_WRITTEN_ANSWER_LENGTH } from '../utils/roboticsGrading';
+import { createSessionId } from '../learning/sessionController';
+import { recordQuizAnswerAttempt } from '../learning/attemptRecords';
+import { usePersistentDraft } from '../learning/usePersistentDraft';
 
 interface HindiViewProps {
   activeStudent: StudentId;
@@ -27,6 +30,27 @@ interface HindiViewProps {
 }
 
 type SelectedSection = HindiSectionId | 'all';
+
+interface HindiSessionDraftState {
+  mode: HindiQuizMode;
+  questionIds: string[];
+  title: string;
+  quizIndex: number;
+  answers: HindiAnswer[];
+  input: string;
+  feedback: HindiAnswer | null;
+}
+
+function isHindiAnswer(value: unknown): value is HindiAnswer {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const answer = value as Record<string, unknown>;
+  return typeof answer.questionId === 'string' && typeof answer.answer === 'string' &&
+    typeof answer.correct === 'boolean' &&
+    (answer.aiChecked === undefined || typeof answer.aiChecked === 'boolean') &&
+    (answer.aiFeedback === undefined || typeof answer.aiFeedback === 'string') &&
+    (answer.attemptId === undefined || typeof answer.attemptId === 'string') &&
+    (answer.attemptedAt === undefined || (typeof answer.attemptedAt === 'string' && Number.isFinite(Date.parse(answer.attemptedAt))));
+}
 
 const primaryButton =
   'min-h-12 px-5 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs';
@@ -84,6 +108,9 @@ export const HindiView: React.FC<HindiViewProps> = ({
 }) => {
   const lesson = getHindiLesson(activeStudent);
   const profile = getStudentProfile(activeStudent);
+  const { restoredDraft, loadingDraft, saveDraft, discardDraft, forgetRestoredDraft } = usePersistentDraft<HindiSessionDraftState>({
+    learnerId: activeStudent, subjectId: 'hindi', lessonId: lesson.id
+  });
   const [progress, setProgress] = useState(() => loadHindiProgress(activeStudent));
   const [selectedSection, setSelectedSection] = useState<SelectedSection>('meanings');
   const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({});
@@ -102,6 +129,8 @@ export const HindiView: React.FC<HindiViewProps> = ({
   const [checking, setChecking] = useState(false);
   const [checkingError, setCheckingError] = useState('');
   const [confirmExit, setConfirmExit] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState('');
   const headingRef = useRef<HTMLHeadingElement>(null);
   const promptRef = useRef<HTMLHeadingElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -115,6 +144,19 @@ export const HindiView: React.FC<HindiViewProps> = ({
     if (quiz && !result) promptRef.current?.focus();
     else headingRef.current?.focus();
   }, [quiz, quizIndex, result]);
+
+  useEffect(() => {
+    if (!quiz || !sessionId || result) return;
+    saveDraft(sessionId, {
+      mode: quiz.mode,
+      questionIds: quiz.questions.map(question => question.id),
+      title: quiz.title,
+      quizIndex,
+      answers,
+      input,
+      feedback
+    });
+  }, [quiz, quizIndex, answers, input, feedback, result, sessionId, saveDraft]);
 
   const filteredQuestions = selectedSection === 'all'
     ? lesson.questions
@@ -130,6 +172,8 @@ export const HindiView: React.FC<HindiViewProps> = ({
     title: string
   ) => {
     if (questions.length === 0) return;
+    if (sessionId) void discardDraft(sessionId).catch(() => undefined);
+    if (restoredDraft) void discardDraft(restoredDraft.sessionId).catch(() => undefined);
     controllerRef.current?.abort();
     controllerRef.current = null;
     submittedRef.current = false;
@@ -145,6 +189,50 @@ export const HindiView: React.FC<HindiViewProps> = ({
     setSaved(false);
     setAnswerError('');
     setConfirmExit(false);
+    setSessionId(createSessionId());
+    setDraftError('');
+  };
+
+  const resumeSavedQuiz = () => {
+    if (!restoredDraft) return;
+    const draft = restoredDraft.state as unknown;
+    if (typeof draft !== 'object' || draft === null || Array.isArray(draft)) {
+      setDraftError('The saved quiz could not be restored. Its data has been kept for recovery.');
+      return;
+    }
+    const saved = draft as Partial<HindiSessionDraftState>;
+    const questions = Array.isArray(saved.questionIds)
+      ? saved.questionIds.map(id => typeof id === 'string' ? lesson.questions.find(question => question.id === id) : undefined)
+      : [];
+    const valid = (saved.mode === 'practice' || saved.mode === 'exam') &&
+      typeof saved.title === 'string' && saved.title.length > 0 &&
+      Number.isInteger(saved.quizIndex) && saved.quizIndex! >= 0 && saved.quizIndex! < questions.length &&
+      questions.length > 0 && questions.every((question): question is HindiQuestion => question !== undefined) &&
+      Array.isArray(saved.answers) && saved.answers.every(isHindiAnswer) &&
+      typeof saved.input === 'string' && (saved.feedback === null || isHindiAnswer(saved.feedback)) &&
+      (saved.mode !== 'exam' || saved.feedback === null) &&
+      saved.answers.every((answer, index) => answer.questionId === saved.questionIds?.[index]) &&
+      (!saved.feedback || saved.feedback.questionId === saved.questionIds?.[saved.quizIndex!]);
+    if (!valid) {
+      setDraftError('This saved quiz does not match the current Hindi lesson. It has been kept, and you can start a new quiz.');
+      return;
+    }
+    controllerRef.current?.abort();
+    submittedRef.current = saved.feedback !== null;
+    setQuiz({ mode: saved.mode!, questions: questions as HindiQuestion[], title: saved.title! });
+    setQuizIndex(saved.quizIndex!);
+    setAnswers(saved.answers!);
+    setInput(saved.input!);
+    setFeedback(saved.feedback!);
+    setResult(null);
+    setSaved(false);
+    setAnswerError('');
+    setChecking(false);
+    setCheckingError('');
+    setConfirmExit(false);
+    setSessionId(restoredDraft.sessionId);
+    setDraftError('');
+    forgetRestoredDraft();
   };
 
   const persist = (completed: HindiResult) => {
@@ -160,6 +248,8 @@ export const HindiView: React.FC<HindiViewProps> = ({
       answers: completedAnswers
     };
     audioService.stopAll();
+    if (sessionId) void discardDraft(sessionId).catch(() => undefined);
+    setSessionId(null);
     setQuiz(null);
     setResult(completed);
     setFeedback(null);
@@ -178,7 +268,9 @@ export const HindiView: React.FC<HindiViewProps> = ({
     const entry: HindiAnswer = {
       questionId: currentQuestion.id,
       answer,
-      correct: checkHindiAnswer(currentQuestion, answer)
+      correct: checkHindiAnswer(currentQuestion, answer),
+      attemptedAt: new Date().toISOString(),
+      attemptId: `${sessionId ?? createSessionId()}:${currentQuestion.id}`
     };
     if (currentQuestion.kind !== 'pair' && currentQuestion.markingCriteria && !entry.correct) {
       if (!gradingApiUrl) {
@@ -199,6 +291,17 @@ export const HindiView: React.FC<HindiViewProps> = ({
         entry.aiChecked = true;
         entry.aiFeedback = grade.feedback;
       } catch (error) {
+        void recordQuizAnswerAttempt({
+          learnerId: activeStudent, subjectId: 'hindi', lessonId: lesson.id, mode: quiz.mode,
+          answer: {
+            ...entry,
+            correct: false,
+            ungraded: true,
+            prompt: currentQuestion.prompt,
+            referenceAnswer: currentQuestion.answer,
+            provenance: lesson.sourceNote
+          }
+        }).catch(() => undefined);
         if (!controller.signal.aborted) {
           submittedRef.current = false;
           setCheckingError(error instanceof Error
@@ -213,6 +316,15 @@ export const HindiView: React.FC<HindiViewProps> = ({
         }
       }
     }
+    void recordQuizAnswerAttempt({
+      learnerId: activeStudent, subjectId: 'hindi', lessonId: lesson.id, mode: quiz.mode,
+      answer: {
+        ...entry,
+        prompt: currentQuestion.prompt,
+        referenceAnswer: currentQuestion.answer,
+        provenance: lesson.sourceNote
+      }
+    }).catch(() => undefined);
     if (quiz.mode === 'practice') {
       setFeedback(entry);
       return;
@@ -335,6 +447,17 @@ export const HindiView: React.FC<HindiViewProps> = ({
         <p className="text-xs text-slate-500">{lesson.sourceNote}</p>
       </header>
 
+      {!quiz && !result && !loadingDraft && restoredDraft && (
+        <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 space-y-3" aria-label="Saved Hindi quiz">
+          <p className="font-semibold text-indigo-950">An unfinished Hindi quiz is saved on this device.</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" className={primaryButton} onClick={resumeSavedQuiz}>Resume saved quiz</button>
+            <button type="button" className={secondaryButton} onClick={() => void discardDraft(restoredDraft.sessionId).catch(() => undefined)}>Discard saved quiz</button>
+          </div>
+        </section>
+      )}
+      {draftError && <p role="alert" className="text-amber-900">{draftError}</p>}
+
       {quiz && !result ? (
         <section className="space-y-5" aria-label="Hindi quiz">
           <button
@@ -363,6 +486,8 @@ export const HindiView: React.FC<HindiViewProps> = ({
                     submittedRef.current = false;
                     setChecking(false);
                     audioService.stopAll();
+                    if (sessionId) void discardDraft(sessionId).catch(() => undefined);
+                    setSessionId(null);
                     setQuiz(null);
                     setConfirmExit(false);
                   }}

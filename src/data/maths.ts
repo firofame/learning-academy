@@ -1,5 +1,5 @@
 import { StudentId } from '../types';
-import { getStudentProfile } from './wordList';
+import { getStudentProfile } from './profiles';
 
 export type MathsTopic =
   | 'place-value'

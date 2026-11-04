@@ -1,7 +1,7 @@
 import React from 'react';
 import { ArrowRight, BookOpen, Bot, Calculator, Languages } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
-import { getStudentProfile } from '../data/wordList';
+import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
 
 interface SubjectHomeProps {

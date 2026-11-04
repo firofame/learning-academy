@@ -1,27 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Header } from './components/Header';
-import { SessionView } from './components/SessionView';
-import { AllWordsView } from './components/AllWordsView';
-import { ParentDashboard } from './components/ParentDashboard';
-import { WorksheetView } from './components/WorksheetView';
-import { RoboticsView } from './components/RoboticsView';
-import { MathsView } from './components/MathsView';
-import { MalayalamView } from './components/MalayalamView';
-import { HindiView } from './components/HindiView';
 import { SubjectHome } from './components/SubjectHome';
 import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
-import { 
+import {
   loadSettings, 
   saveSettings, 
-  AppSettings, 
   loadActiveStudent, 
   saveActiveStudent, 
   subscribeStorageError,
   emitStorageError
-} from './utils/storage';
-import { getStudentProfile } from './data/wordList';
+} from './utils/appStorage';
+import type { AppSettings } from './utils/appStorage';
+import { getStudentProfile } from './data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from './data/subjects';
 import { audioService } from './utils/audio';
+import { retryLearningPersistence } from './learning/persistence';
+
+const SessionView = lazy(() => import('./components/SessionView').then(module => ({ default: module.SessionView })));
+const AllWordsView = lazy(() => import('./components/AllWordsView').then(module => ({ default: module.AllWordsView })));
+const ParentDashboard = lazy(() => import('./components/ParentDashboard').then(module => ({ default: module.ParentDashboard })));
+const WorksheetView = lazy(() => import('./components/WorksheetView').then(module => ({ default: module.WorksheetView })));
+const RoboticsView = lazy(() => import('./components/RoboticsView').then(module => ({ default: module.RoboticsView })));
+const MathsView = lazy(() => import('./components/MathsView').then(module => ({ default: module.MathsView })));
+const MalayalamView = lazy(() => import('./components/MalayalamView').then(module => ({ default: module.MalayalamView })));
+const HindiView = lazy(() => import('./components/HindiView').then(module => ({ default: module.HindiView })));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
@@ -31,6 +33,7 @@ export default function App() {
   const [targetedWords, setTargetedWords] = useState<WordEntry[] | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
+  const [retryingStorage, setRetryingStorage] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -119,13 +122,29 @@ export default function App() {
             <span>⚠️</span>
             <span>{storageErrorMessage}</span>
           </div>
-          <button 
-            onClick={() => setStorageErrorMessage(null)} 
-            aria-label="Dismiss storage warning"
-            className="text-rose-600 hover:text-rose-900 font-bold ml-2 cursor-pointer"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {storageErrorMessage.includes('IndexedDB') && (
+              <button
+                disabled={retryingStorage}
+                onClick={async () => {
+                  setRetryingStorage(true);
+                  const saved = await retryLearningPersistence();
+                  setRetryingStorage(false);
+                  if (saved) setStorageErrorMessage(null);
+                }}
+                className="underline underline-offset-2 disabled:opacity-60"
+              >
+                {retryingStorage ? 'Retrying…' : 'Retry'}
+              </button>
+            )}
+            <button
+              onClick={() => setStorageErrorMessage(null)}
+              aria-label="Dismiss storage warning"
+              className="text-rose-600 hover:text-rose-900 font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
         </div>
       )}
 
@@ -141,6 +160,7 @@ export default function App() {
 
       {/* Main View Container */}
       <main className="flex-1 min-w-0">
+        <Suspense fallback={<div className="max-w-5xl mx-auto p-6 text-sm text-slate-600" role="status">Loading your lesson…</div>}>
         {currentView === 'home' && (
           <SubjectHome activeStudent={activeStudent} onNavigate={handleNavigate} />
         )}
@@ -164,7 +184,7 @@ export default function App() {
 
         {currentView === 'curriculum' && (
           <AllWordsView
-            key={activeStudent}
+            key={`${activeStudent}-${refreshKey}`}
             activeStudent={activeStudent}
             onPracticeSpecificWord={handlePracticeSpecificWord}
             onStartSubjectSession={handleStartSubjectSession}
@@ -208,6 +228,7 @@ export default function App() {
         {currentView === 'hindi' && (
           <HindiView key={activeStudent} activeStudent={activeStudent} settings={settings} />
         )}
+        </Suspense>
       </main>
 
       {/* Quiet Footer */}

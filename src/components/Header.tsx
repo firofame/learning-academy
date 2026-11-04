@@ -1,8 +1,8 @@
 import React from 'react';
 import { Volume2, VolumeX, Sparkles, BookOpen, HeartHandshake, Printer, ArrowRightLeft, Bot, Calculator, Languages } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
-import { AppSettings } from '../utils/storage';
-import { STUDENT_PROFILES, getStudentProfile, getWordsForStudent } from '../data/wordList';
+import type { AppSettings } from '../utils/appStorage';
+import { getStudentProfile, getStudentWordCount, STUDENT_PROFILES } from '../data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 
 interface HeaderProps {
@@ -23,12 +23,12 @@ export const Header: React.FC<HeaderProps> = ({
   onUpdateSettings
 }) => {
   const currentProfile = getStudentProfile(activeStudent);
-  const studentWords = getWordsForStudent(activeStudent);
+  const studentWordCount = getStudentWordCount(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
   const currentSubject = getSubjectForView(currentView);
   const spellingViews: { view: ActiveAppView; label: string; shortLabel: string; icon: typeof BookOpen }[] = [
     { view: 'session', label: 'Practice', shortLabel: 'Practice', icon: Sparkles },
-    { view: 'curriculum', label: `All ${studentWords.length} Words`, shortLabel: 'Words', icon: BookOpen },
+    { view: 'curriculum', label: `All ${studentWordCount} Words`, shortLabel: 'Words', icon: BookOpen },
     { view: 'parent', label: 'Parent Insights', shortLabel: 'Insights', icon: HeartHandshake },
     { view: 'worksheet', label: 'Worksheets', shortLabel: 'Sheets', icon: Printer }
   ];

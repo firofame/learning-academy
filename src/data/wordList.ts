@@ -1,23 +1,6 @@
-import { WordEntry, StudentProfile, StudentId, SubjectCategory } from '../types';
-
-export const STUDENT_PROFILES: StudentProfile[] = [
-  {
-    id: 'fazia',
-    name: 'Fazia',
-    grade: 2,
-    gradeLabel: 'Grade 2',
-    avatarEmoji: '🌸',
-    description: 'Foundational spelling bee vocabulary across 6 word categories'
-  },
-  {
-    id: 'shiza',
-    name: 'Shiza',
-    grade: 6,
-    gradeLabel: 'Grade 6',
-    avatarEmoji: '⭐',
-    description: 'Advanced academic vocabulary across 9 word categories'
-  }
-];
+import { WordEntry, StudentId, SubjectCategory } from '../types';
+import { getStudentProfile } from './profiles';
+export { getStudentProfile, STUDENT_PROFILES } from './profiles';
 
 // =========================================================================
 // FAZIA (GRADE 2) - 45 WORDS
@@ -2262,12 +2245,6 @@ export function getWordsForGrade(grade: number): WordEntry[] {
 
 export function getWordsForStudent(studentId: StudentId): WordEntry[] {
   return getWordsForGrade(getStudentProfile(studentId).grade);
-}
-
-export function getStudentProfile(studentId: StudentId): StudentProfile {
-  const profile = STUDENT_PROFILES.find(p => p.id === studentId);
-  if (!profile) throw new Error(`Unknown student profile: ${studentId}`);
-  return profile;
 }
 
 export const SUBJECT_METADATA: Record<SubjectCategory, {

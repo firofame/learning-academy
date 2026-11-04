@@ -14,6 +14,7 @@ import {
 import { WordEntry, SubjectCategory, StudentId } from '../types';
 import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data/wordList';
 import { getAllProgress, resetStudentProgress, getWordProgress, isWordDueForReview } from '../utils/storage';
+import { ProgressBackupControls } from './ProgressBackupControls';
 import { loadRoboticsProgress } from '../utils/roboticsStorage';
 import { getRoboticsLesson } from '../data/robotics';
 import { loadMathsProgress } from '../utils/mathsStorage';
@@ -237,6 +238,12 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({
           <span>Reset {currentProfile.name}'s Progress</span>
         </button>
       </div>
+
+      <ProgressBackupControls
+        learnerId={activeStudent}
+        learnerName={currentProfile.name}
+        onRestored={onResetComplete}
+      />
 
       {robotics && roboticsLesson && (
         <section className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-3" aria-label="Robotics progress">

@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker, { handleGradingRequest, type GradingEnv } from '../../worker/index';
-import { gradeRoboticsAnswer, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
+import { gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
 import { FAZIA_MALAYALAM_LESSON } from '../data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../data/hindi';
 
@@ -119,6 +119,14 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(result.headers.get('Cache-Control'), 'no-store');
     assert.deepEqual(await result.json(), { correct: true, feedback: 'You explained how a machine helps us.' });
     assert.equal(calls, 1);
+  });
+
+  test('reports a missing pinned Gemini model clearly and leaves the answer ungraded', async () => {
+    const result = await handleGradingRequest(request(), environment(), async () =>
+      Response.json({ error: { message: 'models/gemini-3.5-flash-lite is not found' } }, { status: 404 })
+    );
+    assert.equal(result.status, 503);
+    assert.deepEqual(await result.json(), { error: GEMINI_MODEL_UNAVAILABLE_MESSAGE });
   });
 
   test('grades an equivalent Malayalam synonym with the pinned model and server-owned criteria', async () => {
@@ -273,5 +281,27 @@ describe('Browser grading client', () => {
     await assert.rejects(gradeRoboticsAnswer(
       'not-a-url', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /invalid grading API URL/);
+  });
+
+  test('identifies offline automatic checks and leaves the answer ungraded', async t => {
+    const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { onLine: false } });
+    t.after(() => {
+      if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
+      else Reflect.deleteProperty(globalThis, 'navigator');
+    });
+    t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('network'); });
+    await assert.rejects(gradeRoboticsAnswer(
+      'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+    ), /needs an internet connection.*not been marked/);
+  });
+
+  test('shows the explicit pinned-model outage message returned by the Worker', async t => {
+    t.mock.method(globalThis, 'fetch', async () =>
+      Response.json({ error: GEMINI_MODEL_UNAVAILABLE_MESSAGE }, { status: 503 })
+    );
+    await assert.rejects(gradeRoboticsAnswer(
+      'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+    ), /configured Gemini 3\.5 Flash-Lite model is unavailable.*not been marked/);
   });
 });

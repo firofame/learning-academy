@@ -1,6 +1,11 @@
 import { StudentId } from '../types';
 import { checkHindiAnswer, getHindiLesson, HindiLesson } from '../data/hindi';
-import { emitStorageError } from './storage';
+import { emitStorageError } from './appStorage';
+import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
+import { CONTENT_VERSIONS } from '../data/contentVersions';
+import { createQuizAttempts } from '../learning/attemptRecords';
+import { saveLearningAttempts } from '../learning/persistence';
 import { isWrittenGrade } from './roboticsGrading';
 
 export type HindiQuizMode = 'practice' | 'exam';
@@ -11,6 +16,8 @@ export interface HindiAnswer {
   correct: boolean;
   aiChecked?: boolean;
   aiFeedback?: string;
+  attemptId?: string;
+  attemptedAt?: string;
 }
 
 export interface HindiResult {
@@ -48,6 +55,8 @@ function isValidAnswer(value: unknown, lesson: HindiLesson): value is HindiAnswe
   if (!isRecord(value) || typeof value.questionId !== 'string' ||
       typeof value.answer !== 'string' || !value.answer.trim() ||
       typeof value.correct !== 'boolean') return false;
+  if (value.attemptId !== undefined && (typeof value.attemptId !== 'string' || !value.attemptId) ||
+      value.attemptedAt !== undefined && (typeof value.attemptedAt !== 'string' || !Number.isFinite(Date.parse(value.attemptedAt)))) return false;
   const question = lesson.questions.find(entry => entry.id === value.questionId);
   if (!question || value.aiChecked !== undefined && typeof value.aiChecked !== 'boolean') return false;
   if (value.aiChecked === true) {
@@ -73,7 +82,7 @@ function isValidResult(
       lesson.questions.every(question => answeredIds.has(question.id)));
 }
 
-function isValidProgress(value: unknown, studentId: StudentId): value is HindiProgress {
+export function isValidHindiProgress(value: unknown, studentId: StudentId): value is HindiProgress {
   if (!isRecord(value) || value.studentId !== studentId) return false;
   const lesson = getHindiLesson(studentId);
   return value.lessonId === lesson.id &&
@@ -92,7 +101,7 @@ export function loadHindiProgress(studentId: StudentId): HindiProgress {
     const raw = localStorage.getItem(getHindiStorageKey(studentId));
     if (!raw) return emptyProgress(studentId);
     const parsed: unknown = JSON.parse(raw);
-    if (isValidProgress(parsed, studentId)) return parsed;
+    if (isValidHindiProgress(parsed, studentId)) return parsed;
     emitStorageError(`Hindi progress for ${studentId} was malformed. Other progress is unchanged.`);
   } catch {
     emitStorageError(`Unable to read Hindi progress for ${studentId}. Other progress is unchanged.`);
@@ -111,9 +120,12 @@ export function saveHindiResult(
   }
 
   const previous = loadHindiProgress(studentId);
-  const newlyCorrectIds = new Set(result.answers.filter(answer => answer.correct).map(answer => answer.questionId));
+  const isFullExam = result.mode === 'exam' && result.answers.length === lesson.questions.length;
+  const newlyCorrectIds = new Set(result.answers
+    .filter(answer => shouldClearMissedQuestion(SUBJECT_REVIEW_POLICIES.hindi, result.mode, isFullExam, answer.correct ? 'correct' : 'incorrect', false))
+    .map(answer => answer.questionId));
   const newlyIncorrectIds = result.answers.filter(answer => !answer.correct).map(answer => answer.questionId);
-  const reviewQuestionIds = result.mode === 'exam'
+  const reviewQuestionIds = isFullExam
     ? newlyIncorrectIds
     : Array.from(new Set([
         ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
@@ -129,7 +141,20 @@ export function saveHindiResult(
 
   if (typeof window === 'undefined') return next;
   try {
-    localStorage.setItem(getHindiStorageKey(studentId), JSON.stringify(next));
+    const serialized = JSON.stringify(next);
+    localStorage.setItem(getHindiStorageKey(studentId), serialized);
+    if (typeof indexedDB !== 'undefined') {
+      const repository = getDefaultLearningRepository();
+      void persistProgressSnapshot(repository, studentId, 'hindi', serialized, CONTENT_VERSIONS.hindi).catch(() => undefined);
+      void saveLearningAttempts(repository, createQuizAttempts({
+        learnerId: studentId, subjectId: 'hindi', lessonId: lesson.id, mode: result.mode,
+        completedAt: result.completedAt, provenance: lesson.sourceNote,
+        answers: result.answers.map(answer => {
+          const question = lesson.questions.find(item => item.id === answer.questionId)!;
+          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer };
+        })
+      })).catch(() => undefined);
+    }
     return next;
   } catch {
     emitStorageError('Storage save failed: unable to save this Hindi result. Keep this page open and retry.');

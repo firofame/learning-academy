@@ -20,10 +20,14 @@ import {
   BookOpen
 } from 'lucide-react';
 import { WordEntry, SubjectCategory, StudyMode, StudentId } from '../types';
-import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data/wordList';
+import { SUBJECT_METADATA, getWordsForStudent } from '../data/wordList';
+import { getStudentProfile } from '../data/profiles';
 import { audioService } from '../utils/audio';
 import { evaluateSpelling } from '../utils/spellingCoach';
-import { recordAttempt, selectSessionWords, getWordProgress, AppSettings } from '../utils/storage';
+import { recordAttempt, selectSessionWords, getWordProgress } from '../utils/storage';
+import type { AppSettings } from '../utils/appStorage';
+import { createSessionId } from '../learning/sessionController';
+import { usePersistentDraft } from '../learning/usePersistentDraft';
 import { SubjectFilter } from './SubjectFilter';
 
 interface SessionViewProps {
@@ -38,6 +42,24 @@ interface SessionViewProps {
   onClearTargeted?: () => void;
 }
 
+interface SpellBeeDraftState {
+  wordIds: string[];
+  currentIndex: number;
+  studyMode: StudyMode;
+  guidedSelectedTiles: string[];
+  guidedAvailableTiles: string[];
+  guidedCoachingMessage: string | null;
+  hasSubmittedCurrentCard: boolean;
+  isAssistedAttempt: boolean;
+  showNativeTiles: boolean;
+  shuffledNativeTiles: string[];
+  testInput: string;
+  isPaperMode: boolean;
+  paperRevealed: boolean;
+  testFeedback: { submitted: boolean; isCorrect: boolean; message: string; coachingTip?: string } | null;
+  sessionResults: Array<{ wordId: string; mode: StudyMode; wasUnaidedCorrect: boolean }>;
+}
+
 export const SessionView: React.FC<SessionViewProps> = ({
   settings,
   activeStudent,
@@ -50,6 +72,9 @@ export const SessionView: React.FC<SessionViewProps> = ({
 }) => {
   const currentProfile = getStudentProfile(activeStudent);
   const studentWords = getWordsForStudent(activeStudent);
+  const { restoredDraft, loadingDraft, saveDraft, discardDraft, forgetRestoredDraft } = usePersistentDraft<SpellBeeDraftState>({
+    learnerId: activeStudent, subjectId: 'spell-bee', lessonId: `spelling-grade-${currentProfile.grade}`
+  });
 
   // Available subjects for active student
   const availableSubjects: Array<SubjectCategory | 'All'> = [
@@ -60,6 +85,9 @@ export const SessionView: React.FC<SessionViewProps> = ({
   // Session queue and current state
   const [sessionQueue, setSessionQueue] = useState<WordEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const initialLoadHandled = useRef(false);
+  const [draftError, setDraftError] = useState('');
   const [studyMode, setStudyMode] = useState<StudyMode>('learn');
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
 
@@ -98,6 +126,8 @@ export const SessionView: React.FC<SessionViewProps> = ({
 
   // Initialize a fresh session
   const startNewSession = (subject: SubjectCategory | 'All' = selectedSubject) => {
+    if (sessionId) void discardDraft(sessionId).catch(() => undefined);
+    if (restoredDraft) void discardDraft(restoredDraft.sessionId).catch(() => undefined);
     let words: WordEntry[];
     if (targetedWords && targetedWords.length > 0) {
       words = [...targetedWords];
@@ -107,6 +137,8 @@ export const SessionView: React.FC<SessionViewProps> = ({
     }
     setSessionQueue(words);
     setCurrentIndex(0);
+    setSessionId(createSessionId());
+    setDraftError('');
     const initialMode = words[0] && getWordProgress(words[0].id, activeStudent).attempts > 0 ? 'test' : 'learn';
     setStudyMode(initialMode);
     setIsCompleted(false);
@@ -115,11 +147,113 @@ export const SessionView: React.FC<SessionViewProps> = ({
   };
 
   useEffect(() => {
+    if (loadingDraft) return;
+    if (!initialLoadHandled.current) {
+      initialLoadHandled.current = true;
+      if (restoredDraft) return;
+    }
     startNewSession(selectedSubject);
-  }, [activeStudent, selectedSubject, settings.sessionSize, targetedWords]);
+  }, [activeStudent, selectedSubject, settings.sessionSize, targetedWords, loadingDraft]);
 
   const currentWord = sessionQueue[currentIndex] || null;
   const currentSubjectMeta = currentWord ? SUBJECT_METADATA[currentWord.subject] : null;
+
+  useEffect(() => {
+    if (!sessionId || sessionQueue.length === 0 || isCompleted) return;
+    saveDraft(sessionId, {
+      wordIds: sessionQueue.map(word => word.id),
+      currentIndex,
+      studyMode,
+      guidedSelectedTiles,
+      guidedAvailableTiles,
+      guidedCoachingMessage,
+      hasSubmittedCurrentCard,
+      isAssistedAttempt,
+      showNativeTiles,
+      shuffledNativeTiles,
+      testInput,
+      isPaperMode,
+      paperRevealed,
+      testFeedback,
+      sessionResults: sessionResults.map(result => ({
+        wordId: result.word.id, mode: result.mode, wasUnaidedCorrect: result.wasUnaidedCorrect
+      }))
+    });
+  }, [sessionId, sessionQueue, currentIndex, studyMode, guidedSelectedTiles, guidedAvailableTiles,
+    guidedCoachingMessage, hasSubmittedCurrentCard, isAssistedAttempt, showNativeTiles,
+    shuffledNativeTiles, testInput, isPaperMode, paperRevealed, testFeedback, sessionResults, isCompleted, saveDraft]);
+
+  const resumeSavedSession = () => {
+    if (!restoredDraft) return;
+    const value = restoredDraft.state as unknown;
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      setDraftError('The saved spelling session could not be restored. Its data has been kept for recovery.');
+      return;
+    }
+    const draft = value as Partial<SpellBeeDraftState>;
+    const queue = Array.isArray(draft.wordIds)
+      ? draft.wordIds.map(id => typeof id === 'string' ? studentWords.find(word => word.id === id) : undefined)
+      : [];
+    const validFeedback = draft.testFeedback === null || (typeof draft.testFeedback === 'object' &&
+      draft.testFeedback !== null && typeof draft.testFeedback.submitted === 'boolean' &&
+      typeof draft.testFeedback.isCorrect === 'boolean' && typeof draft.testFeedback.message === 'string' &&
+      (draft.testFeedback.coachingTip === undefined || typeof draft.testFeedback.coachingTip === 'string'));
+    const validResults = Array.isArray(draft.sessionResults) && draft.sessionResults.every(result =>
+      typeof result === 'object' && result !== null && typeof result.wordId === 'string' &&
+      studentWords.some(word => word.id === result.wordId) &&
+      (result.mode === 'learn' || result.mode === 'practice' || result.mode === 'test') &&
+      typeof result.wasUnaidedCorrect === 'boolean');
+    const valid = (draft.studyMode === 'learn' || draft.studyMode === 'practice' || draft.studyMode === 'test') &&
+      queue.length > 0 && queue.every((word): word is WordEntry => word !== undefined) &&
+      Number.isInteger(draft.currentIndex) && draft.currentIndex! >= 0 && draft.currentIndex! < queue.length &&
+      Array.isArray(draft.guidedSelectedTiles) && draft.guidedSelectedTiles.every(tile => typeof tile === 'string') &&
+      Array.isArray(draft.guidedAvailableTiles) && draft.guidedAvailableTiles.every(tile => typeof tile === 'string') &&
+      (draft.guidedCoachingMessage === null || typeof draft.guidedCoachingMessage === 'string') &&
+      typeof draft.hasSubmittedCurrentCard === 'boolean' && typeof draft.isAssistedAttempt === 'boolean' &&
+      typeof draft.showNativeTiles === 'boolean' && Array.isArray(draft.shuffledNativeTiles) &&
+      draft.shuffledNativeTiles.every(tile => typeof tile === 'string') && typeof draft.testInput === 'string' &&
+      typeof draft.isPaperMode === 'boolean' && typeof draft.paperRevealed === 'boolean' &&
+      validFeedback && validResults;
+    if (!valid) {
+      setDraftError('This saved spelling session does not match the current word list. It has been kept; start a new session to continue.');
+      return;
+    }
+    const restoredQueue = queue.filter((word): word is WordEntry => word !== undefined);
+    setSessionQueue(restoredQueue);
+    setCurrentIndex(draft.currentIndex!);
+    setStudyMode(draft.studyMode!);
+    setGuidedSelectedTiles(draft.guidedSelectedTiles!);
+    setGuidedAvailableTiles(draft.guidedAvailableTiles!);
+    setGuidedCoachingMessage(draft.guidedCoachingMessage!);
+    setHasSubmittedCurrentCard(draft.hasSubmittedCurrentCard!);
+    submittedRef.current = draft.hasSubmittedCurrentCard!;
+    setIsAssistedAttempt(draft.isAssistedAttempt!);
+    setShowNativeTiles(draft.showNativeTiles!);
+    setShuffledNativeTiles(draft.shuffledNativeTiles!);
+    setTestInput(draft.testInput!);
+    setIsPaperMode(draft.isPaperMode!);
+    setPaperRevealed(draft.paperRevealed!);
+    setTestFeedback(draft.testFeedback!);
+    setSessionResults(draft.sessionResults!.map(result => ({
+      word: studentWords.find(word => word.id === result.wordId)!,
+      mode: result.mode,
+      wasUnaidedCorrect: result.wasUnaidedCorrect
+    })));
+    setSessionId(restoredDraft.sessionId);
+    setDraftError('');
+    forgetRestoredDraft();
+  };
+
+  const discardSavedSession = async () => {
+    if (!restoredDraft) return;
+    try {
+      await discardDraft(restoredDraft.sessionId);
+      forgetRestoredDraft();
+      startNewSession(selectedSubject);
+    } catch {
+      setDraftError('The saved session could not be discarded. Your existing progress remains available. Retry from this screen.');
+    }
+  };
 
   useEffect(() => {
     if (!currentWord || studyMode !== 'test' || isCompleted) return;
@@ -356,6 +490,8 @@ export const SessionView: React.FC<SessionViewProps> = ({
 
     if (isLastWord) {
       setIsCompleted(true);
+      if (sessionId) void discardDraft(sessionId).catch(() => undefined);
+      setSessionId(null);
       if (settings.soundEffects) {
         audioService.playGentleSuccess();
         try {
@@ -376,7 +512,7 @@ export const SessionView: React.FC<SessionViewProps> = ({
     }
   };
 
-  if (!currentWord && !isCompleted) {
+  if (!currentWord && !isCompleted && !(restoredDraft && !loadingDraft)) {
     return (
       <div className="max-w-xl mx-auto py-16 text-center">
         <p className="text-slate-600 font-medium">Loading words for {currentProfile.name}...</p>
@@ -469,6 +605,16 @@ export const SessionView: React.FC<SessionViewProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+      {!currentWord && restoredDraft && !loadingDraft && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3" aria-label="Saved spelling session">
+          <p className="font-semibold text-amber-950">An unfinished Spell Bee session is saved on this device.</p>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={resumeSavedSession} className="min-h-12 rounded-xl bg-amber-700 px-4 py-3 font-semibold text-white">Resume saved session</button>
+            <button type="button" onClick={() => void discardSavedSession()} className="min-h-12 rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800">Discard and start fresh</button>
+          </div>
+        </section>
+      )}
+      {draftError && <p role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{draftError}</p>}
       {/* Subject Filter Bar */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <SubjectFilter subjects={availableSubjects} value={selectedSubject} onChange={onSubjectChange} />

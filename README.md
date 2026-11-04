@@ -20,7 +20,7 @@ A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, **Malaya
   the same across subjects. Home cards, navigation, and related dashboard links
   use this catalog. Switching to a profile whose grade does not offer the current
   subject returns to the subject home screen.
-- Student profiles in [`src/data/wordList.ts`](src/data/wordList.ts) have an explicit
+- Student profiles in [`src/data/profiles.ts`](src/data/profiles.ts) have an explicit
   numeric `grade`. Spelling words and robotics lessons are selected by grade,
   while progress remains stored separately for each student.
 - To add another grade, add its curriculum content and profile, then include that
@@ -76,8 +76,40 @@ npm run build -- --base /learning-academy/
 npm run preview -- --base /learning-academy/
 ```
 
-Learning progress is stored in each browser's local storage. Progress from a
-local development URL does not transfer automatically to the published site.
+Small settings and the synchronous progress snapshots used by existing screens
+remain in each browser's local storage. Structured attempt history and unfinished
+session drafts are also stored in versioned IndexedDB records. Progress from a
+local development URL does not transfer automatically to the published site or
+another device.
+
+### Local progress, migration, and backup
+
+- On startup, the app copies recognized legacy spelling, Robotics, Maths,
+  Malayalam, Hindi, settings, and active-profile keys into the versioned
+  `learning-academy-progress` IndexedDB database. It verifies each copied value
+  before writing the migration marker. Original local-storage keys are retained
+  for recovery; legacy summaries are labeled as summaries and are not expanded
+  into invented per-question attempts.
+- Each checked answer is written to IndexedDB immediately with its content/rubric
+  version, timestamp, outcome, assistance, and grading provenance. Failed AI checks
+  are recorded as ungraded under the same attempt ID; a retry updates that record
+  instead of counting the outage as a wrong answer. Final quiz results reuse those
+  attempt IDs. Completed results continue to use each subject's
+  existing local-storage format while it is mirrored to IndexedDB. Session drafts save question order, answers,
+  progress, and assistance state so an unfinished quiz can be resumed after a
+  reload. A draft for changed lesson content is not resumed.
+- In **Parent Insights**, use **Download backup** before changing browser, origin,
+  or device. Keep the JSON file somewhere safe. On the new browser/device, open
+  Parent Insights for the same learner and choose **Restore backup**. Restore
+  imports only missing records and preserves existing local records. Each learner
+  has a separate backup; settings are not included.
+- If IndexedDB setup or a mirrored write fails, the app reports that the secondary
+  save did not complete and offers a retry. Existing local-storage progress remains
+  readable. IndexedDB is browser-local and is not cloud synchronization.
+- The production service worker caches the app shell and lesson assets as they are
+  used, so previously opened content can work offline. First use still needs a
+  connection. Meaning-based AI grading always requires internet; offline attempts
+  stay unmarked and can be retried after reconnecting.
 
 ## Automatic Written-Answer Grading (Cloudflare Workers)
 
@@ -157,9 +189,12 @@ available on the deployed Worker.
 - An uncertain result gets one independent second check using the same model.
   If still inconclusive, or on quota, network, blocked, or malformed responses,
   the answer remains ungraded and can be retried. No failure becomes a wrong mark.
+  If Gemini reports that the pinned model is unavailable, the child sees that the
+  configured Gemini 3.5 Flash-Lite model could not be reached; the answer stays ungraded.
   "I don't know yet" is an explicit skipped answer and does count as incorrect.
 - Practice shows feedback immediately. Exam feedback stays hidden until all
-  questions finish. Only completed, graded quizzes are saved.
+  questions finish. Completed results and per-answer attempt records are saved;
+  unfinished quizzes are kept as resumable drafts.
 - Requests do not require authentication and have per-IP and shared limits of
   30 requests per minute **per Cloudflare location**. Cloudflare's counters are
   approximate, not a strict global spending cap. Each request can make up to two
@@ -187,7 +222,7 @@ browser client, automatic marking, legacy storage, and retry/cancellation flows.
   - Assisted practice gives immediate feedback. The full exam quiz hides feedback until all questions are submitted. Typed short answers are checked automatically against server-owned criteria, allowing equivalent wording.
   - The latest practice and exam results are saved separately for each child in browser storage, without changing spelling progress or its mastery rules. Parent Insights links to robotics and shows the latest exam score.
   - Missed questions can be practised again. Assisted practice does not clear revisit flags; a correct answer in a completed full exam does. Scores are revision snapshots, not claims of verified mastery.
-  - Results save only after completion, including automatic written-answer checks. Navigating away or switching profiles discards an unfinished quiz. Failed checks preserve the answer for retry; failed saves can be retried from the results page. Spelling resets do not erase robotics results.
+  - Completed results save after the quiz, including automatic written-answer checks. Unfinished quizzes save resumable drafts; switching profiles never carries a draft into another learner. Failed checks preserve the answer for retry. Spelling resets do not erase robotics results.
 - **3-Mode Learning Progression**:
   1. *Learn*: Auditory pronunciation, phonics guide, contextual usage, and tricky spot mnemonics.
   2. *Practice (Assisted)*: Scaffolded syllable and akshara block assembly.
@@ -204,7 +239,8 @@ browser client, automatic marking, legacy storage, and retry/cancellation flows.
   - In-session mistakes are re-queued 2-3 cards later for reinforcement.
   - Retention checks are due three days after the last qualifying unaided success; assisted practice never postpones them. Legacy progress uses qualifying history or recorded recall dates, not the last assisted attempt.
 - **Reliable Local Progress**:
-  - Saved records are validated in full, including history, dates, counters, and student identity. Malformed records are reported and skipped while valid progress is preserved.
+  - Spelling records are validated in full, including history, dates, counters, and student identity. Malformed records are reported and skipped while valid progress is preserved. IndexedDB records and imported backups are schema-checked and learner-scoped.
+  - An ungraded or interrupted answer remains available for retry; it is not saved as incorrect. Parent Insights provides local export and recovery.
 - **Consistent Controls**:
   - Voice and slow-speech settings apply across every screen. Navigation wraps into a second row on compact screens.
 - **Small-Screen Learning**:

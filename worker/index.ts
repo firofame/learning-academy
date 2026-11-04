@@ -2,7 +2,7 @@ import { ROBOTICS_LESSONS } from '../src/data/robotics';
 import { FAZIA_MALAYALAM_LESSON } from '../src/data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../src/data/hindi';
 import {
-  isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL
+  isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/roboticsGrading';
 
 export interface GradingEnv {
@@ -97,9 +97,12 @@ async function generateGrade(
     const errorText = await response.text();
     const reason = /location.*not.*supported|country.*not.*supported/i.test(errorText)
       ? 'unsupported_location'
+      : /model.*(?:not found|not available|unsupported|does not exist)|resource.*not found/i.test(errorText)
+        ? 'model_unavailable'
       : /API_KEY_INVALID|API key not valid/i.test(errorText) ? 'invalid_api_key'
       : response.status === 429 ? 'quota_exhausted' : 'upstream_rejected';
     console.error('Gemini grading request failed:', response.status, reason);
+    if (reason === 'model_unavailable') throw new GradingError(503, GEMINI_MODEL_UNAVAILABLE_MESSAGE);
     throw new GradingError(response.status === 429 ? 429 : 503, 'Automatic checking is temporarily unavailable. Please retry.');
   }
   let payload: unknown;

@@ -1,99 +1,25 @@
 import { WordProgress, MasteryLevel, SubjectCategory, WordEntry, StudentId, StudyMode } from '../types';
 import { getWordsForStudent } from '../data/wordList';
+import { isRetentionCheckDue, localCalendarDate, readinessFromRecallEvidence } from '../learning/domain';
+import { deleteProgressSnapshot, getDefaultLearningRepository, persistProgressSnapshot } from '../learning/persistence';
+import { saveLearningAttempt } from '../learning/persistence';
+import { createSpellingAttempt } from '../learning/attemptRecords';
+import { getStudentProfile } from '../data/profiles';
+import { emitStorageError } from './appStorage';
+export {
+  ACTIVE_PROFILE_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, emitStorageError,
+  loadActiveStudent, loadSettings, saveActiveStudent, saveSettings, subscribeStorageError
+} from './appStorage';
+export type { AppSettings } from './appStorage';
 
 export const LEGACY_STORAGE_KEY = 'spellbee_progress_v1';
 export const MIGRATION_DONE_KEY = 'spellbee_migration_done_v1';
-export const ACTIVE_PROFILE_KEY = 'spellbee_active_profile_v1';
-export const SETTINGS_KEY = 'spellbee_settings_v1';
-
-export interface AppSettings {
-  soundEffects: boolean;
-  speechAudio: boolean;
-  slowSpeech: boolean;
-  paperModeDefault: boolean;
-  sessionSize: number; // 5, 10, or 0 (for all)
-}
-
-export const DEFAULT_SETTINGS: AppSettings = {
-  soundEffects: true,
-  speechAudio: true,
-  slowSpeech: false,
-  paperModeDefault: false,
-  sessionSize: 5
-};
-
-// Storage event and error subscription system
-type StorageErrorListener = (message: string) => void;
-const storageErrorListeners: StorageErrorListener[] = [];
-let pendingStorageError: string | null = null;
-
-export function subscribeStorageError(listener: StorageErrorListener): () => void {
-  storageErrorListeners.push(listener);
-  if (pendingStorageError) {
-    const message = pendingStorageError;
-    pendingStorageError = null;
-    emitStorageError(message);
-  }
-  return () => {
-    const idx = storageErrorListeners.indexOf(listener);
-    if (idx >= 0) storageErrorListeners.splice(idx, 1);
-  };
-}
-
-export function emitStorageError(message: string): void {
-  // Initial loads can fail before the app's notification listener has mounted.
-  if (storageErrorListeners.length === 0) pendingStorageError = message;
-  storageErrorListeners.forEach(listener => {
-    try {
-      listener(message);
-    } catch {
-      // Safeguard listener execution
-    }
-  });
-}
 
 /**
  * Returns YYYY-MM-DD formatted date string in the learner's local calendar.
  */
 export function getLocalDateString(date: Date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-export function loadSettings(): AppSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      emitStorageError('Settings file was malformed. Reverted to default settings.');
-      return DEFAULT_SETTINGS;
-    }
-    return {
-      soundEffects: typeof parsed.soundEffects === 'boolean' ? parsed.soundEffects : DEFAULT_SETTINGS.soundEffects,
-      speechAudio: typeof parsed.speechAudio === 'boolean' ? parsed.speechAudio : DEFAULT_SETTINGS.speechAudio,
-      slowSpeech: typeof parsed.slowSpeech === 'boolean' ? parsed.slowSpeech : DEFAULT_SETTINGS.slowSpeech,
-      paperModeDefault: typeof parsed.paperModeDefault === 'boolean' ? parsed.paperModeDefault : DEFAULT_SETTINGS.paperModeDefault,
-      sessionSize: typeof parsed.sessionSize === 'number' && !isNaN(parsed.sessionSize) ? parsed.sessionSize : DEFAULT_SETTINGS.sessionSize
-    };
-  } catch {
-    emitStorageError('Unable to read settings from browser storage. Using default settings.');
-    return DEFAULT_SETTINGS;
-  }
-}
-
-export function saveSettings(settings: AppSettings): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    return true;
-  } catch {
-    emitStorageError('Storage save failed: unable to save settings to browser storage.');
-    return false;
-  }
+  return localCalendarDate(date);
 }
 
 /**
@@ -115,40 +41,19 @@ export function runStorageMigration(): void {
 
     if (legacyData && !existingFazia) {
       localStorage.setItem(faziaKey, legacyData);
+      if (localStorage.getItem(faziaKey) !== legacyData) {
+        throw new Error('The existing spelling progress could not be verified after copying.');
+      }
     }
-    // Record migration completion independently of whether current student progress exists
+    // Keep the source key. Mark completion only after any copied data is verified.
     localStorage.setItem(MIGRATION_DONE_KEY, 'true');
-  } catch {
-    // Migration safeguard
+  } catch (error) {
+    emitStorageError(`Spelling progress migration did not finish. Original progress remains in browser storage. ${error instanceof Error ? error.message : ''}`.trim());
   }
 }
 
 // Run migration immediately upon module import in browser
 runStorageMigration();
-
-export function loadActiveStudent(): StudentId {
-  if (typeof window === 'undefined') return 'shiza';
-  try {
-    const saved = localStorage.getItem(ACTIVE_PROFILE_KEY);
-    if (saved === 'fazia' || saved === 'shiza') {
-      return saved;
-    }
-    return 'shiza';
-  } catch {
-    return 'shiza';
-  }
-}
-
-export function saveActiveStudent(studentId: StudentId): boolean {
-  if (typeof window === 'undefined') return true;
-  try {
-    localStorage.setItem(ACTIVE_PROFILE_KEY, studentId);
-    return true;
-  } catch {
-    emitStorageError('Storage save failed: unable to remember active student.');
-    return false;
-  }
-}
 
 export function getStudentStorageKey(studentId: StudentId): string {
   return `spellbee_progress_${studentId}_v1`;
@@ -191,6 +96,13 @@ function isValidWordProgress(val: unknown): val is WordProgress {
         (entry.mistakeInput === undefined || typeof entry.mistakeInput === 'string');
     }) &&
     (obj.level === 'learning' || obj.level === 'practising' || obj.level === 'remembered')
+  );
+}
+
+export function isValidSpellingProgress(value: unknown, studentId: StudentId): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.entries(value).every(([wordId, progress]) =>
+    isValidWordProgress(progress) && progress.wordId === wordId && progress.studentId === studentId
   );
 }
 
@@ -280,9 +192,7 @@ export function isWordDueForReview(prog?: WordProgress): boolean {
 
   if (prog.level === 'remembered') {
     const lastRecall = getLastUnaidedCorrectDate(prog);
-    if (!lastRecall) return true;
-    const daysSince = (Date.now() - Date.parse(lastRecall)) / (1000 * 60 * 60 * 24);
-    return daysSince >= 3;
+    return isRetentionCheckDue(lastRecall, new Date(), 3);
   }
 
   return false;
@@ -330,14 +240,7 @@ export function recordAttempt(
 
   // Evidence-based test-readiness mastery:
   // Requires at least 2 unaided recalls across at least 2 distinct days with consecutive streak >= 2
-  let newLevel: MasteryLevel = 'learning';
-  if (unaidedCount >= 2 && updatedDates.length >= 2 && consecutiveUnaided >= 2) {
-    newLevel = 'remembered';
-  } else if (unaidedCount >= 1 && consecutiveUnaided >= 1) {
-    newLevel = 'practising';
-  } else {
-    newLevel = 'learning';
-  }
+  const newLevel: MasteryLevel = readinessFromRecallEvidence(consecutiveUnaided, updatedDates);
 
   // Assisted success MUST NOT erase the need for an outstanding unaided verification.
   // Only qualifying unaided success clears needsRevisit.
@@ -376,6 +279,26 @@ export function recordAttempt(
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(getStudentStorageKey(studentId), JSON.stringify(all));
+      if (typeof indexedDB !== 'undefined') {
+        const repository = getDefaultLearningRepository();
+        void persistProgressSnapshot(repository, studentId, 'spell-bee', JSON.stringify(all), 'spell-bee-v1').catch(() => undefined);
+        const word = getWordsForStudent(studentId).find(item => item.id === wordId);
+        const attempt = createSpellingAttempt({
+          attemptId: `${studentId}:${wordId}:${now}:${Math.random().toString(36).slice(2, 8)}`,
+          learnerId: studentId,
+          grade: getStudentProfile(studentId).grade,
+          questionId: wordId,
+          timestamp: now,
+          sessionMode: mode === 'paper' ? 'paper' : mode === 'test' ? 'exam' : 'practice',
+          submittedAnswer: mistakeInput ?? null,
+          questionPrompt: word?.hiddenSentence,
+          referenceAnswer: word?.canonicalSpelling,
+          explanation: word?.meaning,
+          assisted: !isUnaided,
+          outcome: wasCorrect ? 'correct' : 'incorrect'
+        });
+        void saveLearningAttempt(repository, attempt).catch(() => undefined);
+      }
     } catch {
       saveFailed = true;
       updatedProgress.saveFailed = true;
@@ -486,6 +409,11 @@ export function resetStudentProgress(studentId: StudentId): boolean {
   if (typeof window === 'undefined') return true;
   try {
     localStorage.removeItem(getStudentStorageKey(studentId));
+    if (typeof indexedDB !== 'undefined') {
+      void deleteProgressSnapshot(getDefaultLearningRepository(), studentId, 'spell-bee').catch(() => {
+        emitStorageError('Spelling progress was reset in this browser, but the IndexedDB backup copy could not be cleared. Retry from Parent Insights.');
+      });
+    }
     return true;
   } catch {
     emitStorageError(`Unable to reset progress for ${studentId}.`);
