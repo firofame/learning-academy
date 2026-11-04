@@ -2,9 +2,15 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import worker, { handleGradingRequest, type GradingEnv } from '../../worker/index';
 import { gradeRoboticsAnswer, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
+import { FAZIA_MALAYALAM_LESSON } from '../data/malayalam';
 
 const origin = 'https://firofame.github.io';
 const answer = { lessonId: 'robotics-grade-2-lesson-1', questionId: 'g2-machine', answer: 'It makes work easier.' };
+const malayalamAnswer = {
+  lessonId: FAZIA_MALAYALAM_LESSON.id,
+  questionId: 'g2-mal-synonym-1',
+  answer: 'മരുന്നിന് തുല്യമായ പദം'
+};
 
 function environment(): GradingEnv {
   return {
@@ -72,7 +78,8 @@ describe('Cloudflare automatic grading', () => {
     for (const body of [
       null, {}, { ...answer, answer: '' }, { ...answer, answer: 'a'.repeat(1201) },
       { ...answer, lessonId: 'other' }, { ...answer, questionId: 'g6-nlp' },
-      { ...answer, questionId: 'g2-tf-1' }, { ...answer, referenceAnswer: 'trust me' }
+      { ...answer, questionId: 'g2-tf-1' }, { ...answer, referenceAnswer: 'trust me' },
+      { ...malayalamAnswer, questionId: 'g2-mal-sign-1' }
     ]) {
       assert.equal((await handleGradingRequest(request(body), environment(), upstream)).status, 400);
     }
@@ -104,6 +111,25 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(result.status, 200);
     assert.equal(result.headers.get('Cache-Control'), 'no-store');
     assert.deepEqual(await result.json(), { correct: true, feedback: 'You explained how a machine helps us.' });
+    assert.equal(calls, 1);
+  });
+
+  test('grades equivalent Malayalam synonyms with the pinned model and server-owned criteria', async () => {
+    let calls = 0;
+    const result = await handleGradingRequest(request(malayalamAnswer), environment(), async (input, init) => {
+      calls++;
+      assert.match(String(input), new RegExp(`${ROBOTICS_GRADING_MODEL}:generateContent$`));
+      const body = JSON.parse(String(init?.body));
+      const context = JSON.parse(body.contents[0].parts[0].text);
+      assert.equal(context.grade, 2);
+      assert.equal(context.referenceAnswer, 'ഔഷധം');
+      assert.match(context.markingCriteria, /same meaning/);
+      assert.equal(context.studentAnswer, malayalamAnswer.answer);
+      assert.match(body.systemInstruction.parts[0].text, /Malayalam synonym/);
+      return geminiResponse('correct', 'നല്ല പകരം പദം!');
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { correct: true, feedback: 'നല്ല പകരം പദം!' });
     assert.equal(calls, 1);
   });
 

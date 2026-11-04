@@ -35,6 +35,7 @@ const { render, fireEvent, cleanup, waitFor } = await import('@testing-library/r
 const { SessionView } = await import('../components/SessionView');
 const { ParentDashboard } = await import('../components/ParentDashboard');
 const { RoboticsView } = await import('../components/RoboticsView');
+const { MalayalamView } = await import('../components/MalayalamView');
 const { default: App } = await import('../App');
 const { getWordsForStudent } = await import('../data/wordList');
 const { getRoboticsLesson } = await import('../data/robotics');
@@ -99,6 +100,54 @@ describe('Production component interactions', () => {
     assert.ok(view.getByRole('heading', { name: 'Simple and Complex Machines' }));
     assert.equal(view.queryByRole('combobox', { name: 'Practice session length' }), null);
     assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
+  });
+
+  test('Fazia can practise her Grade 2 Malayalam exam portions and the subject is hidden for Grade 6', () => {
+    const view = render(React.createElement(App));
+    assert.ok(view.getByRole('button', { name: 'Open Malayalam' }));
+    fireEvent.click(view.getByRole('button', { name: 'Open Malayalam' }));
+    assert.ok(view.getByRole('heading', { name: 'First Semester Exam Portions' }));
+    assert.ok(view.getByRole('button', { name: 'Full mock exam (77)' }));
+    fireEvent.click(view.getByRole('button', { name: 'Practice this section (15)' }));
+    assert.ok(view.getByText('Question 1 of 15'));
+
+    fireEvent.change(view.getByRole('textbox', { name: 'Your Malayalam answer' }), {
+      target: { value: 'മഞ്ചാടി' }
+    });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    assert.ok(view.getByText('Correct! Great job!'));
+    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
+    assert.ok(view.getByText('Question 2 of 15'));
+
+    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
+    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
+    assert.equal(view.queryByRole('button', { name: 'Open Malayalam' }), null);
+  });
+
+  test('Malayalam synonym alternatives use Gemini and show feedback during practice', async t => {
+    const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init: RequestInit) => {
+      const request = JSON.parse(String(init?.body));
+      assert.deepEqual(request, {
+        lessonId: 'fazia-grade-2-malayalam-first-semester',
+        questionId: 'g2-mal-synonym-1',
+        answer: 'മരുന്ന്'
+      });
+      return Response.json({ correct: true, feedback: 'നല്ല പകരം പദം!' });
+    });
+    const view = render(React.createElement(MalayalamView, {
+      activeStudent: 'fazia',
+      settings,
+      gradingApiUrl: 'https://grading.example/grade'
+    }));
+    fireEvent.click(view.getByRole('button', { name: /II · Synonyms/ }));
+    fireEvent.click(view.getByRole('button', { name: 'Practice this section (10)' }));
+    fireEvent.change(view.getByRole('textbox', { name: 'Your Malayalam answer' }), {
+      target: { value: 'മരുന്ന്' }
+    });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await waitFor(() => assert.ok(view.getByText('Correct! Great job!')));
+    assert.equal(fetchMock.mock.calls.length, 1);
+    assert.ok(view.getByText('AI feedback: നല്ല പകരം പദം!'));
   });
 
   test('grade restrictions hide unavailable subjects everywhere and switching grades exits an unavailable subject', () => {

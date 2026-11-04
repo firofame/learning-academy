@@ -6,6 +6,7 @@ import { ParentDashboard } from './components/ParentDashboard';
 import { WorksheetView } from './components/WorksheetView';
 import { RoboticsView } from './components/RoboticsView';
 import { MathsView } from './components/MathsView';
+import { MalayalamView } from './components/MalayalamView';
 import { SubjectHome } from './components/SubjectHome';
 import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
 import { 
@@ -178,6 +179,7 @@ export default function App() {
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
             onOpenRobotics={() => handleNavigate('robotics')}
             onOpenMaths={() => handleNavigate('maths')}
+            onOpenMalayalam={() => handleNavigate('malayalam')}
           />
         )}
 
@@ -195,6 +197,10 @@ export default function App() {
 
         {currentView === 'maths' && (
           <MathsView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+        )}
+
+        {currentView === 'malayalam' && (
+          <MalayalamView key={activeStudent} activeStudent={activeStudent} settings={settings} />
         )}
       </main>
 

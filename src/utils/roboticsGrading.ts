@@ -1,4 +1,5 @@
-export const ROBOTICS_GRADING_MODEL = 'gemini-3.5-flash-lite';
+export const GRADING_MODEL = 'gemini-3.5-flash-lite';
+export const ROBOTICS_GRADING_MODEL = GRADING_MODEL;
 export const MAX_WRITTEN_ANSWER_LENGTH = 1200;
 
 export interface WrittenGrade {
@@ -16,7 +17,7 @@ export function isWrittenGrade(value: unknown): value is WrittenGrade {
     value.feedback.length <= 300;
 }
 
-export async function gradeRoboticsAnswer(
+export async function gradeWrittenAnswer(
   apiUrl: string, lessonId: string, questionId: string,
   answer: string, signal: AbortSignal
 ): Promise<WrittenGrade> {
@@ -54,3 +55,5 @@ export async function gradeRoboticsAnswer(
   }
   return grade;
 }
+
+export const gradeRoboticsAnswer = gradeWrittenAnswer;
