@@ -330,7 +330,7 @@ export const HindiView: React.FC<HindiViewProps> = ({
         </h1>
         <p className="text-sm font-bold text-indigo-900">{getHindiExamDateLabel(lesson.examDate)}</p>
         <p className="text-sm text-slate-600">
-          Recall the answers before revealing them. Revisit missed questions later today and once more tomorrow.
+          Recall answers before revealing them. A question leaves Review missed after one correct practice answer; if it still feels tricky, practise the section again later today or tomorrow.
         </p>
         <p className="text-xs text-slate-500">{lesson.sourceNote}</p>
       </header>

@@ -133,6 +133,7 @@ describe('Production component interactions', () => {
     assert.ok(view.getByRole('heading', { name: 'Grade 6 Hindi Exam Revision' }));
     assert.ok(view.getByRole('button', { name: /Full mock exam \(74\)/ }));
     assert.ok(view.getByRole('button', { name: /Word meanings/ }));
+    assert.ok(view.getByText(/A question leaves Review missed after one correct practice answer/));
   });
 
   test('Shiza Hindi progress is shown independently in Parent Insights', () => {
