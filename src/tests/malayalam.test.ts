@@ -10,10 +10,12 @@ import {
 } from '../data/malayalam';
 import {
   getMalayalamStorageKey,
+  isValidMalayalamProgress,
   loadMalayalamProgress,
   MalayalamResult,
   saveMalayalamResult
 } from '../utils/malayalamStorage';
+import { CONTENT_VERSIONS, RUBRIC_VERSIONS } from '../data/contentVersions';
 
 class MockLocalStorage {
   private store = new Map<string, string>();
@@ -179,24 +181,83 @@ describe('Fazia Grade 2 Malayalam exam portions', () => {
 describe('Shiza Grade 6 Malayalam exam portions', () => {
   beforeEach(() => mockStorage.clear());
 
-  test('covers Lessons 1 and 2 with 69 questions across nine exercise sections', () => {
+  test('covers all 176 supplied exercises across ten sections without renumbering earlier questions', () => {
     const lesson = getMalayalamLesson('shiza');
     assert.equal(lesson.grade, 6);
     assert.equal(lesson, SHIZA_MALAYALAM_LESSON);
-    assert.equal(lesson.questions.length, 69);
+    assert.equal(lesson.questions.length, 176);
     assert.deepEqual(
       lesson.sections.map(section =>
         lesson.questions.filter(question => question.section === section.id).length
       ),
-      [25, 4, 4, 2, 8, 8, 5, 2, 11]
+      [62, 2, 8, 14, 10, 19, 18, 11, 7, 25]
     );
-    assert.equal(new Set(lesson.questions.map(question => question.id)).size, 69);
+    assert.equal(new Set(lesson.questions.map(question => question.id)).size, 176);
+    const previousQuestions = lesson.questions.slice(0, 69);
+    assert.ok(previousQuestions.every(question => /^g6-mal-(?:l[12]-|vigraham-)/u.test(question.id)));
+    assert.equal(previousQuestions[0].id, 'g6-mal-l1-meaning-1');
+    assert.equal(previousQuestions.at(-1)?.id, 'g6-mal-l2-answer-6');
+    for (const [number, count] of [[3, 37], [4, 24], [5, 46]]) {
+      const questions = lesson.questions.filter(question => question.id.startsWith(`g6-mal-l${number}-`));
+      assert.equal(questions.length, count, `Lesson ${number} matches its supplied exercise count`);
+      assert.ok(questions.every(question => question.prompt.startsWith(`പാഠം ${number} · `)));
+    }
     for (const question of lesson.questions) {
       assert.ok(question.prompt.length > 0);
       assert.ok(question.answer.length > 0);
       assert.equal(checkMalayalamAnswer(question, question.answer), true);
       assert.equal(checkMalayalamAnswer(question, ''), false);
+      assert.equal(/[\u0000\uFFFD]/u.test(question.prompt + question.answer), false);
     }
+    assert.equal(CONTENT_VERSIONS.malayalam, 'malayalam-v2');
+    assert.equal(RUBRIC_VERSIONS.malayalam, 'malayalam-rubric-v2');
+  });
+
+  test('preserves supplied answers and flags source gaps rather than inventing exercises', () => {
+    for (const [id, answer] of [
+      ['g6-mal-l3-meaning-6', 'കണ്ടുപിടിച്ചയാൾ'],
+      ['g6-mal-l3-gender-3', 'രാജ്ഞി'],
+      ['g6-mal-l3-split-3', 'കോർത്ത് + ഇണക്കി'],
+      ['g6-mal-l3-join-3', 'ധാരാളമുണ്ട്'],
+      ['g6-mal-l3-vigraham-1', 'രാജാവിന്റെ പത്നി'],
+      ['g6-mal-l4-meaning-5', 'പതിനായിരം'],
+      ['g6-mal-l4-synonym-2', 'ആഗ്രഹം, ഇച്ഛ'],
+      ['g6-mal-l4-join-1', 'വസ്ത്രമതുപോലും'],
+      ['g6-mal-l5-meaning-13', 'അഭിനന്ദിച്ച് നൽകുന്ന സമ്മാനം'],
+      ['g6-mal-l5-synonym-2', 'വ്യസനം, ശോകം, കദനം'],
+      ['g6-mal-l5-split-5', 'രക്ഷിക്കാൻ + എത്തിയ'],
+      ['g6-mal-l5-vigraham-3', 'ബുദ്ധിയിലുള്ള സാമർഥ്യം']
+    ]) {
+      assert.equal(lessonQuestion(id).answer, answer);
+    }
+    assert.deepEqual(
+      SHIZA_MALAYALAM_LESSON.questions
+        .filter(question => question.id.startsWith('g6-mal-l4-answer-'))
+        .map(question => question.id),
+      ['g6-mal-l4-answer-4', 'g6-mal-l4-answer-5']
+    );
+    assert.match(SHIZA_MALAYALAM_LESSON.sourceNote, /poem lines are not supplied/);
+    assert.match(SHIZA_MALAYALAM_LESSON.sourceNote, /ആദ്യകൃതി.*teacher confirmation/);
+  });
+
+  test('uses the supplied അപ്രതീക്ഷിതം sentence cue under its original stable ID', () => {
+    const question = lessonQuestion('g6-mal-l2-sentence-2');
+    assert.match(question.prompt, /“അപ്രതീക്ഷിതം”/);
+    assert.equal(checkMalayalamAnswer(question, 'അപ്രതീക്ഷിതമായി എനിക്ക് ഒരു മിഠായി കിട്ടി.'), true);
+    assert.equal(checkMalayalamAnswer(question, 'പ്രതീക്ഷയോടെ എനിക്ക് ഒരു മിഠായി കിട്ടി.'), false);
+    assert.ok(question.kind === 'written');
+    assert.match(question.markingCriteria, /uses അപ്രതീക്ഷിതം or an inflected form/);
+  });
+
+  test('checks both multiple meanings locally in either order without accepting duplicates', () => {
+    const question = lessonQuestion('g6-mal-l4-multiple-meaning-1');
+    assert.equal(question.section, 'multiple-meanings');
+    assert.equal(checkMalayalamAnswer(question, 'ധനം, ആശയം'), true);
+    assert.equal(checkMalayalamAnswer(question, 'ആശയം'), false);
+    assert.equal(checkMalayalamAnswer(question, 'ധനം, ധനം'), false);
+    const second = lessonQuestion('g6-mal-l5-multiple-meaning-1');
+    assert.equal(checkMalayalamAnswer(second, 'മനസ്സിലാക്കിക്കൊടുക്കുക, അണിയിക്കുക'), true);
+    assert.equal(checkMalayalamAnswer(second, 'അണിയിക്കുക'), false);
   });
 
   test('checks split words in order and accepts the notebook’s alternative split', () => {
@@ -234,11 +295,63 @@ describe('Shiza Grade 6 Malayalam exam portions', () => {
     };
     const saved = saveMalayalamResult('shiza', exam);
     assert.ok(saved);
-    assert.equal(saved.exam?.answers.length, 69);
+    assert.equal(saved.exam?.answers.length, 176);
+    assert.equal(saved.exam?.contentVersion, CONTENT_VERSIONS.malayalam);
     assert.deepEqual(saved.reviewQuestionIds, []);
     assert.equal(getMalayalamStorageKey('shiza'), 'academy_malayalam_shiza_v1');
     assert.equal(loadMalayalamProgress('fazia').exam, null);
     assert.equal(loadMalayalamProgress('shiza').lessonId, SHIZA_MALAYALAM_LESSON.id);
+  });
+
+  test('keeps earlier exams and the superseded sentence answer readable without accepting new incomplete exams', () => {
+    const oldAnswers = SHIZA_MALAYALAM_LESSON.questions.slice(0, 69).map(question => ({
+      questionId: question.id,
+      answer: question.id === 'g6-mal-l2-sentence-2'
+        ? 'പ്രതീക്ഷയോടെ എനിക്ക് ഒരു മിഠായി കിട്ടി.' : question.answer,
+      correct: true
+    }));
+    const oldExam: MalayalamResult = {
+      mode: 'exam', completedAt: '2026-11-05T10:00:00.000Z', answers: oldAnswers
+    };
+    const oldPractice: MalayalamResult = {
+      mode: 'practice', completedAt: oldExam.completedAt,
+      answers: oldAnswers.filter(answer => answer.questionId === 'g6-mal-l2-sentence-2')
+    };
+    const previous = {
+      studentId: 'shiza', lessonId: SHIZA_MALAYALAM_LESSON.id,
+      exam: oldExam, practice: oldPractice, reviewQuestionIds: ['g6-mal-l1-meaning-1']
+    };
+    localStorage.setItem(getMalayalamStorageKey('shiza'), JSON.stringify(previous));
+    assert.equal(isValidMalayalamProgress(previous, 'shiza'), true);
+    assert.deepEqual(loadMalayalamProgress('shiza').exam, oldExam);
+    assert.deepEqual(loadMalayalamProgress('shiza').practice, oldPractice);
+    assert.equal(isValidMalayalamProgress(previous, 'fazia'), false);
+    assert.equal(saveMalayalamResult('shiza', oldExam), null);
+    assert.equal(saveMalayalamResult('shiza', oldPractice), null);
+
+    const corrected = lessonQuestion('g6-mal-l2-sentence-2');
+    const saved = saveMalayalamResult('shiza', {
+      ...oldPractice,
+      answers: [{ questionId: corrected.id, answer: corrected.answer, correct: true }]
+    });
+    assert.ok(saved);
+    assert.equal(saved.practice?.contentVersion, CONTENT_VERSIONS.malayalam);
+    assert.deepEqual(saved.exam, oldExam);
+    assert.deepEqual(loadMalayalamProgress('shiza').exam, oldExam);
+    assert.equal(loadMalayalamProgress('shiza').practice?.answers[0].answer, corrected.answer);
+    assert.deepEqual(loadMalayalamProgress('shiza').reviewQuestionIds, ['g6-mal-l1-meaning-1']);
+    assert.equal(loadMalayalamProgress('fazia').exam, null);
+
+    assert.equal(isValidMalayalamProgress({
+      ...previous, exam: { ...oldExam, contentVersion: 'malayalam-v1' }
+    }, 'shiza'), true);
+    for (const exam of [
+      { ...oldExam, answers: oldAnswers.slice(1) },
+      { ...oldExam, contentVersion: CONTENT_VERSIONS.malayalam },
+      { ...oldExam, contentVersion: 'unknown-version' }
+    ]) {
+      assert.equal(isValidMalayalamProgress({ ...previous, exam }, 'shiza'), false);
+    }
   });
 
   test('persists Gemini-checked Grade 6 written answers with feedback', () => {

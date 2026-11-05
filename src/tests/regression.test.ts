@@ -99,7 +99,7 @@ describe('Learning Academy subject catalog', () => {
             assert.equal(FAZIA_MALAYALAM_LESSON.questions.length, 77);
           } else {
             assert.equal(getMalayalamLessonForGrade(grade), SHIZA_MALAYALAM_LESSON);
-            assert.equal(SHIZA_MALAYALAM_LESSON.questions.length, 69);
+            assert.equal(SHIZA_MALAYALAM_LESSON.questions.length, 176);
           }
         } else if (subject.id === 'hindi') {
           assert.equal(grade, 6);

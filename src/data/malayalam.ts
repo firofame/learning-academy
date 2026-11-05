@@ -10,6 +10,7 @@ export type MalayalamSectionId =
   | 'fill-in'
   | 'days'
   | 'meanings'
+  | 'multiple-meanings'
   | 'opposites'
   | 'gender'
   | 'split'
@@ -37,6 +38,7 @@ export const MALAYALAM_SECTIONS: MalayalamSection[] = [
 
 export const SHIZA_MALAYALAM_SECTIONS: MalayalamSection[] = [
   { id: 'meanings', label: 'Word meanings', nativeLabel: 'അർഥം' },
+  { id: 'multiple-meanings', label: 'Multiple meanings', nativeLabel: 'നാനാർഥം' },
   { id: 'synonyms', label: 'Synonyms', nativeLabel: 'പര്യായം' },
   { id: 'opposites', label: 'Opposites', nativeLabel: 'വിപരീതം' },
   { id: 'gender', label: 'Opposite gender', nativeLabel: 'എതിർലിംഗം' },
@@ -350,7 +352,7 @@ const vigrahams: { compound: string; answer: string; criteria: string }[] = [
   {
     compound: 'വാത്സല്യപൂരം',
     answer: 'വാത്സല്യത്തിന്റെ പൂരം',
-    criteria: 'The notebook left this answer blank. Accept an expansion meaning “the fullness of affection”, such as വാത്സല്യത്തിന്റെ പൂരം or വാത്സല്യം നിറഞ്ഞത്. Reject an expansion that changes the meaning.'
+    criteria: 'The supplied notes expand the compound as വാത്സല്യത്തിന്റെ പൂരം. Accept equivalent Malayalam wording that preserves the meaning of the fullness of affection. Reject an expansion that changes the meaning.'
   },
   {
     compound: 'കഥാഗതി',
@@ -430,6 +432,288 @@ const lessonTwoAnswers: { prompt: string; answer: string; criteria: string }[] =
   }
 ];
 
+interface ShizaLessonExercises {
+  number: number;
+  meanings: [string, string][];
+  opposites: [string, string][];
+  synonyms?: { word: string; words: string[] }[];
+  multipleMeanings?: { word: string; words: string[] }[];
+  gender?: [string, string][];
+  splits: { compound: string; parts: string[] }[];
+  joins: [string, string][];
+  vigrahams?: [string, string][];
+  sentences?: [string, string][];
+  answers: { number?: number; prompt: string; answer: string; criteria: string }[];
+}
+
+const shizaAdditionalLessons: ShizaLessonExercises[] = [
+  {
+    number: 3,
+    meanings: [
+      ['പ്രാചീനം', 'മുമ്പുള്ളത്'],
+      ['ത്രയം', 'മൂന്ന്'],
+      ['ആശ്രിതൻ', 'ആശ്രയിച്ചു കഴിയുന്നവൻ'],
+      ['ഇമ്പം', 'ഇഷ്ടം'],
+      ['ആചാര്യൻ', 'ഗുരു'],
+      ['ഉപജ്ഞാതാവ്', 'കണ്ടുപിടിച്ചയാൾ'],
+      ['ഫലിതം', 'തമാശ'],
+      ['സുലഭം', 'എളുപ്പം ലഭിക്കുന്നത്'],
+      ['സുപരിചിതം', 'നല്ല പരിചയമുള്ള'],
+      ['കനകം', 'സ്വർണ്ണം'],
+      ['ലജ്ജിതൻ', 'നാണിച്ചവൻ']
+    ],
+    opposites: [
+      ['പ്രാചീനം', 'നവീനം'],
+      ['സുപരിചിതം', 'അപരിചിതം'],
+      ['ധർമ്മം', 'അധർമ്മം'],
+      ['സുലഭം', 'ദുർലഭം']
+    ],
+    gender: [
+      ['കവി', 'കവയിത്രി'],
+      ['ആശ്രിതൻ', 'ആശ്രിത'],
+      ['രാജാവ്', 'രാജ്ഞി'],
+      ['ആചാര്യൻ', 'ആചാര്യ']
+    ],
+    splits: [
+      { compound: 'വ്യക്തമായറിയില്ല', parts: ['വ്യക്തമായി', 'അറിയില്ല'] },
+      { compound: 'തൊട്ടിലാട്ടി', parts: ['തൊട്ടിൽ', 'ആട്ടി'] },
+      { compound: 'കോർത്തിണക്കി', parts: ['കോർത്ത്', 'ഇണക്കി'] }
+    ],
+    joins: [
+      ['തോൽക്കും + എന്ന', 'തോൽക്കുമെന്ന'],
+      ['കാവ്യം + ആക്കാൻ', 'കാവ്യമാക്കാൻ'],
+      ['ധാരാളം + ഉണ്ട്', 'ധാരാളമുണ്ട്']
+    ],
+    vigrahams: [
+      ['നൃപപത്നി', 'രാജാവിന്റെ പത്നി'],
+      ['ഉറക്കുപാട്ട്', 'ഉറക്കാനുള്ള പാട്ട്'],
+      ['പ്രകൃതിദൃശ്യം', 'പ്രകൃതിയുടെ ദൃശ്യം']
+    ],
+    sentences: [
+      ['വിശേഷിപ്പിക്കുക', 'റൊണാൾഡോ നല്ല കളിക്കാരൻ എന്ന് വിശേഷിപ്പിക്കുന്നു.'],
+      ['സസന്തോഷം', 'തങ്ങൾക്ക് ലഭിച്ച പുതിയ നേതാവിനെ ജനങ്ങൾ സസന്തോഷം സ്വീകരിച്ചു.'],
+      ['സുപരിചിതം', 'സമൂഹമാധ്യമങ്ങൾ ഇന്നത്തെ കുട്ടികൾക്ക് സുപരിചിതമാണ്.']
+    ],
+    answers: [
+      {
+        prompt: 'മലയാളസാഹിത്യത്തിലെ പ്രാചീനകവിത്രയം എന്നറിയപ്പെടുന്ന മഹാകവികൾ ആരെല്ലാം?',
+        answer: 'ചെറുശ്ശേരി, എഴുത്തച്ഛൻ, കുഞ്ചൻ നമ്പ്യാർ എന്നിവരാണ് പ്രാചീനകവിത്രയത്തിൽപ്പെട്ട മഹാകവികൾ.',
+        criteria: 'Name all three poets: ചെറുശ്ശേരി, എഴുത്തച്ഛൻ, and കുഞ്ചൻ നമ്പ്യാർ. Accept equivalent Malayalam wording and any order; do not substitute other poets.'
+      },
+      {
+        prompt: 'മലയാള ഭാഷയുടെ ആദ്യകൃതി എന്നറിയപ്പെടുന്ന മഹാകാവ്യം ഏത്?',
+        answer: 'മലയാള ഭാഷയുടെ ആദ്യകൃതി എന്നറിയപ്പെടുന്നത് കൃഷ്ണഗാഥയാണ്.',
+        criteria: 'The supplied notes give കൃഷ്ണഗാഥ as the answer. Require that title in Malayalam; accept equivalent wording. The source wording is flagged for teacher confirmation.'
+      },
+      {
+        prompt: 'എഴുത്തച്ഛൻ തന്റെ കാവ്യങ്ങളിൽ ലക്ഷ്യമിടുന്നത് എന്താണ്?',
+        answer: 'നന്മയെ വളർത്തുകയും തിന്മയെ നശിപ്പിക്കുകയും ചെയ്യുക എന്നതാണ് എഴുത്തച്ഛൻ തന്റെ കാവ്യങ്ങളിൽ ലക്ഷ്യമിടുന്നത്.',
+        criteria: 'Require both ideas: encouraging goodness and destroying evil. Accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'എഴുത്തച്ഛൻ കിളിപ്പാട്ടു പ്രസ്ഥാനത്തിന്റെ ഉപജ്ഞാതാവ് എന്നറിയപ്പെടാൻ കാരണമെന്ത്?',
+        answer: 'കിളിയെക്കൊണ്ട് കഥ പറയിപ്പിക്കുന്ന രീതിയാണ് എഴുത്തച്ഛൻ സ്വീകരിച്ചത്. അതുകൊണ്ടാണ് എഴുത്തച്ഛൻ കിളിപ്പാട്ടു പ്രസ്ഥാനത്തിന്റെ ഉപജ്ഞാതാവ് എന്നു വിശേഷിപ്പിക്കപ്പെടുന്നത്.',
+        criteria: 'Explain that Ezhuthachan adopted the method of having a bird narrate the story. Accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'നമ്പ്യാരെ ജനകീയകവി എന്നു വിളിക്കാൻ കാരണമെന്ത്?',
+        answer: 'സാധാരണ ജനങ്ങൾ സംസാരിക്കുന്ന ഭാഷയും, അവരെ രസിപ്പിക്കുന്ന കഥാരീതിയുമാണ് നമ്പ്യാർ സ്വീകരിച്ചത്. അതിനാൽ നമ്പ്യാരെ ജനകീയ കവി എന്നു വിശേഷിപ്പിക്കുന്നു.',
+        criteria: 'Require both ordinary people’s spoken language and a storytelling style that entertains them. Accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'നമ്പ്യാർ സാമൂഹിക പരിഷ്കർത്താവ് ആകുന്നതെങ്ങനെ?',
+        answer: 'മടിയന്മാരായ ജോലിക്കാർ, അഴിമതി കാണിക്കുന്ന ഉദ്യോഗസ്ഥർ, ഭക്ഷണപ്രിയരായ ആളുകൾ, അസൂയക്കാർ, അത്യാഗ്രഹികൾ തുടങ്ങിയവരെയെല്ലാം നമ്പ്യാർ തന്റെ കൃതികളിലൂടെ പരിഹസിക്കുന്നു. അങ്ങനെ സമൂഹത്തെ പരിഹസിച്ചു നന്നാക്കാൻ ശ്രമിച്ച അദ്ദേഹം സാമൂഹ്യ പരിഷ്കർത്താവായി മാറുന്നു.',
+        criteria: 'Explain that Nambiar used satire in his works to expose social faults and improve society. Include at least two supplied examples: lazy workers, corrupt officials, excessive love of food, jealousy, or greed. Accept equivalent Malayalam wording.'
+      }
+    ]
+  },
+  {
+    number: 4,
+    meanings: [
+      ['അർഥം', 'ധനം'],
+      ['തൃപ്തിയാകാ', 'മതിയാകില്ല'],
+      ['സഹസ്രം', 'ആയിരം'],
+      ['ശതം', 'നൂറ്'],
+      ['അയുതം', 'പതിനായിരം'],
+      ['സത്തുക്കൾ', 'നല്ല ആളുകൾ'],
+      ['ചെന്നിരന്നാൽ', 'ചെന്ന് യാചിച്ചാൽ'],
+      ['കൊടാ', 'കൊടുക്കില്ല'],
+      ['ഒത്തിടാ', 'ഒക്കുകയില്ല'],
+      ['കരേറുക', 'കയറിപ്പോവുക']
+    ],
+    opposites: [
+      ['തൃപ്തി', 'അതൃപ്തി'],
+      ['ആശ', 'നിരാശ'],
+      ['ദുഷ്ടൻ', 'ശിഷ്ടൻ']
+    ],
+    synonyms: [
+      { word: 'വസ്ത്രം', words: ['ആട', 'ചേല'] },
+      { word: 'ആശ', words: ['ആഗ്രഹം', 'ഇച്ഛ'] }
+    ],
+    multipleMeanings: [
+      { word: 'അർഥം', words: ['ആശയം', 'ധനം'] }
+    ],
+    splits: [
+      { compound: 'അർഥമെത്ര', parts: ['അർഥം', 'എത്ര'] },
+      { compound: 'അയുതമാകിലും', parts: ['അയുതം', 'ആകിലും'] },
+      { compound: 'ആശയായുള്ള', parts: ['ആശ', 'ആയുള്ള'] }
+    ],
+    joins: [
+      ['വസ്ത്രം + അത് + പോലും', 'വസ്ത്രമതുപോലും'],
+      ['ചെന്ന് + ഇരന്നാൽ', 'ചെന്നിരന്നാൽ'],
+      ['വളരെ + ഉണ്ടായാലും', 'വളരെയുണ്ടായാലും']
+    ],
+    answers: [
+      {
+        number: 4,
+        prompt: 'കവി എന്തുകൊണ്ടാണ് ചിലരെ ദുഷ്ടന്മാർ എന്നു വിളിക്കുന്നത്?',
+        answer: 'നല്ലയാളുകൾ ചെന്ന് യാചിച്ചാലും ചിലർ ഉള്ള സ്വത്തിൽ നിന്ന് അല്പം പോലും കൊടുക്കില്ല. അവരെയാണ് കവി ദുഷ്ടന്മാർ എന്നു വിളിക്കുന്നത്.',
+        criteria: 'Explain that some people refuse to give even a little of their wealth when good people ask for help. Accept equivalent Malayalam wording.'
+      },
+      {
+        number: 5,
+        prompt: 'ധനമോഹം ഏറെയുള്ളവർക്ക് കവി നൽകുന്ന ഉപദേശമെന്ത്?',
+        answer: 'മരിച്ചു കഴിയുമ്പോൾ ആർക്കും സ്വന്തം വസ്ത്രം പോലും കൊണ്ടു പോകാൻ കഴിയില്ല. ഇതാണ് ധനമോഹം ഏറെയുള്ളവർക്ക് കവി നൽകുന്ന ഉപദേശം.',
+        criteria: 'Explain that after death nobody can take possessions with them, not even their own clothes. Accept equivalent Malayalam wording; require the idea of being unable to take even clothing.'
+      }
+    ]
+  },
+  {
+    number: 5,
+    meanings: [
+      ['വ്യാപാരി', 'കച്ചവടക്കാരൻ'],
+      ['കുബേരൻ', 'വലിയ പണക്കാരൻ'],
+      ['പുച്ഛം', 'വെറുപ്പ്'],
+      ['ദയാലു', 'ദയയുള്ളവൻ'],
+      ['ഉറ്റതോഴൻ', 'അടുത്ത സുഹൃത്ത്'],
+      ['ഞെരുക്കം', 'ബുദ്ധിമുട്ട്'],
+      ['തെല്ലും', 'അല്പം പോലും'],
+      ['ഉടമ്പടി', 'കരാറ്'],
+      ['അമാന്തിക്കുക', 'മടിക്കുക'],
+      ['വ്യസനിക്കുക', 'ദുഃഖിക്കുക'],
+      ['മതിമറന്നു', 'സ്വയം മറന്നു'],
+      ['വിഷണ്ണനായി', 'ദുഃഖിതനായി'],
+      ['പാരിതോഷികം', 'അഭിനന്ദിച്ച് നൽകുന്ന സമ്മാനം'],
+      ['ആദ്യാവസാനം', 'തുടക്കം മുതൽ ഒടുക്കം വരെ'],
+      ['ശണ്ഠ', 'വഴക്ക്'],
+      ['സ്തബ്ധനായി', 'നിശ്ചലനായി']
+    ],
+    opposites: [
+      ['സമ്മതം', 'വിസമ്മതം'],
+      ['ശ്രദ്ധ', 'അശ്രദ്ധ'],
+      ['രക്ഷ', 'ശിക്ഷ']
+    ],
+    synonyms: [
+      { word: 'ചങ്ങാതി', words: ['സുഹൃത്ത്', 'തോഴൻ', 'സ്നേഹിതൻ'] },
+      { word: 'ദുഃഖം', words: ['വ്യസനം', 'ശോകം', 'കദനം'] }
+    ],
+    multipleMeanings: [
+      { word: 'ധരിപ്പിക്കുക', words: ['അണിയിക്കുക', 'മനസ്സിലാക്കിക്കൊടുക്കുക'] }
+    ],
+    gender: [
+      ['ധനികൻ', 'ധനിക'],
+      ['യുവാവ്', 'യുവതി'],
+      ['ഭർത്താവ്', 'ഭാര്യ'],
+      ['ബുദ്ധിമാൻ', 'ബുദ്ധിമതി']
+    ],
+    splits: [
+      { compound: 'ഇത്തവണ', parts: ['ഇ', 'തവണ'] },
+      { compound: 'ഒരുടമ്പടി', parts: ['ഒരു', 'ഉടമ്പടി'] },
+      { compound: 'ലജ്ജിതനായി', parts: ['ലജ്ജിതൻ', 'ആയി'] },
+      { compound: 'മുറിച്ചെടുക്കാം', parts: ['മുറിച്ച്', 'എടുക്കാം'] },
+      { compound: 'രക്ഷിക്കാനെത്തിയ', parts: ['രക്ഷിക്കാൻ', 'എത്തിയ'] }
+    ],
+    joins: [
+      ['അത് + ഓർത്തപ്പോൾ', 'അതോർത്തപ്പോൾ'],
+      ['കാത്ത് + ഇരുന്നു', 'കാത്തിരുന്നു'],
+      ['അതി + അധികം', 'അത്യധികം'],
+      ['മടക്കി + തന്നാൽ', 'മടക്കിത്തന്നാൽ']
+    ],
+    vigrahams: [
+      ['ദൃഢസ്വരം', 'ദൃഢമായ സ്വരം'],
+      ['ധനികയുവതി', 'ധനികയായ യുവതി'],
+      ['ബുദ്ധിസാമർഥ്യം', 'ബുദ്ധിയിലുള്ള സാമർഥ്യം']
+    ],
+    sentences: [
+      ['സ്തബ്ധനാവുക', 'ഒരു വാഹനാപകടം നേരിട്ടു കണ്ടപ്പോൾ ഞാൻ സ്തബ്ധനായിപ്പോയി.'],
+      ['അത്യധികം', 'സ്റ്റേജിൽ പാടാൻ അവസരം ലഭിച്ചപ്പോൾ രാമു അത്യധികം സന്തോഷിച്ചു.']
+    ],
+    answers: [
+      {
+        prompt: 'ഷൈലോക്ക് എങ്ങനെയാണ് കുബേരനായിത്തീർന്നത്?',
+        answer: 'ഷൈലോക്ക് കച്ചവടം ചെയ്തും ചെറിയ വ്യാപാരികൾക്ക് പണം പലിശയ്ക്കു കടം കൊടുത്തുമാണ് കുബേരനായിത്തീർന്നത്.',
+        criteria: 'Require both trading and lending money at interest to small traders as the ways Shylock became wealthy. Accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'അന്റോണിയോടു പകരം വീട്ടാൻ ഷൈലോക്ക് കാത്തിരിക്കാൻ കാരണമെന്ത്?',
+        answer: 'അന്റോണിയോ പലിശ വാങ്ങാതെ മറ്റുള്ളവരെ സഹായിച്ചിരുന്നു. കൊള്ളപ്പലിശ വാങ്ങുന്ന ഷൈലോക്കിനെ തരം കിട്ടുമ്പോഴൊക്കെ അന്റോണിയോ കളിയാക്കുമായിരുന്നു. അതു കൊണ്ടാണ് അന്റോണിയോയോട് പകരം വീട്ടാൻ ഷൈലോക്ക് കാത്തിരുന്നത്.',
+        criteria: 'Require both that Antonio helped others without charging interest and that he mocked Shylock for charging excessive interest. Accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'പണം നൽകാനുള്ള ഷൈലോക്കിന്റെ വ്യവസ്ഥ എന്തായിരുന്നു?',
+        answer: 'അന്റോണിയോ പണം തിരികെ തന്നില്ലെങ്കിൽ അയാളുടെ ദേഹത്തു നിന്ന് ഒരു റാത്തൽ മാംസം മുറിച്ചെടുക്കും എന്നതായിരുന്നു ഷൈലോക്കിന്റെ വ്യവസ്ഥ.',
+        criteria: 'State that if Antonio failed to repay, Shylock could take one pound (ഒരു റാത്തൽ) of flesh from his body. Require the repayment condition and the amount; accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'അന്റോണിയോയുടെ സന്ദേശം എന്തുകൊണ്ടാണ് ബസാനിയോയെ വിഷമിപ്പിച്ചത്?',
+        answer: 'തന്നെ സഹായിച്ചതിനാൽ അന്റോണിയോയ്ക്കു കഷ്ടകാലം വന്നിരിക്കുന്നു എന്നറിഞ്ഞതാണ് ബസാനിയോയെ വിഷമിപ്പിച്ചത്.',
+        criteria: 'Explain that Bassanio learned Antonio had fallen into trouble because he had helped him. Accept equivalent Malayalam wording.'
+      },
+      {
+        prompt: 'ബുദ്ധിമതിയായ പോർഷ്യ എങ്ങനെയാണ് അന്റോണിയോയെ രക്ഷിച്ചത്?',
+        answer: 'ഷൈലോക്കിന്റെ ഉടമ്പടി അനുസരിച്ച് മാംസം മുറിക്കുമ്പോൾ ഒരു തുള്ളി ചോര പോലും പൊടിയാൻ പാടില്ല എന്ന കാര്യം ദൃഢസ്വരത്തിൽ പോർഷ്യ അറിയിച്ചു. അങ്ങനെയാണ് ബുദ്ധിമതിയായ പോർഷ്യ അന്റോണിയോയെ രക്ഷിച്ചത്.',
+        criteria: 'Explain that Portia insisted the bond allowed flesh to be cut but not even one drop of blood to be shed, thereby saving Antonio. Accept equivalent Malayalam wording; require the no-blood condition.'
+      },
+      {
+        prompt: 'തന്റെ സുഹൃത്തിനെ രക്ഷിച്ച വക്കീലിന് എന്ത് പാരിതോഷികമാണ് ബസാനിയോ നൽകിയത്?',
+        answer: 'പോർഷ്യ തന്നെ അണിയിച്ച മോതിരമാണ് വക്കീലിന് പാരിതോഷികമായി ബസാനിയോ നൽകിയത്.',
+        criteria: 'Identify the ring that Portia had given Bassanio as the reward he gave the lawyer. Accept equivalent Malayalam wording; require both the ring and its connection to Portia.'
+      }
+    ]
+  }
+];
+
+const shizaAdditionalQuestions: MalayalamQuestion[] = shizaAdditionalLessons.flatMap(lesson => {
+  const prefix = `g6-mal-l${lesson.number}`;
+  const promptPrefix = `പാഠം ${lesson.number} · `;
+  return [
+    ...lesson.meanings.map(([word, answer], index) =>
+      textQuestion(`${prefix}-meaning-${index + 1}`, 'meanings',
+        `${promptPrefix}“${word}” എന്ന വാക്കിന്റെ അർഥം എഴുതുക.`, answer, [], MEANING_CRITERIA)),
+    ...(lesson.multipleMeanings ?? []).map(({ word, words }, index) =>
+      pairQuestion(`${prefix}-multiple-meaning-${index + 1}`, 'multiple-meanings',
+        `${promptPrefix}“${word}” എന്ന വാക്കിന്റെ നാനാർഥങ്ങൾ എഴുതുക.`, words)),
+    ...(lesson.synonyms ?? []).map(({ word, words }, index) =>
+      pairQuestion(`${prefix}-synonym-${index + 1}`, 'synonyms',
+        `${promptPrefix}“${word}” എന്ന വാക്കിന്റെ പര്യായപദങ്ങൾ എഴുതുക.`, words)),
+    ...lesson.opposites.map(([word, answer], index) =>
+      textQuestion(`${prefix}-opposite-${index + 1}`, 'opposites',
+        `${promptPrefix}“${word}” എന്ന വാക്കിന്റെ വിപരീതപദം എഴുതുക.`, answer, [],
+        'Accept a Malayalam word with the opposite meaning to the given word. Do not accept a synonym or an unrelated word.')),
+    ...(lesson.gender ?? []).map(([word, answer], index) =>
+      textQuestion(`${prefix}-gender-${index + 1}`, 'gender',
+        `${promptPrefix}“${word}” എന്ന വാക്കിന്റെ എതിർലിംഗം എഴുതുക.`, answer, [],
+        'Accept the Malayalam word that correctly changes the gender of the given word. Do not accept an unrelated word.')),
+    ...lesson.splits.map(({ compound, parts }, index) =>
+      partsQuestion(`${prefix}-split-${index + 1}`, 'split',
+        `${promptPrefix}പിരിച്ചെഴുതുക: ${compound}`, parts)),
+    ...lesson.joins.map(([prompt, answer], index) =>
+      textQuestion(`${prefix}-join-${index + 1}`, 'join',
+        `${promptPrefix}ചേർത്തെഴുതുക: ${prompt}`, answer)),
+    ...(lesson.vigrahams ?? []).map(([compound, answer], index) =>
+      textQuestion(`${prefix}-vigraham-${index + 1}`, 'vigraham',
+        `${promptPrefix}വിഗ്രഹിച്ചെഴുതുക: ${compound}`, answer, [],
+        'Expand the compound with the same meaning and relationship as the reference answer. Accept equivalent Malayalam wording, not an unrelated definition.')),
+    ...(lesson.sentences ?? []).map(([word, answer], index) =>
+      writtenQuestion(`${prefix}-sentence-${index + 1}`, 'sentence',
+        `${promptPrefix}“${word}” എന്ന വാക്ക് ഉൾപ്പെടുത്തി ഒരു വാക്യം എഴുതുക.`, answer,
+        `The answer must be a complete, meaningful Malayalam sentence using ${word} or an inflected form of it. Accept any suitable context; the reference is only the supplied model. Reject a fragment or a sentence that does not use the word.`)),
+    ...lesson.answers.map(({ number, prompt, answer, criteria }, index) =>
+      writtenQuestion(`${prefix}-answer-${number ?? index + 1}`, 'answers',
+        `${promptPrefix}${prompt}`, answer, criteria))
+  ];
+});
+
 export const FAZIA_MALAYALAM_LESSON: MalayalamLesson = {
   id: 'fazia-grade-2-malayalam-first-semester',
   grade: 2,
@@ -508,9 +792,10 @@ export const SHIZA_MALAYALAM_LESSON: MalayalamLesson = {
   title: 'Grade 6 Malayalam Exam Revision',
   examDate: '2026-11-05',
   sourceNote:
-    'Prepared from the notebook transcription for the first mid-semester exam: Lessons 1 and 2. ' +
-    'The first eight lines of the poem were not in the transcription, so they are not guessed. ' +
-    'Lesson 1’s വാത്സല്യപൂരം vigraha was left blank in the notebook; the model answer is inferred. ' +
+    'Prepared from the supplied Malayalam study notes for Lessons 1–5: വാത്സല്യപൂരം, സർക്കസ്സ്, പ്രാചീനകവിത്രയം, ധനമോഹം, and വെനീസിലെ വ്യാപാരി. ' +
+    'The notes mark Lessons 1–2 and the first eight poem lines as first mid-semester portions; all five supplied lessons are available for revision. ' +
+    'The poem lines are not supplied and are not guessed. Lesson 4 supplies written questions 4–5 only; questions 1–3 are not invented. ' +
+    'Lesson 3’s ആദ്യകൃതി wording and answer are retained from the notes and need teacher confirmation. ' +
     'The notebook’s വഴങ്ങില്ല - വഴങ്ങി + ഇല്ല split is non-standard; the correct split is shown and the notebook form is also accepted.',
   sections: SHIZA_MALAYALAM_SECTIONS,
   questions: [
@@ -623,9 +908,9 @@ export const SHIZA_MALAYALAM_LESSON: MalayalamLesson = {
     writtenQuestion(
       'g6-mal-l2-sentence-2',
       'sentence',
-      'പാഠം 2 · “പ്രതീക്ഷ” എന്ന വാക്ക് ഉൾപ്പെടുത്തി ഒരു വാക്യം എഴുതുക.',
-      'പ്രതീക്ഷയോടെ എനിക്ക് ഒരു മിഠായി കിട്ടി.',
-      'The answer must be a complete, meaningful Malayalam sentence that uses പ്രതീക്ഷ or an inflected form of it. Accept any suitable sentence; reject a fragment or a sentence that only uses അപ്രതീക്ഷിതം without പ്രതീക്ഷ.'
+      'പാഠം 2 · “അപ്രതീക്ഷിതം” എന്ന വാക്ക് ഉൾപ്പെടുത്തി ഒരു വാക്യം എഴുതുക.',
+      'അപ്രതീക്ഷിതമായി എനിക്ക് ഒരു മിഠായി കിട്ടി.',
+      'The answer must be a complete, meaningful Malayalam sentence that uses അപ്രതീക്ഷിതം or an inflected form of it. Accept any suitable context; the candy example is only a model. Reject a fragment or a sentence that only uses പ്രതീക്ഷ without അപ്രതീക്ഷിതം.'
     ),
     ...lessonOneAnswers.map(({ prompt, answer, criteria }, index) =>
       writtenQuestion(
@@ -644,7 +929,8 @@ export const SHIZA_MALAYALAM_LESSON: MalayalamLesson = {
         answer,
         criteria
       )
-    )
+    ),
+    ...shizaAdditionalQuestions
   ]
 };
 

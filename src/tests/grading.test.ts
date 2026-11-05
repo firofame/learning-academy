@@ -105,6 +105,8 @@ describe('Cloudflare automatic grading', () => {
       { ...answer, questionId: 'g2-tf-1' }, { ...answer, referenceAnswer: 'trust me' },
       { ...malayalamAnswer, questionId: 'g2-mal-sign-1' },
       { ...shizaMalayalamAnswer, questionId: 'g6-mal-l1-split-1' },
+      { ...shizaMalayalamAnswer, questionId: 'g6-mal-l5-split-1' },
+      { ...shizaMalayalamAnswer, questionId: 'g6-mal-l4-multiple-meaning-1' },
       { ...hindiAnswer, questionId: 'g6-hin-meaning-1' }
     ]) {
       assert.equal((await handleGradingRequest(request(body), environment(), upstream)).status, 400);
@@ -205,6 +207,38 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(result.status, 200);
     assert.deepEqual(await result.json(), { correct: true, feedback: 'आपने सही बात याद रखी।' });
     assert.equal(calls, 1);
+  });
+
+  test('grades the added Malayalam lessons and corrected sentence using their server-owned keys', async () => {
+    for (const [questionId, answer, expectedCriterion] of [
+      ['g6-mal-l3-answer-3', 'നന്മ വളർത്താനും തിന്മ ഇല്ലാതാക്കാനും.', 'encouraging goodness'],
+      ['g6-mal-l4-answer-5', 'മരിക്കുമ്പോൾ സ്വന്തം വസ്ത്രം പോലും കൊണ്ടുപോകാനാവില്ല.', 'even their own clothes'],
+      ['g6-mal-l5-answer-5', 'മാംസം മുറിക്കുമ്പോൾ ഒരു തുള്ളി ചോര പോലും വരരുതെന്ന് പോർഷ്യ പറഞ്ഞു.', 'no-blood condition'],
+      ['g6-mal-l2-sentence-2', 'അപ്രതീക്ഷിതമായി എന്റെ സുഹൃത്ത് വീട്ടിൽ വന്നു.', 'uses അപ്രതീക്ഷിതം']
+    ]) {
+      const question = SHIZA_MALAYALAM_LESSON.questions.find(item => item.id === questionId);
+      assert.ok(question);
+      let calls = 0;
+      const result = await handleGradingRequest(
+        request({ lessonId: SHIZA_MALAYALAM_LESSON.id, questionId, answer }),
+        environment(),
+        async (_input, init) => {
+          calls++;
+          const body = JSON.parse(String(init?.body));
+          const context = JSON.parse(body.contents[0].parts[0].text);
+          assert.deepEqual(Object.keys(context), ['grade', 'question', 'referenceAnswer', 'markingCriteria', 'studentAnswer']);
+          assert.equal(context.grade, 6);
+          assert.equal(context.question, question.prompt);
+          assert.equal(context.referenceAnswer, question.answer);
+          assert.ok(context.markingCriteria.includes(expectedCriterion));
+          assert.equal(context.studentAnswer, answer);
+          return geminiResponse('correct', 'ശരിയായ ആശയം പറഞ്ഞു.');
+        }
+      );
+      assert.equal(result.status, 200);
+      assert.deepEqual(await result.json(), { correct: true, feedback: 'ശരിയായ ആശയം പറഞ്ഞു.' });
+      assert.equal(calls, 1);
+    }
   });
 
   test('handles incorrect, English, unrelated, and prompt-injection Malayalam grading inputs safely', async () => {

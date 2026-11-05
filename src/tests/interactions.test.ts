@@ -27,6 +27,7 @@ const { ACTIVE_PROFILE_KEY, DEFAULT_SETTINGS, SETTINGS_KEY } = await import('../
 const { buildSubjectRevision } = await import('../learning/subjectRevision');
 const { loadRoboticsProgress } = await import('../utils/roboticsStorage');
 const { loadMathsProgress } = await import('../utils/mathsStorage');
+const { loadMalayalamProgress } = await import('../utils/malayalamStorage');
 const { getAllProgress, getStudentStorageKey, getWordProgress } = await import('../utils/storage');
 const { audioService } = await import('../utils/audio');
 const { getDefaultLearningRepository } = await import('../learning/persistence');
@@ -129,6 +130,89 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(view.getByRole('region', { name: 'Revision overview' }));
     assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
     assert.equal(view.queryByRole('button', { name: /Worksheets/ }), null);
+  });
+
+  test('added Malayalam portions stay recall-first and exact multiple meanings need no online grading', async t => {
+    const fetcher = t.mock.method(globalThis, 'fetch', async () => {
+      throw new Error('Exact multiple meanings must be checked locally.');
+    });
+    const definition = buildSubjectRevision('malayalam', 'shiza', 'https://grading.example/grade');
+    assert.equal(definition.questions.length, 176);
+    const questions = definition.questions.filter(item => item.section === 'multiple-meanings');
+    assert.equal(questions.length, 2);
+    for (const item of questions) {
+      assert.equal(item.language, 'ml');
+      assert.deepEqual(await item.grade(item.answer, new AbortController().signal), {
+        correct: true, source: 'deterministic'
+      });
+    }
+
+    const view = render(React.createElement(SubjectRevisionView, {
+      activeStudent: 'shiza', subjectId: 'malayalam', settings,
+      onSessionSizeChange: () => {}, gradingApiUrl: 'https://grading.example/grade'
+    }));
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.ok(view.getByRole('option', { name: /Multiple meanings/ }));
+    fireEvent.change(view.getByRole('combobox', { name: 'Choose a portion' }), {
+      target: { value: 'multiple-meanings' }
+    });
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    const input = await view.findByRole('textbox', { name: 'Your answer' });
+    const active = questions.find(item => view.queryByRole('heading', { name: item.prompt }));
+    assert.ok(active);
+    for (const item of questions) assert.equal(view.queryByText(item.answer), null);
+    fireEvent.change(input, { target: { value: active.answer } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    assert.equal(fetcher.mock.callCount(), 0);
+  });
+
+  test('an added Malayalam written answer remains ungraded and retryable after a grading outage', async t => {
+    const definition = buildSubjectRevision('malayalam', 'shiza', 'https://grading.example/grade');
+    const item = definition.questions.find(question => question.id === 'g6-mal-l5-answer-5');
+    assert.ok(item);
+    const submitted = 'മാംസം മുറിക്കുമ്പോൾ ഒരു തുള്ളി ചോര പോലും വരരുതെന്ന് പോർഷ്യ പറഞ്ഞു.';
+    let calls = 0;
+    const fetcher: typeof fetch = async (_input, init) => {
+      calls++;
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        lessonId: definition.lessonId, questionId: item.id, answer: submitted
+      });
+      return calls === 1
+        ? Response.json({ error: 'Temporarily unavailable.' }, { status: 503 })
+        : Response.json({ correct: true, feedback: 'ശരിയായ ആശയം പറഞ്ഞു.' });
+    };
+    t.mock.method(globalThis, 'fetch', fetcher);
+    const completed: RevisionResponse[][] = [];
+    const view = render(React.createElement(ExamRevisionView, {
+      ...definition, questions: [item],
+      learnerId: 'shiza', subjectId: 'malayalam', sessionSize: 1,
+      onSessionSizeChange: () => {}, speechAudio: false,
+      onComplete: result => {
+        completed.push(result.answers);
+        return definition.onComplete?.(result) ?? false;
+      }
+    }));
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    const input = await view.findByRole('textbox', { name: 'Your answer' });
+    fireEvent.change(input, { target: { value: submitted } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Automatic checking is unavailable. Your answer has not been marked. Please retry.');
+    assert.equal((input as HTMLTextAreaElement).value, submitted);
+    assert.equal(view.queryByText('Let’s review this answer.'), null);
+    assert.equal(loadMalayalamProgress('shiza').practice, null);
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('ശരിയായ ആശയം പറഞ്ഞു.');
+    fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
+    await view.findByRole('heading', { name: 'Revision batch complete' });
+    assert.equal(calls, 2);
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0].length, 1);
+    assert.equal(completed[0][0].outcome, 'correct');
+    assert.equal(loadMalayalamProgress('shiza').practice?.answers.length, 1);
+    assert.equal(loadMalayalamProgress('shiza').practice?.answers[0].aiChecked, true);
+    assert.equal(loadMalayalamProgress('fazia').practice, null);
   });
 
   test('legacy subject summaries keep the initial result after an immediate correction and recheck', () => {

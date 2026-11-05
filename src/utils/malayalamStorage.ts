@@ -24,6 +24,7 @@ export interface MalayalamAnswer {
 export interface MalayalamResult {
   mode: MalayalamQuizMode;
   completedAt: string;
+  contentVersion?: string;
   answers: MalayalamAnswer[];
 }
 
@@ -77,26 +78,47 @@ function isValidAnswer(value: unknown, lesson: MalayalamLesson): value is Malaya
 function isValidResult(
   value: unknown,
   mode: MalayalamQuizMode,
-  lesson: MalayalamLesson
+  lesson: MalayalamLesson,
+  historical = false
 ): value is MalayalamResult {
   if (!isRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
 
-  const answers = value.answers.filter(answer => isValidAnswer(answer, lesson));
+  const legacy = historical &&
+    (value.contentVersion === undefined || value.contentVersion === 'malayalam-v1');
+  if (!legacy && value.contentVersion !== undefined &&
+      value.contentVersion !== CONTENT_VERSIONS.malayalam) return false;
+  let resultLesson = lesson;
+  if (legacy && lesson.grade === 6) {
+    // v1 covered only Lessons 1–2 and used the incorrect പ്രതീക്ഷ sentence cue.
+    resultLesson = {
+      ...lesson,
+      questions: lesson.questions
+        .filter(question => /^g6-mal-(?:l[12]-|vigraham-)/u.test(question.id))
+        .map(question => question.id === 'g6-mal-l2-sentence-2' && question.kind === 'written'
+          ? {
+              ...question,
+              answer: 'പ്രതീക്ഷയോടെ എനിക്ക് ഒരു മിഠായി കിട്ടി.',
+              acceptedAnswers: ['പ്രതീക്ഷയോടെ എനിക്ക് ഒരു മിഠായി കിട്ടി.']
+            }
+          : question)
+    };
+  }
+  const answers = value.answers.filter(answer => isValidAnswer(answer, resultLesson));
   if (answers.length !== value.answers.length) return false;
   const answeredIds = new Set(answers.map(answer => answer.questionId));
   if (answeredIds.size !== answers.length) return false;
-  return mode !== 'exam' || answeredIds.size === lesson.questions.length &&
-    lesson.questions.every(question => answeredIds.has(question.id));
+  return mode !== 'exam' || answeredIds.size === resultLesson.questions.length &&
+    resultLesson.questions.every(question => answeredIds.has(question.id));
 }
 
 export function isValidMalayalamProgress(value: unknown, studentId: StudentId): value is MalayalamProgress {
   if (!isRecord(value) || value.studentId !== studentId) return false;
   const lesson = getMalayalamLesson(studentId);
   return value.lessonId === lesson.id &&
-    (value.practice === null || isValidResult(value.practice, 'practice', lesson)) &&
-    (value.exam === null || isValidResult(value.exam, 'exam', lesson)) &&
+    (value.practice === null || isValidResult(value.practice, 'practice', lesson, true)) &&
+    (value.exam === null || isValidResult(value.exam, 'exam', lesson, true)) &&
     Array.isArray(value.reviewQuestionIds) &&
     value.reviewQuestionIds.every(id =>
       typeof id === 'string' && lesson.questions.some(question => question.id === id)
@@ -144,8 +166,10 @@ export function saveMalayalamResult(
   const next: MalayalamProgress = {
     studentId,
     lessonId: lesson.id,
-    practice: result.mode === 'practice' ? result : previous.practice,
-    exam: result.mode === 'exam' ? result : previous.exam,
+    practice: result.mode === 'practice'
+      ? { ...result, contentVersion: CONTENT_VERSIONS.malayalam } : previous.practice,
+    exam: result.mode === 'exam'
+      ? { ...result, contentVersion: CONTENT_VERSIONS.malayalam } : previous.exam,
     reviewQuestionIds
   };
 

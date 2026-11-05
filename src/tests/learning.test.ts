@@ -9,6 +9,8 @@ import { sessionReducer, startSession } from '../learning/sessionController';
 import { createQuizAttempts } from '../learning/attemptRecords';
 import { canScheduleRevisionRecheck, deriveRevisionProgress, selectRevisionBatch } from '../learning/revision';
 import { getRoboticsLesson } from '../data/robotics';
+import { getMalayalamLesson } from '../data/malayalam';
+import { CONTENT_VERSIONS } from '../data/contentVersions';
 import {
   exportLearnerBackup, importLearnerBackup, migrateLegacyProgress,
   MAX_BACKUP_BYTES, MAX_BACKUP_RECORDS,
@@ -450,5 +452,34 @@ describe('Shared IndexedDB persistence contracts', () => {
         /does not match this lesson/
       );
     }
+  });
+
+  test('pre-expansion Malayalam drafts remain recoverable in backups but do not resume with changed content', async () => {
+    const repository = new MemoryRepository();
+    const draft = {
+      sessionId: 'malayalam-before-expansion', learnerId: 'shiza', subjectId: 'malayalam',
+      lessonId: getMalayalamLesson('shiza').id,
+      contentVersion: 'malayalam-v1', rubricVersion: 'malayalam-rubric-v1',
+      savedAt: '2026-11-05T10:00:00Z',
+      state: { questionIds: ['g6-mal-l2-sentence-2'], answer: 'പ്രതീക്ഷയോടെ', index: 0 }
+    } as const;
+    await saveSessionDraft(repository, draft);
+    assert.equal(await loadSessionDraft(
+      repository, 'shiza', 'malayalam', draft.lessonId, CONTENT_VERSIONS.malayalam
+    ), null);
+    const backup = await exportLearnerBackup('shiza', repository, new MemoryStorage());
+    assert.equal(backup.records.length, 1);
+    const restored = new MemoryRepository();
+    await importLearnerBackup(backup, 'shiza', restored, new MemoryStorage());
+    const previous = await loadSessionDraft<typeof draft.state>(
+      restored, 'shiza', 'malayalam', draft.lessonId, 'malayalam-v1'
+    );
+    assert.deepEqual(previous?.state, draft.state);
+    assert.equal(await loadSessionDraft(
+      restored, 'shiza', 'malayalam', draft.lessonId, CONTENT_VERSIONS.malayalam
+    ), null);
+    assert.equal(await loadSessionDraft(
+      restored, 'fazia', 'malayalam', draft.lessonId, 'malayalam-v1'
+    ), null);
   });
 });
