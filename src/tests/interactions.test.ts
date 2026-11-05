@@ -106,7 +106,7 @@ describe('Production component interactions', () => {
     assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
   });
 
-  test('Fazia can practise her Grade 2 Malayalam exam portions and the subject is hidden for Grade 6', async () => {
+  test('both children can practise their own grade’s Malayalam exam portions', async () => {
     const view = render(React.createElement(App));
     assert.ok(view.getByRole('button', { name: 'Open Malayalam' }));
     fireEvent.click(view.getByRole('button', { name: 'Open Malayalam' }));
@@ -124,8 +124,9 @@ describe('Production component interactions', () => {
     assert.ok(view.getByText('Question 2 of 15'));
 
     fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
-    assert.equal(view.queryByRole('button', { name: 'Open Malayalam' }), null);
+    await view.findByRole('heading', { name: 'Grade 6 Malayalam Exam Revision' });
+    assert.ok(view.getByText('Shiza · Grade 6', { exact: false }));
+    assert.ok(view.getByRole('button', { name: 'Full mock exam (69)' }));
   });
 
   test('Shiza can open her Grade 6 Hindi revision from the grade-specific subject home', async () => {
@@ -199,6 +200,33 @@ describe('Production component interactions', () => {
     await waitFor(() => assert.ok(view.getByText('Correct! Great job!')));
     assert.equal(fetchMock.mock.calls.length, 1);
     assert.ok(view.getByText('AI feedback: നല്ല പകരം പദം!'));
+  });
+
+  test('Shiza’s Grade 6 Malayalam written answers are checked with Gemini 3.5 Flash-Lite', async t => {
+    const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init: RequestInit) => {
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        lessonId: 'shiza-grade-6-malayalam-first-semester',
+        questionId: 'g6-mal-l1-answer-1',
+        answer: 'കണ്ണനെ കണ്ടപ്പോൾ യശോദ ഓടിയെത്തി അവനെ കെട്ടിപ്പിടിച്ചു.'
+      });
+      return Response.json({ correct: true, feedback: 'ശരിയായ ആശയം പറഞ്ഞു.' });
+    });
+    const view = render(React.createElement(MalayalamView, {
+      activeStudent: 'shiza',
+      settings,
+      gradingApiUrl: 'https://grading.example/grade'
+    }));
+    fireEvent.click(view.getByRole('button', { name: /ഉത്തരം എഴുതുക/ }));
+    fireEvent.click(view.getByRole('button', { name: 'Practice this section (11)' }));
+    const answer = view.getByRole('textbox', { name: 'Your Malayalam answer' });
+    assert.equal(answer.tagName, 'TEXTAREA');
+    fireEvent.change(answer, {
+      target: { value: 'കണ്ണനെ കണ്ടപ്പോൾ യശോദ ഓടിയെത്തി അവനെ കെട്ടിപ്പിടിച്ചു.' }
+    });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await waitFor(() => assert.ok(view.getByText('Correct! Great job!')));
+    assert.equal(fetchMock.mock.calls.length, 1);
+    assert.ok(view.getByText('AI feedback: ശരിയായ ആശയം പറഞ്ഞു.'));
   });
 
   test('Maths quiz uses shared session phases while keeping its written-answer interaction', async () => {

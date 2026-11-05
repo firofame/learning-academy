@@ -7,13 +7,13 @@ A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, **Malaya
 
 - The app opens on a subject home screen for the active student and their grade.
 - Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
-- Malayalam exam revision is available for **Grade 2** and covers Fazia's first-semester portions with section practice, a full mock exam, and saved missed questions.
+- Malayalam exam revision is available for **Grade 2** and **Grade 6**. Fazia's Grade 2 lesson covers her first-semester portions; Shiza's Grade 6 lesson covers Lessons 1–2 (വാത്സല്യപൂരം and സർക്കസ്സ്) with meanings, synonyms, opposites, gender pairs, split and joined words, vigraha, sentence usage, and written answers. Both have section practice, a full mock exam, and saved missed questions.
 - Hindi exam revision is available for **Grade 6** and covers Shiza's supplied notebook portions with vocabulary, translations, synonyms, the trees poem and questions, Sreedharan questions, a paragraph prompt, section practice, a full mock exam, and saved missed questions. The incomplete `वचन बदलो` list and one unclear vocabulary entry are not guessed.
 - Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
 - EVS, English, Hindi, and the other spelling groupings are **word categories within Spell Bee**.
-  Malayalam and Hindi are also available as standalone exam-preparation subjects for Grade 2 and
-  Grade 6 respectively, distinct from their optional Spell Bee word categories and the standalone
-  **Maths** curriculum subject.
+  Malayalam and Hindi are also available as standalone exam-preparation subjects, distinct from
+  their optional Spell Bee word categories and the standalone **Maths** curriculum subject.
+  Malayalam serves both grades; Hindi is Grade 6 only.
 - Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
@@ -114,10 +114,13 @@ another device.
 ## Automatic Written-Answer Grading (Cloudflare Workers)
 
 The website stays on GitHub Pages. A separate Cloudflare Worker checks typed
-robotics short answers, equivalent Malayalam answers, and supported written answers
-for Shiza's Grade 6 Hindi lesson using **`gemini-3.5-flash-lite`**. Exact Hindi
-vocabulary, translations, synonyms, poem completions, fixed-answer questions, and
-spelling continue to be checked locally. There is no parent-marking or notebook-answer
+robotics short answers, equivalent Malayalam answers (including Shiza's Grade 6
+written answers), and supported written answers for Shiza's Grade 6 Hindi lesson
+using **`gemini-3.5-flash-lite`**. Exact Malayalam meanings, split words, joined
+words, and synonyms are checked locally first; only a non-exact answer with a
+marking rubric is sent for an equivalent-meaning check. Exact Hindi vocabulary,
+translations, synonyms, poem completions, fixed-answer questions, and spelling
+continue to be checked locally. There is no parent-marking or notebook-answer
 step for new robotics quizzes. Historical parent-checked results remain readable.
 
 Deployed grading endpoint:
@@ -222,6 +225,11 @@ browser client, automatic marking, legacy storage, and retry/cancellation flows.
 
 ## Features & Learning Design
 
+- **Malayalam Exam Revision**:
+  - Grade 2 uses Fazia's first-semester portion sheet: revision words, synonyms, two-word examples, short answers, vowel signs, fill-ins, and days of the week.
+  - Grade 6 uses Shiza's notebook for Lessons 1–2: അർഥം, പര്യായം, വിപരീതം, എതിർലിംഗം, പിരിച്ചെഴുതുക, ചേർത്തെഴുതുക, വിഗ്രഹിച്ചെഴുതുക, വാക്യത്തിൽ പ്രയോഗിക്കുക, and ഉത്തരം എഴുതുക.
+  - Split-word answers accept `+`, commas, or spaces and require the correct order. Synonyms accept any order but require every listed word. Written answers are checked for meaning with Gemini 3.5 Flash-Lite, with the notebook model answer shown after checking.
+  - The first eight poem lines were not present in the supplied transcription, so they are not guessed. The blank വാത്സല്യപൂരം vigraha and the notebook's non-standard വഴങ്ങില്ല split are documented in the lesson source note.
 - **Robotics Exam Revision**:
   - Open **Robotics** from the subject home screen or main navigation. Switching profiles selects Fazia's Grade 2 *Simple and Complex Machines* or Shiza's Grade 6 *Exploring AI Domains* lesson.
   - Content follows the supplied Lesson 1 school PDFs: 23 Grade 2 questions and 22 Grade 6 questions covering true/false, multiple choice, fill in the blanks, and short answers.
