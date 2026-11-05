@@ -30,7 +30,7 @@ Help children understand, remember, and apply what they learn, not just finish q
 ## Child-friendly screens and accessibility
 
 - Design for phones and laptops, including a 320 CSS-pixel-wide viewport. Avoid horizontal page scrolling; keep prompts, answer fields, feedback, and primary actions readable and reachable.
-- Use comfortably sized controls (aim for at least 44 by 44 CSS pixels), readable text, clear labels, and adequate contrast. Never rely on color, hover, audio, or animation alone to communicate meaning.
+- On phones, use touch targets of at least 48 by 48 CSS pixels; keep controls comfortably sized on laptops too. Use readable text, clear labels, and adequate contrast. Never rely on color, hover, audio, or animation alone to communicate meaning.
 - Support touch, keyboard navigation, visible focus, screen-reader labels, and reduced motion. Keep focus and feedback predictable when moving between questions.
 - Check answer entry with the on-screen keyboard open. Do not let it obscure the input or submit action, and preserve typed work during navigation or reloads.
 - Preserve Malayalam and Hindi scripts, meaningful marks, and font legibility. Apply normalization only when appropriate to the learning objective; do not erase distinctions that a spelling or language question is testing.
