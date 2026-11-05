@@ -1,7 +1,9 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import worker, { handleGradingRequest, type GradingEnv } from '../../worker/index';
+import worker, {
+  GEMINI_MODEL_CALLS_PER_MINUTE, GradingQuota, handleGradingRequest, type GradingEnv
+} from '../../worker/index';
 import { gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
 import { FAZIA_MALAYALAM_LESSON } from '../data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../data/hindi';
@@ -20,10 +22,24 @@ const hindiAnswer = {
 };
 
 function environment(): GradingEnv {
+  const quota = createTestQuota();
+  const quotaId = {};
   return {
     GEMINI_API_KEY: 'synthetic-test-key',
     ALLOWED_ORIGINS: origin,
-    GRADING_RATE_LIMITER: { limit: async () => ({ success: true }) }
+    GRADING_IP_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    GRADING_QUOTA: {
+      idFromName: name => {
+        assert.equal(name, 'gemini-project');
+        return quotaId;
+      },
+      get: id => {
+        assert.equal(id, quotaId);
+        return {
+          fetch: (input, init) => quota.fetch(new Request(input, init))
+        };
+      }
+    }
   };
 }
 
@@ -41,20 +57,88 @@ function geminiResponse(verdict = 'correct', feedback = 'You explained how a mac
   });
 }
 
-describe('Cloudflare automatic grading', () => {
-  test('keeps uncertain-answer rechecks below the Gemini 15 RPM quota', () => {
-    const config: {
-      ratelimits: Array<{
-        name: string;
-        simple: { limit: number; period: number };
-      }>;
-    } = JSON.parse(readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'));
-    const limiter = config.ratelimits.find(entry => entry.name === 'GRADING_RATE_LIMITER');
+function createTestQuota() {
+  const calls: number[] = [];
+  const cursor = (rows: unknown[] = []) => ({ toArray: () => rows });
+  const sql = {
+    exec(query: string, ...bindings: (number | string)[]) {
+      if (query.startsWith('CREATE TABLE')) return cursor();
+      if (query.startsWith('DELETE FROM gemini_model_calls')) {
+        const cutoff = Number(bindings[0]);
+        for (let index = calls.length - 1; index >= 0; index--) {
+          if (calls[index] <= cutoff) calls.splice(index, 1);
+        }
+        return cursor();
+      }
+      if (query.startsWith('INSERT INTO gemini_model_calls')) {
+        const now = Number(bindings[0]);
+        const limit = Number(bindings[1]);
+        if (calls.length >= limit) return cursor();
+        calls.push(now);
+        return cursor([{ called_at: now }]);
+      }
+      throw new Error(`Unexpected quota SQL: ${query}`);
+    }
+  };
+  return new GradingQuota({ storage: { sql } });
+}
 
-    assert.ok(limiter);
-    assert.equal(limiter.simple.period, 60);
-    assert.equal(limiter.simple.limit, 6);
-    assert.ok(limiter.simple.limit * 2 < 15);
+describe('Cloudflare automatic grading', () => {
+  test('configures a single SQLite Durable Object for a rolling project quota', () => {
+    const config: {
+      durable_objects: { bindings: Array<{ name: string; class_name: string }> };
+      migrations: Array<{ tag: string; new_sqlite_classes: string[] }>;
+      ratelimits: Array<{ name: string; simple: { limit: number; period: number } }>;
+    } = JSON.parse(readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'));
+    const quotaBinding = config.durable_objects.bindings.find(entry => entry.name === 'GRADING_QUOTA');
+    const migration = config.migrations.find(entry => entry.tag === 'v1');
+    const ipLimiter = config.ratelimits.find(entry => entry.name === 'GRADING_IP_RATE_LIMITER');
+
+    assert.ok(quotaBinding);
+    assert.equal(quotaBinding.class_name, 'GradingQuota');
+    assert.ok(migration?.new_sqlite_classes.includes('GradingQuota'));
+    assert.equal(GEMINI_MODEL_CALLS_PER_MINUTE, 12);
+    assert.ok(GEMINI_MODEL_CALLS_PER_MINUTE < 15);
+    assert.ok(ipLimiter);
+    assert.equal(ipLimiter.simple.period, 60);
+    assert.equal(ipLimiter.simple.limit, 30);
+  });
+
+  test('enforces the shared rolling request budget during concurrent reservations', async () => {
+    const quota = createTestQuota();
+    const responses = await Promise.all(Array.from(
+      { length: GEMINI_MODEL_CALLS_PER_MINUTE + 5 },
+      () => quota.fetch(new Request('https://quota.example/reserve', { method: 'POST' }))
+    ));
+
+    assert.equal(responses.filter(response => response.status === 200).length, GEMINI_MODEL_CALLS_PER_MINUTE);
+    assert.equal(responses.filter(response => response.status === 429).length, 5);
+  });
+
+  test('reserves each Gemini call including a recheck, then fails closed at the shared quota', async () => {
+    const env = environment();
+    let totalGeminiCalls = 0;
+    for (let attempt = 0; attempt < GEMINI_MODEL_CALLS_PER_MINUTE / 2; attempt++) {
+      let callsThisAttempt = 0;
+      const result = await handleGradingRequest(request(), env, async () => {
+        callsThisAttempt++;
+        totalGeminiCalls++;
+        return geminiResponse(callsThisAttempt === 1 ? 'uncertain' : 'correct');
+      });
+      assert.equal(result.status, 200);
+      assert.equal(callsThisAttempt, 2);
+    }
+
+    let callsAfterExhaustion = 0;
+    const exhausted = await handleGradingRequest(request(), env, async () => {
+      callsAfterExhaustion++;
+      return geminiResponse();
+    });
+    assert.equal(exhausted.status, 429);
+    assert.equal(exhausted.headers.get('Retry-After'), '60');
+    assert.equal(totalGeminiCalls, GEMINI_MODEL_CALLS_PER_MINUTE);
+    assert.equal(callsAfterExhaustion, 0);
+    assert.equal('correct' in await exhausted.json(), false);
   });
 
   test('allows only configured origins, paths, methods, and preflights', async () => {
@@ -71,20 +155,20 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(preflight.headers.get('Access-Control-Allow-Headers'), 'Content-Type');
   });
 
-  test('requires the server API key and enforces IP and shared limits without an access code', async () => {
+  test('requires the server API key and enforces the per-IP abuse limit without an access code', async () => {
     const env = environment();
     assert.equal((await worker.fetch(request(), { ...env, GEMINI_API_KEY: '' })).status, 503);
     const keys: string[] = [];
-    env.GRADING_RATE_LIMITER.limit = async ({ key }) => {
+    env.GRADING_IP_RATE_LIMITER.limit = async ({ key }) => {
       keys.push(key);
-      return { success: key !== 'family' };
+      return { success: false };
     };
     const limited = await worker.fetch(request(), env);
     assert.equal(limited.status, 429);
     assert.equal(limited.headers.get('Retry-After'), '60');
-    assert.deepEqual(keys, ['ip:local', 'family']);
+    assert.deepEqual(keys, ['ip:local']);
     keys.length = 0;
-    env.GRADING_RATE_LIMITER.limit = async ({ key }) => {
+    env.GRADING_IP_RATE_LIMITER.limit = async ({ key }) => {
       keys.push(key);
       return { success: false };
     };
