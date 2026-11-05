@@ -203,7 +203,7 @@ available on the deployed Worker.
   questions finish. Completed results and per-answer attempt records are saved;
   unfinished quizzes are kept as resumable drafts.
 - Requests do not require authentication and have per-IP and shared limits of
-  30 requests per minute **per Cloudflare location**. Cloudflare's counters are
+  6 requests per minute **per Cloudflare location**. Cloudflare's counters are
   approximate, not a strict global spending cap. Each request can make up to two
   Gemini calls. Check Gemini quotas/billing separately; free Worker hosting does
   not imply free or unlimited Gemini usage.
