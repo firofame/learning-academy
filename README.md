@@ -157,8 +157,11 @@ required, including after leaving Robotics or reloading.
 
 The grading endpoint is publicly usable. Origin checks restrict browser access
 but are not authentication; other clients can imitate an allowed origin and
-consume your Gemini quota. Rate limits reduce abuse, not eliminate it. Set
-appropriate Gemini quotas and monitor billing before deploying.
+consume your Gemini quota. The Worker allows six grading attempts per minute;
+an uncertain answer can use a second Gemini check, keeping the worst case to 12
+model requests per minute under the displayed 15 RPM quota. Rate limits reduce
+abuse, not eliminate it. Set appropriate Gemini quotas and monitor billing
+before deploying.
 
 When upgrading an existing deployment, redeploy both the Worker and GitHub Pages.
 The old family-code Worker secret is no longer required or read.

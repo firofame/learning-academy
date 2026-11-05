@@ -1,5 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import worker, { handleGradingRequest, type GradingEnv } from '../../worker/index';
 import { gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
 import { FAZIA_MALAYALAM_LESSON } from '../data/malayalam';
@@ -41,6 +42,21 @@ function geminiResponse(verdict = 'correct', feedback = 'You explained how a mac
 }
 
 describe('Cloudflare automatic grading', () => {
+  test('keeps uncertain-answer rechecks below the Gemini 15 RPM quota', () => {
+    const config: {
+      ratelimits: Array<{
+        name: string;
+        simple: { limit: number; period: number };
+      }>;
+    } = JSON.parse(readFileSync(new URL('../../wrangler.jsonc', import.meta.url), 'utf8'));
+    const limiter = config.ratelimits.find(entry => entry.name === 'GRADING_RATE_LIMITER');
+
+    assert.ok(limiter);
+    assert.equal(limiter.simple.period, 60);
+    assert.equal(limiter.simple.limit, 6);
+    assert.ok(limiter.simple.limit * 2 < 15);
+  });
+
   test('allows only configured origins, paths, methods, and preflights', async () => {
     const env = environment();
     assert.equal((await worker.fetch(request(answer, { Origin: 'https://untrusted.example' }), env)).status, 403);
