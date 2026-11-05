@@ -139,9 +139,8 @@ https://learning-academy-grading.firofame.workers.dev/grade
    chat, a GitHub Pages build variable, or any `VITE_` variable.
 3. Review `ALLOWED_ORIGINS` in [`wrangler.jsonc`](wrangler.jsonc). It includes
    `https://firofame.github.io` and local Vite URLs. Use origins without paths or
-   trailing slashes. The `v1` migration creates the SQLite-backed `GradingQuota`
-   Durable Object. If per-IP rate-limit namespace `1001` is already used by
-   another Worker in your Cloudflare account, choose an unused namespace.
+   trailing slashes. If rate-limit namespace `1001` is already used by another
+   Worker in your Cloudflare account, choose an unused namespace.
 4. Deploy:
    ```bash
    npm run worker:deploy
@@ -158,16 +157,15 @@ required, including after leaving Robotics or reloading.
 
 The grading endpoint is publicly usable. Origin checks restrict browser access
 but are not authentication; other clients can imitate an allowed origin and
-consume your Gemini quota. Before every Gemini request, the Worker reserves a
-slot from one globally named, SQLite-backed Durable Object. It enforces a rolling
-limit of 12 model requests per minute, leaving three requests below the displayed
-15 RPM quota. An uncertain answer's second check requires its own reservation;
-if no slot is available, the answer remains unmarked. The per-IP Cloudflare rate
-limit is approximate and is only a best-effort abuse filter, not the project
-quota gate. This Durable Object covers traffic routed through this Worker; route
-any other clients using the same Gemini project through the same gate or lower
-the 12-request budget to account for their traffic. Set appropriate Gemini
-quotas and monitor billing before deploying.
+consume your Gemini quota. The Worker keeps Cloudflare per-IP and shared-family
+rate limits, each configured at six requests per minute, as best-effort abuse
+protection. These counters are approximate and location-local, not a guaranteed
+global ceiling for Gemini's project-level RPM. An uncertain answer can use a
+second Gemini request, so six grading attempts can generate up to 12 model
+requests in a rate-limit window. Check the actual RPM, TPM, and daily quotas in
+Google AI Studio, keep the Gemini key exclusively in the Worker, and monitor
+usage and billing. Other clients using the same Gemini project share its quota.
+Revisit stricter global enforcement if usage or costs become significant.
 
 When upgrading an existing deployment, redeploy both the Worker and GitHub Pages.
 The old family-code Worker secret is no longer required or read.

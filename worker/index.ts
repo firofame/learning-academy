@@ -5,74 +5,16 @@ import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/roboticsGrading';
 
-const GEMINI_QUOTA_OBJECT_NAME = 'gemini-project';
-const GEMINI_MODEL_CALL_WINDOW_MS = 60_000;
-export const GEMINI_MODEL_CALLS_PER_MINUTE = 12;
-
-interface GradingQuotaStub {
-  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
-}
-
-interface GradingQuotaNamespace {
-  idFromName(name: string): object;
-  get(id: object): GradingQuotaStub;
-}
-
-interface GradingQuotaSqlCursor {
-  toArray(): unknown[];
-}
-
-interface GradingQuotaContext {
-  storage: {
-    sql: {
-      exec(query: string, ...bindings: (number | string)[]): GradingQuotaSqlCursor;
-    };
-  };
-}
-
 export interface GradingEnv {
   GEMINI_API_KEY: string;
   ALLOWED_ORIGINS: string;
-  GRADING_IP_RATE_LIMITER: {
+  GRADING_RATE_LIMITER: {
     limit(options: { key: string }): Promise<{ success: boolean }>;
   };
-  GRADING_QUOTA: GradingQuotaNamespace;
 }
 
 class GradingError extends Error {
   constructor(public status: number, message: string) { super(message); }
-}
-
-export class GradingQuota {
-  private readonly sql: GradingQuotaContext['storage']['sql'];
-
-  constructor(ctx: GradingQuotaContext) {
-    this.sql = ctx.storage.sql;
-    this.sql.exec(
-      'CREATE TABLE IF NOT EXISTS gemini_model_calls (id INTEGER PRIMARY KEY AUTOINCREMENT, called_at INTEGER NOT NULL)'
-    );
-  }
-
-  async fetch(request: Request): Promise<Response> {
-    if (new URL(request.url).pathname !== '/reserve') {
-      return Response.json({ error: 'Not found.' }, { status: 404 });
-    }
-    if (request.method !== 'POST') return Response.json({ error: 'Use POST.' }, { status: 405 });
-
-    const now = Date.now();
-    const cutoff = now - GEMINI_MODEL_CALL_WINDOW_MS;
-    this.sql.exec('DELETE FROM gemini_model_calls WHERE called_at <= ?', cutoff);
-    // Keep the quota check and reservation in one atomic SQLite statement.
-    const reservation = this.sql.exec(
-      'INSERT INTO gemini_model_calls (called_at) SELECT ? WHERE (SELECT COUNT(*) FROM gemini_model_calls) < ? RETURNING called_at',
-      now,
-      GEMINI_MODEL_CALLS_PER_MINUTE
-    ).toArray();
-    const allowed = reservation.length === 1;
-    const headers = new Headers({ 'Cache-Control': 'no-store' });
-    if (!allowed) headers.set('Retry-After', '60');
-    return Response.json({ allowed }, { status: allowed ? 200 : 429, headers });
-  }
 }
 
 const gradingSchema = {
@@ -109,31 +51,6 @@ async function readBody(request: Request): Promise<unknown> {
   catch { throw new GradingError(400, 'The answer must be valid JSON.'); }
 }
 
-async function reserveGeminiCall(env: GradingEnv): Promise<void> {
-  let response: Response;
-  try {
-    const id = env.GRADING_QUOTA.idFromName(GEMINI_QUOTA_OBJECT_NAME);
-    response = await env.GRADING_QUOTA.get(id).fetch('https://grading-quota/reserve', { method: 'POST' });
-  } catch {
-    throw new GradingError(503, 'The grading quota service is unavailable. Your answer has not been marked. Please retry.');
-  }
-  if (response.status === 429) {
-    throw new GradingError(429, 'Checking is busy. Wait a minute and retry. Your answer has not been marked.');
-  }
-  if (!response.ok) {
-    throw new GradingError(503, 'The grading quota service is unavailable. Your answer has not been marked. Please retry.');
-  }
-  let result: unknown;
-  try { result = await response.json(); }
-  catch { throw new GradingError(503, 'The grading quota service returned an unreadable result. Your answer has not been marked. Please retry.'); }
-  if (!isRecord(result) || typeof result.allowed !== 'boolean') {
-    throw new GradingError(503, 'The grading quota service returned an invalid result. Your answer has not been marked. Please retry.');
-  }
-  if (!result.allowed) {
-    throw new GradingError(429, 'Checking is busy. Wait a minute and retry. Your answer has not been marked.');
-  }
-}
-
 async function generateGrade(
   env: GradingEnv,
   context: object,
@@ -141,7 +58,6 @@ async function generateGrade(
   fetcher: typeof fetch,
   subject: 'robotics' | 'malayalam' | 'hindi'
 ): Promise<{ verdict: string; feedback: string }> {
-  await reserveGeminiCall(env);
   let response: Response;
   try {
     response = await fetcher(
@@ -229,12 +145,15 @@ export async function handleGradingRequest(
   }
   if (request.method !== 'POST') return reply(405, { error: 'Use POST.' });
   try {
-    if (!env.GEMINI_API_KEY || !env.GRADING_IP_RATE_LIMITER || !env.GRADING_QUOTA) {
+    if (!env.GEMINI_API_KEY || !env.GRADING_RATE_LIMITER) {
       throw new GradingError(503, 'Automatic checking is not configured.');
     }
     const ip = request.headers.get('CF-Connecting-IP') || 'local';
-    if (!(await env.GRADING_IP_RATE_LIMITER.limit({ key: `ip:${ip}` })).success) {
+    if (!(await env.GRADING_RATE_LIMITER.limit({ key: `ip:${ip}` })).success) {
       throw new GradingError(429, 'Too many requests. Wait a minute and retry.');
+    }
+    if (!(await env.GRADING_RATE_LIMITER.limit({ key: 'family' })).success) {
+      throw new GradingError(429, 'Too many checks. Wait a minute and retry.');
     }
     if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json')) {
       throw new GradingError(415, 'Use application/json.');
