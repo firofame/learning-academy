@@ -28,8 +28,8 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
   {
     id: 'malayalam',
     name: 'Malayalam',
-    description: 'Revise Fazia’s Grade 2 first-semester portions with recall practice and a full mock exam.',
-    availableGrades: [2],
+    description: 'Revise Fazia’s Grade 2 first-semester portions or Shiza’s Grade 6 Lessons 1–2 with recall practice and a full mock exam.',
+    availableGrades: [2, 6],
     startView: 'malayalam',
     views: ['malayalam']
   },

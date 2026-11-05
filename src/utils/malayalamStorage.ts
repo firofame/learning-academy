@@ -60,7 +60,8 @@ function isValidAnswer(value: unknown, lesson: MalayalamLesson): value is Malaya
   if (!question || !value.answer.trim() ||
       value.aiChecked !== undefined && typeof value.aiChecked !== 'boolean') return false;
   if (value.aiChecked === true) {
-    return question.kind === 'text' && Boolean(question.markingCriteria) &&
+    return (question.kind === 'text' || question.kind === 'written') &&
+      Boolean(question.markingCriteria) &&
       isWrittenGrade({ correct: value.correct, feedback: value.aiFeedback });
   }
   return value.aiFeedback === undefined &&

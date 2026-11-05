@@ -1,5 +1,5 @@
 import { ROBOTICS_LESSONS } from '../src/data/robotics';
-import { FAZIA_MALAYALAM_LESSON } from '../src/data/malayalam';
+import { FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON } from '../src/data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../src/data/hindi';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
@@ -56,7 +56,8 @@ async function generateGrade(
   context: object,
   recheck: boolean,
   fetcher: typeof fetch,
-  subject: 'robotics' | 'malayalam' | 'hindi'
+  subject: 'robotics' | 'malayalam' | 'hindi',
+  gradeLevel?: number
 ): Promise<{ verdict: string; feedback: string }> {
   let response: Response;
   try {
@@ -69,8 +70,11 @@ async function generateGrade(
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
             (subject === 'malayalam'
-              ? 'You mark elementary-school Malayalam synonym and short-answer responses against the supplied trusted marking criteria. ' +
-                'Understand the question, reference answer, and student answer in Malayalam. Accept equivalent Malayalam wording when it has the same meaning; reject unrelated, opposite, or English-only answers. '
+              ? (gradeLevel !== undefined && gradeLevel >= 6
+                  ? 'You mark Grade 6 Malayalam written answers against the supplied trusted marking criteria. ' +
+                    'Understand the question, reference answer, and student answer in Malayalam. Accept equivalent Malayalam wording and minor spelling variation when the meaning is clear; require every essential idea and reject contradictions or irrelevant answers. '
+                  : 'You mark elementary-school Malayalam synonym and short-answer responses against the supplied trusted marking criteria. ' +
+                    'Understand the question, reference answer, and student answer in Malayalam. Accept equivalent Malayalam wording when it has the same meaning; reject unrelated, opposite, or English-only answers. ')
               : subject === 'hindi'
                 ? 'You mark Grade 6 Hindi written answers against the supplied trusted marking criteria. Understand the question, reference answer, and student answer in Hindi. Accept equivalent Hindi wording and minor spelling variation when the meaning is clear; require every essential idea and reject contradictions or irrelevant answers. '
                 : 'You mark elementary-school robotics answers against the supplied trusted marking criteria. ' +
@@ -166,30 +170,37 @@ export async function handleGradingRequest(
     }
     const roboticsLesson = ROBOTICS_LESSONS.find(lesson => lesson.id === body.lessonId);
     const roboticsQuestion = roboticsLesson?.questions.find(question => question.id === body.questionId);
-    const malayalamQuestion = body.lessonId === FAZIA_MALAYALAM_LESSON.id
-      ? FAZIA_MALAYALAM_LESSON.questions.find(question => question.id === body.questionId)
-      : undefined;
+    const malayalamLesson = [FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON]
+      .find(lesson => lesson.id === body.lessonId);
+    const malayalamQuestion = malayalamLesson?.questions
+      .find(question => question.id === body.questionId);
     const hindiQuestion = body.lessonId === SHIZA_HINDI_LESSON.id
       ? SHIZA_HINDI_LESSON.questions.find(question => question.id === body.questionId)
       : undefined;
     let subject: 'robotics' | 'malayalam' | 'hindi';
     let context: object;
+    let gradeLevel: number | undefined;
     if (roboticsLesson && roboticsQuestion?.kind === 'short') {
       subject = 'robotics';
+      gradeLevel = roboticsLesson.grade;
       context = {
         grade: roboticsLesson.grade, question: roboticsQuestion.prompt,
         referenceAnswer: roboticsQuestion.answer,
         markingCriteria: roboticsQuestion.gradingCriteria, studentAnswer: body.answer.trim()
       };
-    } else if (malayalamQuestion?.kind === 'text' && malayalamQuestion.markingCriteria) {
+    } else if (malayalamLesson && malayalamQuestion &&
+               malayalamQuestion.kind !== 'pair' && malayalamQuestion.kind !== 'parts' &&
+               malayalamQuestion.markingCriteria) {
       subject = 'malayalam';
+      gradeLevel = malayalamLesson.grade;
       context = {
-        grade: FAZIA_MALAYALAM_LESSON.grade, question: malayalamQuestion.prompt,
+        grade: malayalamLesson.grade, question: malayalamQuestion.prompt,
         referenceAnswer: malayalamQuestion.answer,
         markingCriteria: malayalamQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };
     } else if (hindiQuestion && hindiQuestion.kind !== 'pair' && hindiQuestion.markingCriteria) {
       subject = 'hindi';
+      gradeLevel = SHIZA_HINDI_LESSON.grade;
       context = {
         grade: SHIZA_HINDI_LESSON.grade, question: hindiQuestion.prompt,
         referenceAnswer: hindiQuestion.answer,
@@ -198,8 +209,10 @@ export async function handleGradingRequest(
     } else {
       throw new GradingError(400, 'This question does not support written-answer checking.');
     }
-    let grade = await generateGrade(env, context, false, fetcher, subject);
-    if (grade.verdict === 'uncertain') grade = await generateGrade(env, context, true, fetcher, subject);
+    let grade = await generateGrade(env, context, false, fetcher, subject, gradeLevel);
+    if (grade.verdict === 'uncertain') {
+      grade = await generateGrade(env, context, true, fetcher, subject, gradeLevel);
+    }
     if (grade.verdict === 'uncertain') {
       throw new GradingError(503, 'Checking was inconclusive. Your answer has not been marked. Please retry.');
     }

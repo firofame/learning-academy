@@ -3,8 +3,8 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Languages, RotateCcw, Volume2, XCi
 import { StudentId } from '../types';
 import {
   getMalayalamLesson,
-  MALAYALAM_SECTIONS,
   MalayalamQuestion,
+  MalayalamSection,
   MalayalamSectionId,
   checkMalayalamAnswer
 } from '../data/malayalam';
@@ -83,7 +83,7 @@ function ListenButton({ text, enabled }: { text: string; enabled: boolean }) {
         className={`${secondaryButton} inline-flex items-center gap-2 text-xs sm:text-sm py-2 px-3`}
         disabled={!enabled}
         aria-label="Listen"
-        onClick={() => setUnavailable(!audioService.speak(text))}
+        onClick={() => setUnavailable(!audioService.speak(text, 'ml-IN'))}
       >
         <Volume2 className="w-4 h-4 text-amber-700" aria-hidden="true" /> Listen
       </button>
@@ -97,8 +97,8 @@ function ListenButton({ text, enabled }: { text: string; enabled: boolean }) {
   );
 }
 
-function getSection(sectionId: MalayalamSectionId) {
-  return MALAYALAM_SECTIONS.find(section => section.id === sectionId)!;
+function sectionTitle(section: MalayalamSection): string {
+  return section.number ? `${section.number} · ${section.label}` : section.label;
 }
 
 export const MalayalamView: React.FC<MalayalamViewProps> = ({
@@ -108,11 +108,14 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
 }) => {
   const lesson = getMalayalamLesson(activeStudent);
   const profile = getStudentProfile(activeStudent);
+  const sections = lesson.sections;
+  const getSection = (sectionId: MalayalamSectionId) =>
+    sections.find(section => section.id === sectionId)!;
   const { restoredDraft, loadingDraft, saveDraft, discardDraft, forgetRestoredDraft } = usePersistentDraft<MalayalamSessionDraftState>({
     learnerId: activeStudent, subjectId: 'malayalam', lessonId: lesson.id
   });
   const [progress, setProgress] = useState(() => loadMalayalamProgress(activeStudent));
-  const [selectedSection, setSelectedSection] = useState<SelectedSection>('revision');
+  const [selectedSection, setSelectedSection] = useState<SelectedSection>(() => sections[0].id);
   const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({});
   const [quiz, setQuiz] = useState<{
     mode: MalayalamQuizMode;
@@ -171,6 +174,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
     questions: MalayalamQuestion[],
     title: string
   ) => {
+    if (questions.length === 0) return;
     if (sessionId) void discardDraft(sessionId).catch(() => undefined);
     if (restoredDraft) void discardDraft(restoredDraft.sessionId).catch(() => undefined);
     controllerRef.current?.abort();
@@ -271,7 +275,8 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
       attemptedAt: new Date().toISOString(),
       attemptId: `${sessionId ?? createSessionId()}:${currentQuestion.id}`
     };
-    if (currentQuestion.kind === 'text' && currentQuestion.markingCriteria && !entry.correct) {
+    if (currentQuestion.kind !== 'pair' && currentQuestion.kind !== 'parts' &&
+        currentQuestion.markingCriteria && !entry.correct) {
       if (!gradingApiUrl) {
         submittedRef.current = false;
         setCheckingError('Gemini checking for equivalent answers is not configured. Try the model answer or ask the site owner to connect the grading service.');
@@ -366,7 +371,11 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
           <p className="font-bold text-slate-900">
             Score: {correctCount} / {result.answers.length} correct
           </p>
-          <p className="text-xs text-slate-600">Completed on {new Date(result.completedAt).toLocaleString()}.</p>
+          <p className="text-xs text-slate-600">
+            Completed on {new Date(result.completedAt).toLocaleString()}.
+            {result.answers.some(answer => answer.aiChecked) &&
+              ` ${result.answers.filter(answer => answer.aiChecked).length} written answer(s) checked with Gemini 3.5 Flash-Lite.`}
+          </p>
           <p className="text-xs text-slate-600">
             {saved
               ? `Saved for ${profile.name} on this browser.`
@@ -411,12 +420,12 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                   answer.correct ? 'border-emerald-200' : 'border-amber-200'
                 }`}
               >
-                <h3 className="font-bold text-slate-900" dir="auto">{question.prompt}</h3>
-                <p className="text-sm text-slate-700" dir="auto">
+                <h3 className="font-bold text-slate-900 font-malayalam" dir="auto">{question.prompt}</h3>
+                <p className="text-sm text-slate-700 font-malayalam" dir="auto">
                   Your answer: {answer.answer || '—'}
                 </p>
                 {!answer.correct && (
-                  <p className="text-sm text-slate-800" dir="auto">
+                  <p className="text-sm text-slate-800 font-malayalam" dir="auto">
                     <strong>Answer:</strong> {question.answer}
                   </p>
                 )}
@@ -441,7 +450,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
         </h1>
         <p className="text-sm font-bold text-amber-900">{getMalayalamExamDateLabel(lesson.examDate)}</p>
         <p className="text-sm text-slate-600">
-          Revise all seven portions, then hide the answers and recall them. Try missed questions again later today and once more tomorrow.
+          Revise all {sections.length} portions, then hide the answers and recall them. Try missed questions again later today and once more tomorrow.
         </p>
         <p className="text-xs text-slate-500">{lesson.sourceNote}</p>
       </header>
@@ -521,7 +530,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                   <h2
                     ref={promptRef}
                     tabIndex={-1}
-                    className="text-lg sm:text-xl font-bold leading-relaxed text-slate-900"
+                    className="text-lg sm:text-xl font-bold leading-relaxed text-slate-900 font-malayalam"
                     dir="auto"
                   >
                     {currentQuestion.prompt}
@@ -543,26 +552,47 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                   <label htmlFor="malayalam-answer-input" className="sr-only">
                     Your Malayalam answer
                   </label>
-                  <input
-                    id="malayalam-answer-input"
-                    type="text"
-                    lang="ml"
-                    dir="auto"
-                    autoComplete="off"
-                    value={input}
-                    disabled={feedback !== null || checking}
-                    maxLength={MAX_WRITTEN_ANSWER_LENGTH}
-                    onChange={event => {
-                      setInput(event.target.value);
-                      setAnswerError('');
-                      setCheckingError('');
-                    }}
-                    placeholder="ഉത്തരം ഇവിടെ എഴുതുക"
-                    className="w-full text-lg px-4 py-3 border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-500 disabled:bg-slate-50 disabled:text-slate-500"
-                  />
+                  {currentQuestion.kind === 'written' ? (
+                    <textarea
+                      id="malayalam-answer-input"
+                      lang="ml"
+                      dir="auto"
+                      autoComplete="off"
+                      rows={5}
+                      value={input}
+                      disabled={feedback !== null || checking}
+                      maxLength={MAX_WRITTEN_ANSWER_LENGTH}
+                      onChange={event => {
+                        setInput(event.target.value);
+                        setAnswerError('');
+                        setCheckingError('');
+                      }}
+                      placeholder="ഉത്തരം ഇവിടെ എഴുതുക"
+                      className="w-full text-lg px-4 py-3 border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-500 disabled:bg-slate-50 disabled:text-slate-500 font-malayalam"
+                    />
+                  ) : (
+                    <input
+                      id="malayalam-answer-input"
+                      type="text"
+                      lang="ml"
+                      dir="auto"
+                      autoComplete="off"
+                      value={input}
+                      disabled={feedback !== null || checking}
+                      maxLength={MAX_WRITTEN_ANSWER_LENGTH}
+                      onChange={event => {
+                        setInput(event.target.value);
+                        setAnswerError('');
+                        setCheckingError('');
+                      }}
+                      placeholder="ഉത്തരം ഇവിടെ എഴുതുക"
+                      className="w-full text-lg px-4 py-3 border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-amber-500 disabled:bg-slate-50 disabled:text-slate-500 font-malayalam"
+                    />
+                  )}
 
                   {answerError && <p role="alert" className="text-sm font-semibold text-rose-700">{answerError}</p>}
-                  {currentQuestion.kind === 'text' && currentQuestion.markingCriteria && !gradingApiUrl && (
+                  {currentQuestion.kind !== 'pair' && currentQuestion.kind !== 'parts' &&
+                    currentQuestion.markingCriteria && !gradingApiUrl && (
                     <p className="text-xs text-amber-900">
                       Gemini 3.5 Flash-Lite can check equivalent Malayalam answers when configured. The model answer is still checked locally.
                     </p>
@@ -601,7 +631,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                       </span>
                     </div>
                     {!feedback.correct && (
-                      <p className="text-sm text-slate-800" dir="auto">
+                      <p className="text-sm text-slate-800 font-malayalam" dir="auto">
                         <strong>Correct answer:</strong> {currentQuestion.answer}
                       </p>
                     )}
@@ -633,7 +663,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                     : 'No mock exam completed yet.'}
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {missedQuestions.length} question(s) to revisit. Answers are checked against the Malayalam word and sign list.
+                  {missedQuestions.length} question(s) to revisit. Exact answers are checked locally; equivalent written answers use Gemini 3.5 Flash-Lite.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
@@ -680,7 +710,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
               >
                 All portions ({lesson.questions.length})
               </button>
-              {MALAYALAM_SECTIONS.map(section => {
+              {sections.map(section => {
                 const count = lesson.questions.filter(question => question.section === section.id).length;
                 return (
                   <button
@@ -694,8 +724,8 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                         : 'bg-white border border-slate-200 text-slate-700 hover:bg-amber-50'
                     }`}
                   >
-                    <span className="block">{section.number} · {section.label}</span>
-                    <span className="block text-xs opacity-80">{count} prompts</span>
+                    <span className="block">{sectionTitle(section)}</span>
+                    <span className="block text-xs opacity-80 font-malayalam">{section.nativeLabel} · {count} prompts</span>
                   </button>
                 );
               })}
@@ -707,7 +737,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
               <h2 className="text-xl font-bold text-slate-900">
                 {selectedSection === 'all'
                   ? 'All exam portions'
-                  : `${getSection(selectedSection).number} · ${getSection(selectedSection).nativeLabel}`}
+                  : `${sectionTitle(getSection(selectedSection))} · ${getSection(selectedSection).nativeLabel}`}
               </h2>
               <p className="text-sm text-slate-600">
                 Read the prompt, hide the answer, then try to recall it before revealing.
@@ -720,9 +750,9 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                 return (
                   <article key={question.id} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                     <span className="text-xs font-bold text-amber-800 uppercase tracking-wide">
-                      {section.number} · {section.label} · {index + 1}
+                      {sectionTitle(section)} · {index + 1}
                     </span>
-                    <p className="text-base sm:text-lg font-semibold leading-relaxed text-slate-900" dir="auto">
+                    <p className="text-base sm:text-lg font-semibold leading-relaxed text-slate-900 font-malayalam" dir="auto">
                       {question.prompt}
                     </p>
                     <div className="flex flex-wrap items-center gap-2">
@@ -740,7 +770,7 @@ export const MalayalamView: React.FC<MalayalamViewProps> = ({
                       <ListenButton text={question.prompt} enabled={settings.speechAudio} />
                     </div>
                     {revealed && (
-                      <p className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 font-bold text-emerald-900" dir="auto">
+                      <p className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 font-bold text-emerald-900 font-malayalam" dir="auto">
                         {question.answer}
                       </p>
                     )}
