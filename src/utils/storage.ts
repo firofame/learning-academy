@@ -91,6 +91,7 @@ function isValidWordProgress(val: unknown): val is WordProgress {
     obj.history.every(entry => {
       if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
       return isTimestamp(entry.date) &&
+        (entry.attemptId === undefined || typeof entry.attemptId === 'string') &&
         ['learn', 'practice', 'test', 'paper'].includes(entry.mode) &&
         typeof entry.wasCorrect === 'boolean' &&
         (entry.mistakeInput === undefined || typeof entry.mistakeInput === 'string');
@@ -213,10 +214,12 @@ export function recordAttempt(
   studentId: StudentId,
   wasCorrect: boolean,
   mode: 'learn' | 'practice' | 'test' | 'paper',
-  mistakeInput?: string
+  mistakeInput?: string,
+  options: { attemptId?: string; mirrorAttempts?: boolean } = {}
 ): ExtendedWordProgress {
   const all = getAllProgress(studentId);
   const current = getWordProgress(wordId, studentId);
+  if (options.attemptId && current.history.some(entry => entry.attemptId === options.attemptId)) return current;
 
   const updatedAttempts = current.attempts + 1;
   const isUnaided = (mode === 'test' || mode === 'paper');
@@ -266,6 +269,7 @@ export function recordAttempt(
     history: [
       ...current.history.slice(-14),
       {
+        ...(options.attemptId ? { attemptId: options.attemptId } : {}),
         date: now,
         mode,
         wasCorrect,
@@ -282,22 +286,24 @@ export function recordAttempt(
       if (typeof indexedDB !== 'undefined') {
         const repository = getDefaultLearningRepository();
         void persistProgressSnapshot(repository, studentId, 'spell-bee', JSON.stringify(all), 'spell-bee-v1').catch(() => undefined);
-        const word = getWordsForStudent(studentId).find(item => item.id === wordId);
-        const attempt = createSpellingAttempt({
-          attemptId: `${studentId}:${wordId}:${now}:${Math.random().toString(36).slice(2, 8)}`,
-          learnerId: studentId,
-          grade: getStudentProfile(studentId).grade,
-          questionId: wordId,
-          timestamp: now,
-          sessionMode: mode === 'paper' ? 'paper' : mode === 'test' ? 'exam' : 'practice',
-          submittedAnswer: mistakeInput ?? null,
-          questionPrompt: word?.hiddenSentence,
-          referenceAnswer: word?.canonicalSpelling,
-          explanation: word?.meaning,
-          assisted: !isUnaided,
-          outcome: wasCorrect ? 'correct' : 'incorrect'
-        });
-        void saveLearningAttempt(repository, attempt).catch(() => undefined);
+        if (options.mirrorAttempts !== false) {
+          const word = getWordsForStudent(studentId).find(item => item.id === wordId);
+          const attempt = createSpellingAttempt({
+            attemptId: options.attemptId ?? `${studentId}:${wordId}:${now}:${Math.random().toString(36).slice(2, 8)}`,
+            learnerId: studentId,
+            grade: getStudentProfile(studentId).grade,
+            questionId: wordId,
+            timestamp: now,
+            sessionMode: mode === 'paper' ? 'paper' : mode === 'test' ? 'exam' : 'practice',
+            submittedAnswer: mistakeInput ?? null,
+            questionPrompt: word?.hiddenSentence,
+            referenceAnswer: word?.canonicalSpelling,
+            explanation: word?.meaning,
+            assisted: !isUnaided,
+            outcome: wasCorrect ? 'correct' : 'incorrect'
+          });
+          void saveLearningAttempt(repository, attempt).catch(() => undefined);
+        }
       }
     } catch {
       saveFailed = true;
@@ -411,7 +417,7 @@ export function resetStudentProgress(studentId: StudentId): boolean {
     localStorage.removeItem(getStudentStorageKey(studentId));
     if (typeof indexedDB !== 'undefined') {
       void deleteProgressSnapshot(getDefaultLearningRepository(), studentId, 'spell-bee').catch(() => {
-        emitStorageError('Spelling progress was reset in this browser, but the IndexedDB backup copy could not be cleared. Retry from Parent Insights.');
+        emitStorageError('Spelling progress was reset in this browser, but the IndexedDB backup copy could not be cleared. Retry from Progress & backup.');
       });
     }
     return true;

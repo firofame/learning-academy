@@ -64,6 +64,7 @@ export interface WordProgress {
   lastMistake?: string;
   needsRevisit: boolean;
   history: Array<{
+    attemptId?: string;
     date: string;
     mode: 'learn' | 'practice' | 'test' | 'paper';
     wasCorrect: boolean;
@@ -71,7 +72,7 @@ export interface WordProgress {
   }>;
 }
 
-export type ActiveAppView = 'home' | 'session' | 'curriculum' | 'parent' | 'worksheet' | 'robotics' | 'maths' | 'malayalam' | 'hindi';
+export type ActiveAppView = 'home' | 'session' | 'parent' | 'robotics' | 'maths' | 'malayalam' | 'hindi';
 
 export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam' | 'hindi';
 

@@ -1,8 +1,8 @@
 import React from 'react';
-import { Volume2, VolumeX, Sparkles, BookOpen, HeartHandshake, Printer, ArrowRightLeft, Bot, Calculator, Languages } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { AppSettings } from '../utils/appStorage';
-import { getStudentProfile, getStudentWordCount, STUDENT_PROFILES } from '../data/profiles';
+import { getStudentProfile, STUDENT_PROFILES } from '../data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 
 interface HeaderProps {
@@ -23,15 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
   onUpdateSettings
 }) => {
   const currentProfile = getStudentProfile(activeStudent);
-  const studentWordCount = getStudentWordCount(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
   const currentSubject = getSubjectForView(currentView);
-  const spellingViews: { view: ActiveAppView; label: string; shortLabel: string; icon: typeof BookOpen }[] = [
-    { view: 'session', label: 'Practice', shortLabel: 'Practice', icon: Sparkles },
-    { view: 'curriculum', label: `All ${studentWordCount} Words`, shortLabel: 'Words', icon: BookOpen },
-    { view: 'parent', label: 'Parent Insights', shortLabel: 'Insights', icon: HeartHandshake },
-    { view: 'worksheet', label: 'Worksheets', shortLabel: 'Sheets', icon: Printer }
-  ];
 
   const toggleStudent = () => {
     const index = STUDENT_PROFILES.findIndex(profile => profile.id === activeStudent);
@@ -105,23 +98,21 @@ export const Header: React.FC<HeaderProps> = ({
               {subject.name}
             </button>
           ))}
+          <button
+            onClick={() => onNavigate('parent')}
+            aria-current={currentView === 'parent' ? 'page' : undefined}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+              currentView === 'parent'
+                ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            Progress &amp; backup
+          </button>
         </nav>
 
         {/* Zone 3: Settings & Audio Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Session Size Selector */}
-          {currentSubject?.id === 'spell-bee' && <select
-            value={settings.sessionSize}
-            onChange={(e) => onUpdateSettings({ ...settings, sessionSize: Number(e.target.value) })}
-            aria-label="Practice session length"
-            title="Practice session length"
-            className="text-xs font-semibold px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 cursor-pointer hidden md:block"
-          >
-            <option value={5}>5 words</option>
-            <option value={10}>10 words</option>
-            <option value={0}>All due</option>
-          </select>}
-
           {/* Turtle Mode (Slow speech) */}
           <button
             onClick={() => onUpdateSettings({ ...settings, slowSpeech: !settings.slowSpeech })}
@@ -152,25 +143,6 @@ export const Header: React.FC<HeaderProps> = ({
             {settings.speechAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
         </div>
-        {currentSubject?.id === 'spell-bee' && (
-          <nav aria-label="Spell Bee navigation" className="max-w-6xl mx-auto px-3 sm:px-6 pb-2 grid grid-cols-4 sm:flex gap-1 sm:gap-2">
-            {spellingViews.map(({ view, label, shortLabel, icon: Icon }) => (
-              <button
-                key={view}
-                onClick={() => onNavigate(view)}
-                aria-label={label}
-                aria-current={currentView === view ? 'page' : undefined}
-                className={`min-w-0 px-1 sm:px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
-                  currentView === view ? 'bg-amber-50 text-amber-900' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{label}</span>
-                <span className="sm:hidden">{shortLabel}</span>
-              </button>
-            ))}
-          </nav>
-        )}
       </div>
     </header>
   );

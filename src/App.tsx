@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { SubjectHome } from './components/SubjectHome';
-import { ActiveAppView, SubjectCategory, WordEntry, StudentId } from './types';
+import { ActiveAppView, StudentId } from './types';
 import {
   loadSettings, 
   saveSettings, 
@@ -17,9 +17,7 @@ import { audioService } from './utils/audio';
 import { retryLearningPersistence } from './learning/persistence';
 
 const SessionView = lazy(() => import('./components/SessionView').then(module => ({ default: module.SessionView })));
-const AllWordsView = lazy(() => import('./components/AllWordsView').then(module => ({ default: module.AllWordsView })));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard').then(module => ({ default: module.ParentDashboard })));
-const WorksheetView = lazy(() => import('./components/WorksheetView').then(module => ({ default: module.WorksheetView })));
 const RoboticsView = lazy(() => import('./components/RoboticsView').then(module => ({ default: module.RoboticsView })));
 const MathsView = lazy(() => import('./components/MathsView').then(module => ({ default: module.MathsView })));
 const MalayalamView = lazy(() => import('./components/MalayalamView').then(module => ({ default: module.MalayalamView })));
@@ -29,8 +27,6 @@ export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
   const [activeStudent, setActiveStudent] = useState<StudentId>(() => loadActiveStudent());
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
-  const [sessionSubject, setSessionSubject] = useState<SubjectCategory | 'All'>('All');
-  const [targetedWords, setTargetedWords] = useState<WordEntry[] | null>(null);
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
   const [retryingStorage, setRetryingStorage] = useState(false);
@@ -74,6 +70,10 @@ export default function App() {
     saveSettings(newSettings);
   };
 
+  const handleSessionSizeChange = (sessionSize: number) => {
+    handleUpdateSettings({ ...settings, sessionSize });
+  };
+
   const handleSwitchStudent = (newStudent: StudentId) => {
     audioService.stopAll();
     setActiveStudent(newStudent);
@@ -83,34 +83,6 @@ export default function App() {
     if (subject && !getAvailableSubjectsForGrade(nextGrade).some(available => available.id === subject.id)) {
       setCurrentView('home');
     }
-    // Reset filters and active session inputs
-    setSessionSubject('All');
-    setTargetedWords(null);
-    setRefreshKey(prev => prev + 1);
-  };
-
-  const handlePracticeSpecificWord = (word: WordEntry) => {
-    setTargetedWords([word]);
-    setSessionSubject(word.subject);
-    handleNavigate('session');
-    setRefreshKey(prev => prev + 1);
-  };
-
-  const handleStartSubjectSession = (subject: SubjectCategory) => {
-    setTargetedWords(null);
-    setSessionSubject(subject);
-    handleNavigate('session');
-    setRefreshKey(prev => prev + 1);
-  };
-
-  const handleStartTargetedSession = (words: WordEntry[]) => {
-    setTargetedWords(words);
-    if (words.length > 0) {
-      setSessionSubject(words[0].subject);
-    } else {
-      setSessionSubject('All');
-    }
-    handleNavigate('session');
     setRefreshKey(prev => prev + 1);
   };
 
@@ -167,27 +139,10 @@ export default function App() {
 
         {currentView === 'session' && (
           <SessionView
-            key={`${activeStudent}-${refreshKey}`}
+            key={`spell-bee-${activeStudent}-${refreshKey}`}
             settings={settings}
             activeStudent={activeStudent}
-            selectedSubject={sessionSubject}
-            onSubjectChange={(subj) => {
-              setTargetedWords(null);
-              setSessionSubject(subj);
-            }}
-            targetedWords={targetedWords || undefined}
-            onClearTargeted={() => setTargetedWords(null)}
-            onExploreAll={() => handleNavigate('curriculum')}
-            onOpenParent={() => handleNavigate('parent')}
-          />
-        )}
-
-        {currentView === 'curriculum' && (
-          <AllWordsView
-            key={`${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
-            onPracticeSpecificWord={handlePracticeSpecificWord}
-            onStartSubjectSession={handleStartSubjectSession}
+            onSessionSizeChange={handleSessionSizeChange}
           />
         )}
 
@@ -195,38 +150,44 @@ export default function App() {
           <ParentDashboard
             key={activeStudent}
             activeStudent={activeStudent}
-            onStartTargetedSession={handleStartTargetedSession}
-            onOpenWorksheet={() => handleNavigate('worksheet')}
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
-            onOpenRobotics={() => handleNavigate('robotics')}
-            onOpenMaths={() => handleNavigate('maths')}
-            onOpenMalayalam={() => handleNavigate('malayalam')}
-            onOpenHindi={() => handleNavigate('hindi')}
-          />
-        )}
-
-        {currentView === 'worksheet' && (
-          <WorksheetView
-            key={activeStudent}
-            activeStudent={activeStudent}
-            onBackToPractice={() => handleNavigate('session')}
           />
         )}
 
         {currentView === 'robotics' && (
-          <RoboticsView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+          <RoboticsView
+            key={`robotics-${activeStudent}-${refreshKey}`}
+            activeStudent={activeStudent}
+            settings={settings}
+            onSessionSizeChange={handleSessionSizeChange}
+          />
         )}
 
         {currentView === 'maths' && (
-          <MathsView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+          <MathsView
+            key={`maths-${activeStudent}-${refreshKey}`}
+            activeStudent={activeStudent}
+            settings={settings}
+            onSessionSizeChange={handleSessionSizeChange}
+          />
         )}
 
         {currentView === 'malayalam' && (
-          <MalayalamView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+          <MalayalamView
+            key={`malayalam-${activeStudent}-${refreshKey}`}
+            activeStudent={activeStudent}
+            settings={settings}
+            onSessionSizeChange={handleSessionSizeChange}
+          />
         )}
 
         {currentView === 'hindi' && (
-          <HindiView key={activeStudent} activeStudent={activeStudent} settings={settings} />
+          <HindiView
+            key={`hindi-${activeStudent}-${refreshKey}`}
+            activeStudent={activeStudent}
+            settings={settings}
+            onSessionSizeChange={handleSessionSizeChange}
+          />
         )}
         </Suspense>
       </main>

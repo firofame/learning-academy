@@ -14,6 +14,7 @@ export interface MalayalamAnswer {
   questionId: string;
   answer: string;
   correct: boolean;
+  skipped?: boolean;
   aiChecked?: boolean;
   aiFeedback?: string;
   attemptId?: string;
@@ -54,11 +55,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isValidAnswer(value: unknown, lesson: MalayalamLesson): value is MalayalamAnswer {
   if (!isRecord(value) || typeof value.questionId !== 'string' ||
       typeof value.answer !== 'string' || typeof value.correct !== 'boolean') return false;
+  if (value.skipped !== undefined && typeof value.skipped !== 'boolean') return false;
   if (value.attemptId !== undefined && (typeof value.attemptId !== 'string' || !value.attemptId) ||
       value.attemptedAt !== undefined && (typeof value.attemptedAt !== 'string' || !Number.isFinite(Date.parse(value.attemptedAt)))) return false;
   const question = lesson.questions.find(entry => entry.id === value.questionId);
-  if (!question || !value.answer.trim() ||
-      value.aiChecked !== undefined && typeof value.aiChecked !== 'boolean') return false;
+  if (!question || value.aiChecked !== undefined && typeof value.aiChecked !== 'boolean') return false;
+  if (value.skipped === true) {
+    return value.answer.trim() === '' && value.correct === false && value.aiChecked !== true &&
+      value.aiFeedback === undefined;
+  }
+  if (!value.answer.trim()) return false;
   if (value.aiChecked === true) {
     return (question.kind === 'text' || question.kind === 'written') &&
       Boolean(question.markingCriteria) &&
@@ -114,7 +120,8 @@ export function loadMalayalamProgress(studentId: StudentId): MalayalamProgress {
 
 export function saveMalayalamResult(
   studentId: StudentId,
-  result: MalayalamResult
+  result: MalayalamResult,
+  options: { mirrorAttempts?: boolean } = {}
 ): MalayalamProgress | null {
   const lesson = getMalayalamLesson(studentId);
   if (!isValidResult(result, result.mode, lesson)) {
@@ -149,14 +156,16 @@ export function saveMalayalamResult(
     if (typeof indexedDB !== 'undefined') {
       const repository = getDefaultLearningRepository();
       void persistProgressSnapshot(repository, studentId, 'malayalam', serialized, CONTENT_VERSIONS.malayalam).catch(() => undefined);
-      void saveLearningAttempts(repository, createQuizAttempts({
-        learnerId: studentId, subjectId: 'malayalam', lessonId: lesson.id, mode: result.mode,
-        completedAt: result.completedAt, provenance: lesson.sourceNote,
-        answers: result.answers.map(answer => {
-          const question = lesson.questions.find(item => item.id === answer.questionId)!;
-          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer };
-        })
-      })).catch(() => undefined);
+      if (options.mirrorAttempts !== false) {
+        void saveLearningAttempts(repository, createQuizAttempts({
+          learnerId: studentId, subjectId: 'malayalam', lessonId: lesson.id, mode: result.mode,
+          completedAt: result.completedAt, provenance: lesson.sourceNote,
+          answers: result.answers.map(answer => {
+            const question = lesson.questions.find(item => item.id === answer.questionId)!;
+            return { ...answer, prompt: question.prompt, referenceAnswer: question.answer };
+          })
+        })).catch(() => undefined);
+      }
     }
     return next;
   } catch {

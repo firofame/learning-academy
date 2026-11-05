@@ -25,6 +25,8 @@ export type SessionMode = 'practice' | 'exam' | 'paper';
 export type AttemptOutcome = 'correct' | 'incorrect' | 'skipped' | 'ungraded';
 export type AttemptGradingSource = 'deterministic' | 'ai' | 'parent' | 'none';
 export type AssistanceKind = 'answer-revealed' | 'tile-helper' | 'hint' | 'read-aloud' | 'other';
+export type RevisionAttemptKind = 'initial' | 'correction' | 'recheck' | 'exam';
+export type RevisionResponseFormat = 'written' | 'choice';
 
 export interface LearningAttempt {
   attemptId: string;
@@ -46,6 +48,11 @@ export interface LearningAttempt {
   gradingSource: AttemptGradingSource;
   gradingVersion?: string;
   modelId?: string;
+  revisionRoundId?: string;
+  revisionBatchId?: string;
+  revisionAttemptKind?: RevisionAttemptKind;
+  responseFormat?: RevisionResponseFormat;
+  revisionSequence?: number;
   outcome: AttemptOutcome;
   feedback?: string;
 }

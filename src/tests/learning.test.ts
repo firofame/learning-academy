@@ -7,12 +7,13 @@ import {
 } from '../learning/domain';
 import { sessionReducer, startSession } from '../learning/sessionController';
 import { createQuizAttempts } from '../learning/attemptRecords';
+import { canScheduleRevisionRecheck, deriveRevisionProgress, selectRevisionBatch } from '../learning/revision';
 import { getRoboticsLesson } from '../data/robotics';
 import {
   exportLearnerBackup, importLearnerBackup, migrateLegacyProgress,
   MAX_BACKUP_BYTES, MAX_BACKUP_RECORDS,
-  type LearningRepository, type LearningRecord as PersistedRecord,
-  loadSessionDraft, saveSessionDraft
+  type LearningRepository, type LearningRecord as PersistedRecord, type RevisionRoundRecord,
+  loadRevisionRound, loadSessionDraft, saveRevisionRound, saveSessionDraft
 } from '../learning/persistence';
 
 function attempt(overrides: Partial<LearningAttempt> = {}): LearningAttempt {
@@ -118,6 +119,7 @@ describe('Versioned answer attempts', () => {
         }
       ]
     });
+
     assert.equal(skipped.outcome, 'skipped');
     assert.equal(skipped.attemptId, 'session:q1');
     assert.equal(skipped.timestamp, '2026-11-04T11:45:00.000Z');
@@ -138,6 +140,115 @@ describe('Versioned answer attempts', () => {
     });
     assert.equal(unavailable.outcome, 'ungraded');
     assert.equal(unavailable.gradingSource, 'none');
+  });
+});
+
+describe('Same-day revision rechecks', () => {
+  const revisionAttempt = (
+    questionId: string,
+    revisionAttemptKind: LearningAttempt['revisionAttemptKind'],
+    outcome: LearningAttempt['outcome'],
+    revisionSequence: number,
+    assistance: LearningAttempt['assistance'] = [],
+    revisionBatchId = 'batch-1'
+  ) => ({
+    questionId,
+    revisionAttemptKind,
+    outcome,
+    revisionSequence,
+    revisionBatchId,
+    timestamp: `2026-11-04T10:${String(revisionSequence).padStart(2, '0')}:00.000Z`,
+    assistance
+  });
+
+  test('an immediate correction keeps the initial mistake pending for a later recheck', () => {
+    const attempts = [
+      revisionAttempt('q1', 'initial', 'incorrect', 1),
+      revisionAttempt('q1', 'correction', 'correct', 2, ['answer-revealed'])
+    ];
+    const [progress] = deriveRevisionProgress(['q1'], attempts);
+    assert.equal(progress.checked, true);
+    assert.equal(progress.initialOutcome, 'incorrect');
+    assert.equal(progress.pendingRecheck, true);
+    assert.equal(progress.successfulRecheck, false);
+  });
+
+  test('two other questions make a pending item eligible across portions and batches', () => {
+    const attempts = [
+      revisionAttempt('q1', 'initial', 'incorrect', 1),
+      revisionAttempt('q2', 'initial', 'correct', 2),
+      revisionAttempt('q3', 'initial', 'skipped', 3)
+    ];
+    const [first] = deriveRevisionProgress(['q1', 'q2', 'q3'], attempts);
+    assert.equal(first.gapCount, 2);
+    assert.equal(canScheduleRevisionRecheck('q1', ['q1', 'q2', 'q3'], attempts, 'batch-2'), true);
+    assert.deepEqual(
+      selectRevisionBatch(['q1'], attempts, 'batch-2', 5, ['q1', 'q2', 'q3']),
+      [{ questionId: 'q1', attemptKind: 'recheck' }]
+    );
+  });
+
+  test('assisted, skipped, and incorrect rechecks remain pending; an unaided correct recheck clears it', () => {
+    const initial = [
+      revisionAttempt('q1', 'initial', 'correct', 1, ['hint']),
+      revisionAttempt('q2', 'initial', 'correct', 2),
+      revisionAttempt('q3', 'initial', 'correct', 3)
+    ];
+    const assisted = deriveRevisionProgress(['q1', 'q2', 'q3'], [
+      ...initial,
+      revisionAttempt('q1', 'recheck', 'correct', 4, ['hint'], 'batch-2')
+    ])[0];
+    assert.equal(assisted.pendingRecheck, true);
+    assert.equal(assisted.successfulRecheck, false);
+
+    const skipped = deriveRevisionProgress(['q1', 'q2', 'q3'], [
+      ...initial,
+      revisionAttempt('q1', 'recheck', 'skipped', 4, [], 'batch-2')
+    ])[0];
+    assert.equal(skipped.pendingRecheck, true);
+
+    const incorrect = deriveRevisionProgress(['q1', 'q2', 'q3'], [
+      ...initial,
+      revisionAttempt('q1', 'recheck', 'incorrect', 4, [], 'batch-2')
+    ])[0];
+    assert.equal(incorrect.pendingRecheck, true);
+
+    const resolved = deriveRevisionProgress(['q1', 'q2', 'q3'], [
+      ...initial,
+      revisionAttempt('q1', 'recheck', 'correct', 4, [], 'batch-2')
+    ])[0];
+    assert.equal(resolved.pendingRecheck, false);
+    assert.equal(resolved.successfulRecheck, true);
+  });
+
+  test('ungraded checks neither satisfy the gap nor consume an automatic recheck', () => {
+    const attempts = [
+      revisionAttempt('q1', 'initial', 'incorrect', 1),
+      revisionAttempt('q2', 'initial', 'ungraded', 2),
+      revisionAttempt('q3', 'initial', 'correct', 3)
+    ];
+    const [first] = deriveRevisionProgress(['q1', 'q2', 'q3'], attempts);
+    assert.equal(first.gapCount, 1);
+    assert.equal(canScheduleRevisionRecheck('q1', ['q1', 'q2', 'q3'], attempts, 'batch-2'), false);
+    assert.deepEqual(
+      selectRevisionBatch(['q1'], attempts, 'batch-2', 5, ['q1', 'q2', 'q3']),
+      []
+    );
+  });
+
+  test('one item is automatically rechecked at most once in a batch', () => {
+    const attempts = [
+      revisionAttempt('q1', 'initial', 'incorrect', 1),
+      revisionAttempt('q2', 'initial', 'correct', 2),
+      revisionAttempt('q3', 'initial', 'correct', 3),
+      revisionAttempt('q1', 'recheck', 'incorrect', 4, [], 'batch-2'),
+      revisionAttempt('q4', 'initial', 'correct', 5)
+    ];
+    assert.equal(canScheduleRevisionRecheck('q1', ['q1', 'q2', 'q3', 'q4'], attempts, 'batch-2'), false);
+    assert.deepEqual(
+      selectRevisionBatch(['q1'], attempts, 'batch-2', 5, ['q1', 'q2', 'q3', 'q4']),
+      []
+    );
   });
 });
 
@@ -305,5 +416,39 @@ describe('Shared IndexedDB persistence contracts', () => {
     assert.equal(resumed?.state.index, 1);
     assert.equal(await loadSessionDraft(repository, 'shiza', 'robotics', 'lesson-1', 'robotics-v1'), null);
     assert.equal(await loadSessionDraft(repository, 'fazia', 'robotics', 'lesson-1', 'robotics-v2'), null);
+  });
+
+  test('stale revision rounds are ignored but corrupted records still fail validation', async () => {
+    const repository = new MemoryRepository();
+    const round: RevisionRoundRecord = {
+      revisionRoundId: 'round-1', learnerId: 'fazia', subjectId: 'robotics', lessonId: 'lesson-1',
+      contentVersion: 'robotics-v1', startedAt: '2026-11-04T10:00:00Z', questionIds: ['q1', 'q2']
+    };
+    const currentContentVersion = 'robotics-v2';
+    await saveRevisionRound(repository, round);
+
+    assert.deepEqual(await loadRevisionRound(repository, 'fazia', 'robotics', 'lesson-1', 'robotics-v1'), round);
+    assert.equal(await loadRevisionRound(repository, 'fazia', 'robotics', 'lesson-1', currentContentVersion), null);
+
+    const recordId = `revision:${round.learnerId}:${round.subjectId}:${round.lessonId}`;
+    const savedRecord = repository.records.get(recordId);
+    assert.ok(savedRecord);
+    const invalidRecords: PersistedRecord[] = [
+      { ...savedRecord, learnerId: 'shiza' },
+      { ...savedRecord, subjectId: 'maths' },
+      { ...savedRecord, data: { ...round, learnerId: 'shiza' } },
+      { ...savedRecord, data: { ...round, subjectId: 'maths' } },
+      { ...savedRecord, data: { ...round, lessonId: 'another-lesson' } },
+      { ...savedRecord, data: { ...round, questionIds: [] } },
+      { ...savedRecord, contentVersion: currentContentVersion }
+    ];
+
+    for (const invalidRecord of invalidRecords) {
+      repository.records.set(recordId, invalidRecord);
+      await assert.rejects(
+        loadRevisionRound(repository, 'fazia', 'robotics', 'lesson-1', currentContentVersion),
+        /does not match this lesson/
+      );
+    }
   });
 });

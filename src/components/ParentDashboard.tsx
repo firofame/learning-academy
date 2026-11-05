@@ -1,442 +1,236 @@
-import React, { useState } from 'react';
-import { 
-  HeartHandshake, 
-  CheckCircle2, 
-  HelpCircle, 
-  Sparkles, 
-  RotateCcw, 
-  Printer, 
-  Play, 
-  AlertTriangle,
-  ShieldCheck,
-  Calendar
-} from 'lucide-react';
-import { WordEntry, SubjectCategory, StudentId } from '../types';
-import { SUBJECT_METADATA, getWordsForStudent, getStudentProfile } from '../data/wordList';
-import { getAllProgress, resetStudentProgress, getWordProgress, isWordDueForReview } from '../utils/storage';
+import React, { useEffect, useState } from 'react';
+import type { LearningSubjectId, StudentId } from '../types';
+import type { LearningAttempt } from '../learning/contracts';
+import { getStudentProfile } from '../data/profiles';
+import { getAvailableSubjectsForGrade, LEARNING_SUBJECTS } from '../data/subjects';
+import { CONTENT_VERSIONS } from '../data/contentVersions';
+import { deriveRevisionProgress } from '../learning/revision';
+import {
+  getDefaultLearningRepository, listLearningAttempts, loadRevisionRound,
+  type RevisionRoundRecord
+} from '../learning/persistence';
+import { buildSubjectRevision } from '../learning/subjectRevision';
+import { resetStudentProgress } from '../utils/storage';
 import { ProgressBackupControls } from './ProgressBackupControls';
-import { loadRoboticsProgress } from '../utils/roboticsStorage';
-import { getRoboticsLesson } from '../data/robotics';
-import { loadMathsProgress } from '../utils/mathsStorage';
-import { getMathsLesson } from '../data/maths';
-import { loadMalayalamProgress } from '../utils/malayalamStorage';
-import { getMalayalamLesson } from '../data/malayalam';
-import { loadHindiProgress } from '../utils/hindiStorage';
-import { getHindiLesson } from '../data/hindi';
-import { isSubjectAvailableForGrade } from '../data/subjects';
 
 interface ParentDashboardProps {
   activeStudent: StudentId;
-  onStartTargetedSession: (words: WordEntry[]) => void;
-  onOpenWorksheet: () => void;
   onResetComplete: () => void;
-  onOpenRobotics?: () => void;
-  onOpenMaths?: () => void;
-  onOpenMalayalam?: () => void;
-  onOpenHindi?: () => void;
 }
 
-export const ParentDashboard: React.FC<ParentDashboardProps> = ({
-  activeStudent,
-  onStartTargetedSession,
-  onOpenWorksheet,
-  onResetComplete,
-  onOpenRobotics,
-  onOpenMaths,
-  onOpenMalayalam,
-  onOpenHindi
-}) => {
-  const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
-  const currentProfile = getStudentProfile(activeStudent);
-  const studentWords = getWordsForStudent(activeStudent);
-  const allProgress = getAllProgress(activeStudent);
-  const roboticsAvailable = isSubjectAvailableForGrade('robotics', currentProfile.grade);
-  const robotics = roboticsAvailable ? loadRoboticsProgress(activeStudent) : null;
-  const roboticsLesson = roboticsAvailable ? getRoboticsLesson(activeStudent) : null;
-  const roboticsExam = robotics?.exam;
-  const mathsAvailable = isSubjectAvailableForGrade('maths', currentProfile.grade);
-  const maths = mathsAvailable ? loadMathsProgress(activeStudent) : null;
-  const mathsLesson = mathsAvailable ? getMathsLesson(activeStudent) : null;
-  const mathsExam = maths?.exam;
-  const malayalamAvailable = isSubjectAvailableForGrade('malayalam', currentProfile.grade);
-  const malayalam = malayalamAvailable ? loadMalayalamProgress(activeStudent) : null;
-  const malayalamLesson = malayalamAvailable ? getMalayalamLesson(activeStudent) : null;
-  const malayalamExam = malayalam?.exam;
-  const hindiAvailable = isSubjectAvailableForGrade('hindi', currentProfile.grade);
-  const hindi = hindiAvailable ? loadHindiProgress(activeStudent) : null;
-  const hindiLesson = hindiAvailable ? getHindiLesson(activeStudent) : null;
-  const hindiExam = hindi?.exam;
+interface SubjectRevisionSummary {
+  subjectId: LearningSubjectId;
+  lessonId: string;
+  title: string;
+  questionCount: number;
+  round: RevisionRoundRecord | null;
+  checkedCount: number;
+  pendingCount: number;
+  readyCount: number;
+  error?: string;
+}
 
-  // Categorize words by evidence-based test-readiness mastery
-  const rememberedWords: WordEntry[] = [];
-  const practisingWords: WordEntry[] = [];
-  const needsHelpWords: WordEntry[] = [];
+function outcomeLabel(attempt: LearningAttempt): string {
+  if (attempt.outcome === 'ungraded') return 'Not checked · retry needed';
+  if (attempt.outcome === 'skipped') return 'Skipped · return later';
+  return attempt.outcome === 'correct' ? 'Correct' : 'Needs review';
+}
 
-  studentWords.forEach(word => {
-    const prog = allProgress[word.id];
-    if (prog?.needsRevisit) {
-      needsHelpWords.push(word);
-    } else if (prog?.level === 'remembered') {
-      rememberedWords.push(word);
-    } else if (prog?.level === 'practising') {
-      practisingWords.push(word);
+export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent, onResetComplete }) => {
+  const profile = getStudentProfile(activeStudent);
+  const [attempts, setAttempts] = useState<LearningAttempt[]>([]);
+  const [summaries, setSummaries] = useState<SubjectRevisionSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const availableSubjects = getAvailableSubjectsForGrade(profile.grade);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    const repository = getDefaultLearningRepository();
+    const definitions = availableSubjects.map(subject => ({
+      subjectId: subject.id,
+      definition: buildSubjectRevision(subject.id, activeStudent)
+    }));
+    void Promise.all([
+      listLearningAttempts(repository, activeStudent),
+      Promise.all(definitions.map(async ({ subjectId, definition }): Promise<SubjectRevisionSummary> => {
+        try {
+          const round = await loadRevisionRound(
+            repository, activeStudent, subjectId, definition.lessonId, CONTENT_VERSIONS[subjectId]
+          );
+          return {
+            subjectId,
+            lessonId: definition.lessonId,
+            title: definition.title,
+            questionCount: definition.questions.length,
+            round,
+            checkedCount: 0,
+            pendingCount: 0,
+            readyCount: 0
+          };
+        } catch (cause) {
+          return {
+            subjectId,
+            lessonId: definition.lessonId,
+            title: definition.title,
+            questionCount: definition.questions.length,
+            round: null,
+            checkedCount: 0,
+            pendingCount: 0,
+            readyCount: 0,
+            error: cause instanceof Error ? cause.message : 'Unable to load this revision summary.'
+          };
+        }
+      }))
+    ]).then(([savedAttempts, loadedSummaries]) => {
+      if (!active) return;
+      setAttempts(savedAttempts);
+      const nextSummaries = loadedSummaries.map(summary => {
+        if (!summary.round || summary.error) return summary;
+        const roundAttempts = savedAttempts.filter(attempt =>
+          attempt.subjectId === summary.subjectId && attempt.lessonId === summary.lessonId &&
+          attempt.revisionRoundId === summary.round?.revisionRoundId
+        );
+        const progress = deriveRevisionProgress(summary.round.questionIds, roundAttempts);
+        return {
+          ...summary,
+          checkedCount: progress.filter(item => item.checked).length,
+          pendingCount: progress.filter(item => item.pendingRecheck).length,
+          readyCount: progress.filter(item => item.pendingRecheck && item.gapCount >= 2).length
+        };
+      });
+      setSummaries(nextSummaries);
+      const failures = nextSummaries.filter(summary => summary.error);
+      if (failures.length) setError(failures.map(summary => summary.error).join(' '));
+    }).catch(cause => {
+      if (!active) return;
+      setError(cause instanceof Error ? cause.message : 'Unable to load saved learning history.');
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [activeStudent, refreshKey]);
+
+  const resetOldSpellingProgress = () => {
+    if (resetStudentProgress(activeStudent)) {
+      setConfirmReset(false);
+      setRefreshKey(value => value + 1);
+      onResetComplete();
     } else {
-      needsHelpWords.push(word);
-    }
-  });
-
-  const wordsDueForReview = studentWords.filter(w => isWordDueForReview(allProgress[w.id]));
-  const reviewTargets = wordsDueForReview.length > 0 ? wordsDueForReview : needsHelpWords;
-
-  // Collect words with recorded mistakes for diagnostics
-  const wordsWithMistakes = studentWords.filter(w => {
-    const prog = allProgress[w.id];
-    return prog && prog.lastMistake;
-  });
-
-  const handleStartNeedsHelpSession = () => {
-    if (reviewTargets.length > 0) {
-      onStartTargetedSession(reviewTargets.slice(0, 5));
+      setError('The older Spell Bee word summary could not be reset.');
     }
   };
 
-  const handleConfirmReset = () => {
-    resetStudentProgress(activeStudent);
-    setShowResetConfirm(false);
-    onResetComplete();
-  };
-
-  // Distinct subjects for the active student
-  const activeSubjects = Array.from(new Set(studentWords.map(w => w.subject))) as SubjectCategory[];
-  const testReadinessPercent = Math.round((rememberedWords.length / studentWords.length) * 100);
+  const subjectNames = new Map(LEARNING_SUBJECTS.map(subject => [subject.id, subject.name]));
+  const recentAttempts = [...attempts].reverse().slice(0, 12);
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
-      {/* Header */}
-      <div className="border-b border-slate-200 pb-5">
-        <div className="flex items-center gap-2 text-amber-800 font-semibold text-xs tracking-wider uppercase mb-1">
-          <HeartHandshake className="w-4 h-4" />
-          <span>Spell Bee · Parent & Educator Insights · {currentProfile.name} ({currentProfile.gradeLabel})</span>
-        </div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
-          Verifiable Spelling Mastery & Test Readiness
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-600 mt-1 max-w-2xl leading-relaxed">
-          Assisted practice helps understanding, but true test readiness requires unaided recall across separate days. Here is {currentProfile.name}'s verified progress across all {studentWords.length} school words.
+    <main className="mx-auto max-w-4xl space-y-6 px-3 py-5 sm:px-5 sm:py-8">
+      <header className="space-y-2">
+        <p className="text-sm font-bold uppercase tracking-wide text-slate-600">
+          {profile.name} · {profile.gradeLabel}
         </p>
-      </div>
+        <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Progress &amp; backup</h1>
+        <p className="text-sm leading-relaxed text-slate-700">
+          See what has been checked in each current revision round. Same-day rechecks are revision evidence, not proof of long-term mastery.
+        </p>
+      </header>
 
-      {/* Readiness Banner */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-            School Exam Readiness
-          </span>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-3xl sm:text-4xl font-extrabold text-slate-900">
-              {rememberedWords.length}
-            </span>
-            <span className="text-sm font-semibold text-slate-500">
-              of {studentWords.length} words verified Test-Ready ({testReadinessPercent}%)
-            </span>
-          </div>
-          <span className="text-xs text-slate-500 mt-1 block">
-            A word is marked Test-Ready only after being spelled unaided without hints across at least 2 separate calendar days.
-          </span>
-        </div>
+      {error && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{error}</p>}
 
-        <div className="w-full sm:w-44 bg-slate-100 h-3 rounded-full overflow-hidden shrink-0">
-          <div 
-            className="bg-emerald-600 h-full rounded-full transition-all duration-500"
-            style={{ width: `${testReadinessPercent}%` }}
-          />
-        </div>
-      </div>
-
-      {/* KPI Cards Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Remembered / Test-Ready */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider block">
-              Test-Ready
-            </span>
-            <span className="text-3xl font-extrabold text-slate-900 mt-1 block">
-              {rememberedWords.length}
-            </span>
-            <span className="text-xs text-slate-500 mt-0.5 block">
-              Recalled unaided 2+ times
-            </span>
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-label="Current revision coverage">
+        <h2 className="text-lg font-bold text-slate-900">Current revision coverage</h2>
+        {loading ? (
+          <p role="status" className="text-sm text-slate-600">Loading revision history…</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {summaries.map(summary => (
+              <article key={summary.subjectId} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-900">{subjectNames.get(summary.subjectId)}</h3>
+                  <p className="text-sm text-slate-600">
+                    {summary.round
+                      ? `${summary.checkedCount} of ${summary.questionCount} questions checked`
+                      : `Not started · 0 of ${summary.questionCount} questions checked`}
+                  </p>
+                </div>
+                {summary.round && (
+                  <p className="text-sm text-slate-600">
+                    {summary.pendingCount} to recheck · {summary.readyCount} ready after a gap
+                  </p>
+                )}
+              </article>
+            ))}
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
-          </div>
-        </div>
-
-        {/* Practising */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-blue-800 uppercase tracking-wider block">
-              Practising
-            </span>
-            <span className="text-3xl font-extrabold text-slate-900 mt-1 block">
-              {practisingWords.length}
-            </span>
-            <span className="text-xs text-slate-500 mt-0.5 block">
-              Needs 2nd confirmation test
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-            <Sparkles className="w-5 h-5 text-blue-600" />
-          </div>
-        </div>
-
-        {/* Needs Practice */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider block">
-              Needs Practice
-            </span>
-            <span className="text-3xl font-extrabold text-slate-900 mt-1 block">
-              {needsHelpWords.length}
-            </span>
-            <span className="text-xs text-slate-500 mt-0.5 block">
-              Missed or unattempted
-            </span>
-          </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center font-bold">
-            <HelpCircle className="w-5 h-5 text-amber-600" />
-          </div>
-        </div>
-      </div>
-
-      {/* Action Row */}
-      <div className="flex flex-wrap items-center gap-3">
-        {reviewTargets.length > 0 && (
-          <button
-            onClick={handleStartNeedsHelpSession}
-            className="px-5 py-2.5 rounded-xl bg-amber-600 text-white font-semibold text-xs sm:text-sm hover:bg-amber-700 transition-colors shadow-xs flex items-center gap-2 cursor-pointer"
-          >
-            <Play className="w-4 h-4" />
-            <span>{wordsDueForReview.length > 0 ? 'Review' : 'Practice'} {Math.min(5, reviewTargets.length)} Words{wordsDueForReview.length > 0 ? ' Due for Review' : ' Needing Practice'}</span>
-          </button>
         )}
+      </section>
 
-        <button
-          onClick={onOpenWorksheet}
-          className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-slate-700 font-semibold text-xs sm:text-sm hover:bg-slate-50 transition-colors flex items-center gap-2 cursor-pointer"
-        >
-          <Printer className="w-4 h-4 text-slate-500" />
-          <span>Generate Paper Worksheets</span>
-        </button>
-
-        <button
-          onClick={() => setShowResetConfirm(true)}
-          className="px-4 py-2.5 rounded-xl text-rose-700 hover:bg-rose-50 font-semibold text-xs transition-colors flex items-center gap-1.5 ml-auto cursor-pointer"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset {currentProfile.name}'s Progress</span>
-        </button>
-      </div>
+      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-label="Recent learning history">
+        <h2 className="text-lg font-bold text-slate-900">Recent learning history</h2>
+        {loading ? (
+          <p className="text-sm text-slate-600">Loading saved answers…</p>
+        ) : recentAttempts.length === 0 ? (
+          <p className="text-sm text-slate-600">Completed answers will appear here.</p>
+        ) : (
+          <ol className="space-y-3">
+            {recentAttempts.map(attempt => (
+              <li key={attempt.attemptId} className="rounded-xl border border-slate-200 p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="font-semibold text-slate-900">
+                    {subjectNames.get(attempt.subjectId) ?? attempt.subjectId} · {outcomeLabel(attempt)}
+                    {attempt.revisionAttemptKind === 'recheck' ? ' · Same-day recheck' : ''}
+                    {attempt.gradingSource === 'parent' ? ' · Parent checked' : ''}
+                    {attempt.assistance.length > 0 ? ' · Help used' : ''}
+                  </p>
+                  <time className="text-xs text-slate-500" dateTime={attempt.timestamp}>
+                    {new Date(attempt.timestamp).toLocaleString()}
+                  </time>
+                </div>
+                {attempt.questionPrompt && <p className="mt-1 text-sm text-slate-700">{attempt.questionPrompt}</p>}
+                {attempt.submittedAnswer !== null && attempt.submittedAnswer !== '' && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-600">
+                    <strong>Answer:</strong> {attempt.submittedAnswer}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
 
       <ProgressBackupControls
         learnerId={activeStudent}
-        learnerName={currentProfile.name}
-        onRestored={onResetComplete}
+        learnerName={profile.name}
+        onRestored={() => setRefreshKey(value => value + 1)}
       />
 
-      {robotics && roboticsLesson && (
-        <section className="bg-teal-50 border border-teal-200 rounded-2xl p-5 space-y-3" aria-label="Robotics progress">
-          <h2 className="text-lg font-bold">Robotics: {roboticsLesson.title}</h2>
-          <p className="text-sm">
-            {roboticsExam
-              ? `Last exam quiz: ${roboticsExam.answers.filter(answer => answer.correct).length} / ${roboticsExam.answers.length} correct. ${roboticsExam.answers.filter(answer => answer.aiChecked).length} written answer(s) AI-checked.`
-              : 'No completed robotics exam quiz yet.'}
-          </p>
-          <p className="text-sm">{robotics.reviewQuestionIds.length} question(s) to revisit. Robotics results are separate from spelling mastery and are not cleared by the spelling reset.</p>
-          {onOpenRobotics && (
-            <button onClick={onOpenRobotics} className="min-h-12 px-4 py-3 rounded-xl bg-teal-700 text-white font-semibold hover:bg-teal-800 cursor-pointer">
-              Open robotics revision
-            </button>
-          )}
-        </section>
-      )}
-
-      {maths && mathsLesson && (
-        <section className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3" aria-label="Maths progress">
-          <h2 className="text-lg font-bold text-slate-900">Maths: {mathsLesson.title}</h2>
-          <p className="text-sm">
-            {mathsExam
-              ? `Last exam quiz: ${mathsExam.answers.filter(answer => answer.correct).length} / ${mathsExam.answers.length} correct.`
-              : 'No completed maths exam quiz yet.'}
-          </p>
-          <p className="text-sm">{maths.reviewQuestionIds.length} question(s) to revisit. Maths results are separate from spelling mastery and are not cleared by the spelling reset.</p>
-          {onOpenMaths && (
-            <button onClick={onOpenMaths} className="min-h-12 px-4 py-3 rounded-xl bg-indigo-700 text-white font-semibold hover:bg-indigo-800 cursor-pointer">
-              Open maths revision
-            </button>
-          )}
-        </section>
-      )}
-
-      {malayalam && malayalamLesson && (
-        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-3" aria-label="Malayalam progress">
-          <h2 className="text-lg font-bold text-slate-900">Malayalam: {malayalamLesson.title}</h2>
-          <p className="text-sm">
-            {malayalamExam
-              ? `Last mock exam: ${malayalamExam.answers.filter(answer => answer.correct).length} / ${malayalamExam.answers.length} correct. ${malayalamExam.answers.filter(answer => answer.aiChecked).length} equivalent answer(s) AI-checked.`
-              : 'No completed Malayalam mock exam yet.'}
-          </p>
-          <p className="text-sm">
-            {malayalam.reviewQuestionIds.length} question(s) to revisit. Malayalam exam results are separate from spelling mastery and are not cleared by the spelling reset.
-          </p>
-          {onOpenMalayalam && (
-            <button onClick={onOpenMalayalam} className="min-h-12 px-4 py-3 rounded-xl bg-amber-700 text-white font-semibold hover:bg-amber-800 cursor-pointer">
-              Open Malayalam revision
-            </button>
-          )}
-
-        </section>
-      )}
-
-      {hindi && hindiLesson && (
-        <section className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3" aria-label="Hindi progress">
-          <h2 className="text-lg font-bold text-slate-900">Hindi: {hindiLesson.title}</h2>
-          <p className="text-sm">
-            {hindiExam
-              ? `Last mock exam: ${hindiExam.answers.filter(answer => answer.correct).length} / ${hindiExam.answers.length} correct. ${hindiExam.answers.filter(answer => answer.aiChecked).length} written answer(s) AI-checked.`
-              : 'No completed Hindi mock exam yet.'}
-          </p>
-          <p className="text-sm">
-            {hindi.reviewQuestionIds.length} question(s) to revisit. Hindi exam results are separate from spelling mastery and are not cleared by the spelling reset.
-          </p>
-          {onOpenHindi && (
-            <button onClick={onOpenHindi} className="min-h-12 px-4 py-3 rounded-xl bg-indigo-700 text-white font-semibold hover:bg-indigo-800 cursor-pointer">
-              Open Hindi revision
-            </button>
-          )}
-        </section>
-      )}
-
-      {/* Diagnostic Mistake Log */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <h2 className="text-lg font-bold text-slate-900">
-          Diagnostic Mistake Log for {currentProfile.name}
-        </h2>
-        <p className="text-xs sm:text-sm text-slate-600">
-          Pinpointing exact letter patterns (e.g. double consonants, silent letters, root suffixes) helps focus study time.
+      <section className="rounded-xl border border-slate-200 bg-white p-4">
+        <h2 className="font-semibold text-slate-900">Older Spell Bee word summary</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Reset only the legacy word summary. Saved answer history and other subjects are not affected.
         </p>
-
-        {wordsWithMistakes.length === 0 ? (
-          <div className="py-6 text-center bg-slate-50 rounded-xl">
-            <p className="text-xs sm:text-sm text-slate-500">
-              No recent mistakes logged for {currentProfile.name}! As she practices, any difficult patterns will appear here.
-            </p>
-          </div>
+        {!confirmReset ? (
+          <button
+            type="button"
+            className="mt-3 min-h-12 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+            onClick={() => setConfirmReset(true)}
+          >
+            Reset old Spell Bee summary
+          </button>
         ) : (
-          <div className="border border-slate-100 rounded-xl divide-y divide-slate-100">
-            {wordsWithMistakes.map(word => {
-              const prog = getWordProgress(word.id, activeStudent);
-              return (
-                <div key={word.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900">{word.word}</span>
-                      <span className="text-xs text-slate-500 font-medium">({word.subject})</span>
-                    </div>
-                    <div className="text-xs text-rose-700 mt-1">
-                      Recorded attempt: <span className="font-mono bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">{prog.lastMistake}</span>
-                    </div>
-                  </div>
-
-                  <div className="text-xs sm:text-sm text-slate-700 sm:max-w-sm bg-slate-50 p-2.5 rounded-lg border border-slate-200/60">
-                    <span className="font-bold text-slate-900">Pattern Guide: </span>
-                    {word.trickySpot}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mt-3 space-y-3" role="group" aria-label="Confirm reset Spell Bee summary">
+            <p className="text-sm text-amber-900">This removes the older per-word summary for {profile.name}; saved attempt history remains available.</p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" className="min-h-12 rounded-xl border border-slate-300 px-4 py-3 font-semibold" onClick={() => setConfirmReset(false)}>Cancel</button>
+              <button type="button" className="min-h-12 rounded-xl bg-rose-700 px-4 py-3 font-semibold text-white" onClick={resetOldSpellingProgress}>Confirm reset</button>
+            </div>
           </div>
         )}
-      </div>
-
-      {/* Subject by Subject Mastery Breakdown */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
-        <h2 className="text-lg font-bold text-slate-900">
-          Progress by Word Category ({activeSubjects.length} Categories)
-        </h2>
-
-        <div className="space-y-4">
-          {activeSubjects.map(subj => {
-            const meta = SUBJECT_METADATA[subj];
-            const subjectWords = studentWords.filter(w => w.subject === subj);
-            const remembered = subjectWords.filter(w => allProgress[w.id]?.level === 'remembered').length;
-            const percentage = Math.round((remembered / subjectWords.length) * 100);
-
-            return (
-              <div key={subj} className="space-y-1.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs sm:text-sm font-semibold">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span style={{ color: meta?.accentColor || '#1e293b' }} className="font-bold">
-                      {subj}
-                    </span>
-                    <span className="text-slate-400 font-normal">({meta?.description || ''})</span>
-                  </div>
-                  <span className="font-mono text-slate-600">
-                    {remembered} / {subjectWords.length} test-ready ({percentage}%)
-                  </span>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ 
-                      width: `${percentage}%`,
-                      backgroundColor: meta?.accentColor || '#059669' 
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Confirmation Modal for Reset */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl space-y-4">
-            <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-1">
-              <h3 className="text-lg font-bold text-slate-900">
-                Reset {currentProfile.name}'s Progress?
-              </h3>
-              <p className="text-xs text-slate-600">
-                This will clear all saved attempts and reset all {studentWords.length} words for {currentProfile.name} back to the beginning. The other student's progress will remain untouched.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-50 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmReset}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-semibold text-xs hover:bg-rose-700 shadow-xs cursor-pointer"
-              >
-                Yes, Reset
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </section>
+    </main>
   );
 };

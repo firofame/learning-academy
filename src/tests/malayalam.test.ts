@@ -8,7 +8,6 @@ import {
   MALAYALAM_SECTIONS,
   SHIZA_MALAYALAM_LESSON
 } from '../data/malayalam';
-import { getMalayalamExamDateLabel } from '../components/MalayalamView';
 import {
   getMalayalamStorageKey,
   loadMalayalamProgress,
@@ -105,13 +104,6 @@ describe('Fazia Grade 2 Malayalam exam portions', () => {
     assert.ok(question);
     assert.equal(checkMalayalamAnswer(question, `${'മുയൽ'.normalize('NFD')}.`), true);
     assert.equal(checkMalayalamAnswer(question, 'മാൻ'), false);
-  });
-
-  test('shows the exam as tomorrow for the supplied current date', () => {
-    assert.equal(
-      getMalayalamExamDateLabel('2026-11-05', new Date(2026, 10, 4)),
-      'Exam tomorrow · Thursday, November 5, 2026'
-    );
   });
 
   test('saves exam results separately and clears missed questions after correct practice', () => {

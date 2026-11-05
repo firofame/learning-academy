@@ -1,20 +1,32 @@
 # Learning Academy
 
-A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, **Malayalam**, and
-**Hindi** as separate subjects, designed for calm, systematic learning.
+A grade-aware app for calm exam-eve revision in **Spell Bee**, **Robotics**, **Maths**,
+**Malayalam**, and **Hindi**.
+
+## Shared Learning Flow
+
+- Every subject uses the same recall-first sequence: answer from memory, get feedback
+  and optional help, then recheck a missed or assisted question after two other
+  completed questions.
+- Immediate corrections do not erase the first attempt. Same-day rechecks are
+  revision evidence, not a claim of long-term mastery.
+- Optional mock exams hide feedback until completion. Subject curricula, native
+  scripts, deterministic checks, and rubric-based Gemini grading remain specific
+  to each lesson.
+- Spell Bee now uses this same flow; its separate word-browser and worksheet screens
+  have been removed.
 
 ## Subjects & Grades
 
 - The app opens on a subject home screen for the active student and their grade.
 - Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
-- Malayalam exam revision is available for **Grade 2** and **Grade 6**. Fazia's Grade 2 lesson covers her first-semester portions; Shiza's Grade 6 lesson covers Lessons 1–2 (വാത്സല്യപൂരം and സർക്കസ്സ്) with meanings, synonyms, opposites, gender pairs, split and joined words, vigraha, sentence usage, and written answers. Both have section practice, a full mock exam, and saved missed questions.
-- Hindi exam revision is available for **Grade 6** and covers Shiza's supplied notebook portions with vocabulary, translations, synonyms, the trees poem and questions, Sreedharan questions, a paragraph prompt, section practice, a full mock exam, and saved missed questions. The incomplete `वचन बदलो` list and one unclear vocabulary entry are not guessed.
+- Malayalam revision is available for **Grade 2** and **Grade 6**. Fazia's Grade 2 lesson covers her first-semester portions; Shiza's Grade 6 lesson covers Lessons 1–2 (വാത്സല്യപൂരം and സർക്കസ്സ്) with meanings, synonyms, opposites, gender pairs, split and joined words, vigraha, sentence usage, and written answers.
+- Hindi revision is available for **Grade 6** and covers Shiza's supplied notebook portions with vocabulary, translations, synonyms, the trees poem and questions, Sreedharan questions, and a paragraph prompt. The incomplete `वचन बदलो` list and one unclear vocabulary entry are not guessed.
 - Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
 - EVS, English, Hindi, and the other spelling groupings are **word categories within Spell Bee**.
   Malayalam and Hindi are also available as standalone exam-preparation subjects, distinct from
   their optional Spell Bee word categories and the standalone **Maths** curriculum subject.
   Malayalam serves both grades; Hindi is Grade 6 only.
-- Spell Bee has its own Practice, Words, Parent Insights, and Worksheets navigation.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
   the same across subjects. Home cards, navigation, and related dashboard links
@@ -28,8 +40,8 @@ A grade-aware learning app with **Spell Bee**, **Robotics**, **Maths**, **Malaya
   identity, description, available grades, and views in the catalog, and wire its
   learning view into [`src/App.tsx`](src/App.tsx) and the subject ID type in
   [`src/types/index.ts`](src/types/index.ts).
-- Existing browser-storage keys and curriculum IDs are unchanged, so the rename
-  does not reset saved spelling or robotics progress.
+- Existing browser-storage keys and curriculum IDs are retained for recovery and
+  migration. Shared revision attempts are kept separately in learner-scoped history.
 
 ## Package Manager & Development Workflow
 
@@ -94,13 +106,19 @@ another device.
   version, timestamp, outcome, assistance, and grading provenance. Failed AI checks
   are recorded as ungraded under the same attempt ID; a retry updates that record
   instead of counting the outage as a wrong answer. Final quiz results reuse those
-  attempt IDs. Completed results continue to use each subject's
-  existing local-storage format while it is mirrored to IndexedDB. Session drafts save question order, answers,
-  progress, and assistance state so an unfinished quiz can be resumed after a
-  reload. A draft for changed lesson content is not resumed.
-- In **Parent Insights**, use **Download backup** before changing browser, origin,
+  attempt IDs. Where a legacy subject summary exists, completion continues to
+  update that format; shared per-answer attempts are saved separately. Session
+  drafts save question order, answers, progress, and assistance state so an
+  unfinished revision can be resumed after a reload. **Save and exit** also offers
+  **Resume current session** on the overview without a reload or a new batch.
+  A draft for changed lesson content is not resumed.
+- Spell Bee completion updates its retained per-word summary using the initial
+  response, without duplicating shared per-answer history or successful writes
+  on a save retry. Practice and assisted exam answers remain practice evidence;
+  only unaided exam answers count as test recall in that legacy summary.
+- In **Progress & backup**, use **Download backup** before changing browser, origin,
   or device. Keep the JSON file somewhere safe. On the new browser/device, open
-  Parent Insights for the same learner and choose **Restore backup**. Restore
+  Progress & backup for the same learner and choose **Restore backup**. Restore
   imports only missing records and preserves existing local records. Each learner
   has a separate backup; settings are not included.
 - If IndexedDB setup or a mirrored write fails, the app reports that the secondary
@@ -225,44 +243,20 @@ browser client, automatic marking, legacy storage, and retry/cancellation flows.
 
 ## Features & Learning Design
 
-- **Malayalam Exam Revision**:
-  - Grade 2 uses Fazia's first-semester portion sheet: revision words, synonyms, two-word examples, short answers, vowel signs, fill-ins, and days of the week.
-  - Grade 6 uses Shiza's notebook for Lessons 1–2: അർഥം, പര്യായം, വിപരീതം, എതിർലിംഗം, പിരിച്ചെഴുതുക, ചേർത്തെഴുതുക, വിഗ്രഹിച്ചെഴുതുക, വാക്യത്തിൽ പ്രയോഗിക്കുക, and ഉത്തരം എഴുതുക.
-  - Split-word answers accept `+`, commas, or spaces and require the correct order. Synonyms accept any order but require every listed word. Written answers are checked for meaning with Gemini 3.5 Flash-Lite, with the notebook model answer shown after checking.
-  - The first eight poem lines were not present in the supplied transcription, so they are not guessed. The blank വാത്സല്യപൂരം vigraha and the notebook's non-standard വഴങ്ങില്ല split are documented in the lesson source note.
-- **Robotics Exam Revision**:
-  - Open **Robotics** from the subject home screen or main navigation. Switching profiles selects Fazia's Grade 2 *Simple and Complex Machines* or Shiza's Grade 6 *Exploring AI Domains* lesson.
-  - Content follows the supplied Lesson 1 school PDFs: 23 Grade 2 questions and 22 Grade 6 questions covering true/false, multiple choice, fill in the blanks, and short answers.
-  - Revision cards include read-aloud using the existing voice/slow-speech controls, memory tips, and a short revision plan.
-  - Assisted practice gives immediate feedback. The full exam quiz hides feedback until all questions are submitted. Typed short answers are checked automatically against server-owned criteria, allowing equivalent wording.
-  - The latest practice and exam results are saved separately for each child in browser storage, without changing spelling progress or its mastery rules. Parent Insights links to robotics and shows the latest exam score.
-  - Missed questions can be practised again. Assisted practice does not clear revisit flags; a correct answer in a completed full exam does. Scores are revision snapshots, not claims of verified mastery.
-  - Completed results save after the quiz, including automatic written-answer checks. Unfinished quizzes save resumable drafts; switching profiles never carries a draft into another learner. Failed checks preserve the answer for retry. Spelling resets do not erase robotics results.
-- **3-Mode Learning Progression**:
-  1. *Learn*: Auditory pronunciation, phonics guide, contextual usage, and tricky spot mnemonics.
-  2. *Practice (Assisted)*: Scaffolded syllable and akshara block assembly.
-  3. *Test (Unaided Recall)*: Target word is hidden. Requires independent digital typing or notebook handwriting.
-  - New words open in Learn mode; previously attempted words open directly in the hidden test.
-  - Seeing Learn/Practice content or opening native-script helpers makes the current card assisted, even after switching to Test or Paper Notebook.
-  - Phonetic spelling guides appear only in Learn mode. Notebook answers must be written before revealing the spelling for parent verification; switching back to typing after that reveal counts as assisted.
-- **Evidence-Based Test-Readiness Mastery**:
-  - Requires qualifying unaided recalls across at least **two distinct calendar days** (using the learner's local calendar) before marking a word **Test-Ready**.
-  - Assisted practice (tile helpers, revealed spellings) does not earn unaided credit or clear outstanding revisit flags.
-  - A failed unaided test resets the distinct-day confirmation streak, so recovery requires fresh evidence across two days.
-- **Spaced Repetition & Balanced Scheduling**:
-  - Genuinely due words (missed words, words due for distinct-day confirmation, and periodic retention checks) are balanced with new unseen vocabulary.
-  - In-session mistakes are re-queued 2-3 cards later for reinforcement.
-  - Retention checks are due three days after the last qualifying unaided success; assisted practice never postpones them. Legacy progress uses qualifying history or recorded recall dates, not the last assisted attempt.
-- **Reliable Local Progress**:
-  - Spelling records are validated in full, including history, dates, counters, and student identity. Malformed records are reported and skipped while valid progress is preserved. IndexedDB records and imported backups are schema-checked and learner-scoped.
-  - An ungraded or interrupted answer remains available for retry; it is not saved as incorrect. Parent Insights provides local export and recovery.
-- **Consistent Controls**:
-  - Voice and slow-speech settings apply across every screen. Navigation wraps into a second row on compact screens.
-- **Small-Screen Learning**:
-  - Phone controls have at least 48px touch targets, with larger supporting text and short Learn / Practice / Test labels.
-  - Spell Bee word-category pickers use a native dropdown on phones so every category is discoverable without horizontal scrolling.
-  - Cards and action buttons stack to fit narrow screens; the phone header scrolls away to leave more room for learning and the keyboard.
-  - Typing starts only when the child taps the answer field. Spelling inputs request no autocorrect, automatic capitals, autocomplete, or spellcheck so keyboard hints do not undermine recall.
-  - Desktop navigation and printable worksheets retain their existing layouts.
-- **Multi-Language Support**:
-  - Supports English, Hindi (Devanagari), and Malayalam script with canonical Unicode normalization.
+- **Retrieval practice:** all five subjects ask learners to recall before showing help
+  or answers. Incorrect and skipped items remain visible until a later recheck.
+- **Same-day spacing:** a recheck is scheduled only after two other completed
+  questions. Assisted answers and immediate corrections cannot clear the original
+  difficulty; a correct unaided recheck can. No multi-day mastery is claimed.
+- **Curriculum fidelity:** Grade 2 and Grade 6 content remains tied to the supplied
+  school materials. Malayalam and Hindi retain native-script input and lesson-specific
+  answer checks; uncertain source material is not guessed.
+- **Automatic grading:** supported written answers use the server-side
+  `gemini-3.5-flash-lite` model. If checking is unavailable, the answer stays
+  ungraded, is preserved, and can be retried.
+- **Local progress:** attempts, assistance, exam results, and unfinished session
+  drafts are learner-scoped and saved on the device. Progress & backup supports
+  export and restore.
+- **Phone and laptop support:** controls stack on narrow screens, use touch-friendly
+  targets, and support keyboard input, accessible focus, native scripts, and optional
+  read-aloud/slow speech.

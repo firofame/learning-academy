@@ -100,7 +100,11 @@ export function loadRoboticsProgress(studentId: StudentId): RoboticsProgress {
   return emptyProgress(studentId);
 }
 
-export function saveRoboticsResult(studentId: StudentId, result: RoboticsResult): RoboticsProgress | null {
+export function saveRoboticsResult(
+  studentId: StudentId,
+  result: RoboticsResult,
+  options: { mirrorAttempts?: boolean } = {}
+): RoboticsProgress | null {
   const lesson = getRoboticsLesson(studentId);
   if (!isValidResult(result, result.mode, lesson)) {
     emitStorageError('Unable to save an invalid or incomplete robotics result.');
@@ -125,14 +129,16 @@ export function saveRoboticsResult(studentId: StudentId, result: RoboticsResult)
     if (typeof indexedDB !== 'undefined') {
       const repository = getDefaultLearningRepository();
       void persistProgressSnapshot(repository, studentId, 'robotics', serialized, CONTENT_VERSIONS.robotics).catch(() => undefined);
-      void saveLearningAttempts(repository, createQuizAttempts({
-        learnerId: studentId, subjectId: 'robotics', lessonId: lesson.id, mode: result.mode,
-        completedAt: result.completedAt, provenance: lesson.sourceName,
-        answers: result.answers.map(answer => {
-          const question = lesson.questions.find(item => item.id === answer.questionId)!;
-          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer, explanation: question.explanation };
-        })
-      })).catch(() => undefined);
+      if (options.mirrorAttempts !== false) {
+        void saveLearningAttempts(repository, createQuizAttempts({
+          learnerId: studentId, subjectId: 'robotics', lessonId: lesson.id, mode: result.mode,
+          completedAt: result.completedAt, provenance: lesson.sourceName,
+          answers: result.answers.map(answer => {
+            const question = lesson.questions.find(item => item.id === answer.questionId)!;
+            return { ...answer, prompt: question.prompt, referenceAnswer: question.answer, explanation: question.explanation };
+          })
+        })).catch(() => undefined);
+      }
     }
     return next;
   } catch {

@@ -53,6 +53,7 @@ export interface MathsSolutionStep {
 
 export interface MathsSolutionItem {
   questionNumber: number;
+  questionIds?: readonly string[];
   title: string;
   prompt: string;
   diagramType?: string;
@@ -870,6 +871,7 @@ export const GRADE_6_MATHS_QUESTIONS: MathsQuestion[] = [
 export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   {
     questionNumber: 1,
+    questionIds: ['g6-q1-pts', 'g6-q1-segs'],
     title: 'Points and Line Segments on a Straight Line',
     prompt: 'Look at the given figure and answer the following questions: (i) Name the three points. (ii) Name all the line segments.',
     diagramType: 'line-pqr',
@@ -890,6 +892,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 2,
+    questionIds: ['g6-q2-rays', 'g6-q2-w-shape'],
     title: 'Naming Line Segments and Rays in Figures',
     prompt: 'Name the line segments and rays in the following figures.',
     diagramType: 'fig2-all',
@@ -916,6 +919,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 3,
+    questionIds: ['g6-q3-pts', 'g6-q3-planes', 'g6-q3-edges'],
     title: '3D Cuboid: Vertices, Faces (Planes), and Edges (Segments)',
     prompt: 'In the given figure of a 3D box (cuboid): (i) How many points are marked? Name them. (ii) How many planes are shown? Name them. (iii) How many line segments are shown? Name them.',
     diagramType: 'cuboid',
@@ -942,6 +946,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 4,
+    questionIds: ['g6-q4-intersect', 'g6-q4-parallel'],
     title: 'Parallel and Intersecting Lines',
     prompt: 'In the figure showing lines l, m, n and transversals p, q, r:',
     diagramType: 'parallel-transversals',
@@ -986,6 +991,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 5,
+    questionIds: ['g6-q5-naming'],
     title: 'Naming Lines, Line Segments, and Rays',
     prompt: 'In the figure (lines l, m, n and t): (i) Name line l in two other ways. (ii) Name line m in two other ways. (iii) Name a line segment on line n. (iv) Name 3 line segments on line t. (v) Name 2 rays on line l. (vi) Name 4 rays on line t.',
     diagramType: 'line-m-t',
@@ -1030,6 +1036,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 6,
+    questionIds: ['g6-q6-boat', 'g6-q6-zigzag'],
     title: 'Classifying Open and Closed Figures',
     prompt: 'Identify the following figures as open or closed figures:',
     diagramType: 'open-closed',
@@ -1086,6 +1093,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 7,
+    questionIds: ['g6-q7-interior', 'g6-q7-boundary', 'g6-q7-exterior'],
     title: 'Regions of a Closed Figure: Interior, Boundary, Exterior',
     prompt: 'Look at the given figure of a closed shape and answer the following questions:',
     diagramType: 'regions',
@@ -1112,6 +1120,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 8,
+    questionIds: ['g6-q8-mcq'],
     title: 'MCQ: Direction and Origin of a Ray',
     prompt: 'Which of the following rays is NOT shown in the given figure? (a) OA (b) OB (c) BA (d) AB',
     diagramType: 'mcq-rays',
@@ -1126,6 +1135,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 9,
+    questionIds: ['g6-q9-mcq'],
     title: 'MCQ: Components of a Geometric Figure',
     prompt: 'Which of the following is not found in the given figure? (a) Point (b) Ray (c) Line (d) Line segment',
     diagramType: 'mcq-line',
@@ -1140,6 +1150,7 @@ export const MATHS_GRADE_6_SOLUTIONS: MathsSolutionItem[] = [
   },
   {
     questionNumber: 10,
+    questionIds: ['g6-q10-mcq'],
     title: 'MCQ: Measurable Geometric Figures',
     prompt: 'Which of the following can be measured? (a) Line (b) Ray (c) Point (d) Line segment',
     steps: [

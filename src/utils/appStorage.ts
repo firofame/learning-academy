@@ -4,18 +4,14 @@ export const ACTIVE_PROFILE_KEY = 'spellbee_active_profile_v1';
 export const SETTINGS_KEY = 'spellbee_settings_v1';
 
 export interface AppSettings {
-  soundEffects: boolean;
   speechAudio: boolean;
   slowSpeech: boolean;
-  paperModeDefault: boolean;
   sessionSize: number;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  soundEffects: true,
   speechAudio: true,
   slowSpeech: false,
-  paperModeDefault: false,
   sessionSize: 5
 };
 
@@ -55,11 +51,10 @@ export function loadSettings(): AppSettings {
     }
     const value = parsed as Partial<AppSettings>;
     return {
-      soundEffects: typeof value.soundEffects === 'boolean' ? value.soundEffects : DEFAULT_SETTINGS.soundEffects,
       speechAudio: typeof value.speechAudio === 'boolean' ? value.speechAudio : DEFAULT_SETTINGS.speechAudio,
       slowSpeech: typeof value.slowSpeech === 'boolean' ? value.slowSpeech : DEFAULT_SETTINGS.slowSpeech,
-      paperModeDefault: typeof value.paperModeDefault === 'boolean' ? value.paperModeDefault : DEFAULT_SETTINGS.paperModeDefault,
-      sessionSize: typeof value.sessionSize === 'number' && Number.isFinite(value.sessionSize) ? value.sessionSize : DEFAULT_SETTINGS.sessionSize
+      sessionSize: typeof value.sessionSize === 'number' && Number.isSafeInteger(value.sessionSize) &&
+        value.sessionSize >= 0 ? value.sessionSize : DEFAULT_SETTINGS.sessionSize
     };
   } catch {
     emitStorageError('Unable to read settings from browser storage. Using default settings.');

@@ -1,5 +1,8 @@
 import type { LearningSubjectId, StudentId } from '../types';
-import type { AssistanceKind, AttemptGradingSource, AttemptOutcome, LearningAttempt, SessionMode } from './contracts';
+import type {
+  AssistanceKind, AttemptGradingSource, AttemptOutcome, LearningAttempt,
+  RevisionAttemptKind, RevisionResponseFormat, SessionMode
+} from './contracts';
 import { CONTENT_VERSIONS, RUBRIC_VERSIONS } from '../data/contentVersions';
 import { GRADING_MODEL } from '../utils/roboticsGrading';
 import { localCalendarDate } from './domain';
@@ -21,6 +24,11 @@ export interface QuizAnswerForAttempt {
   attemptedAt?: string;
   attemptId?: string;
   skipped?: boolean;
+  revisionRoundId?: string;
+  revisionBatchId?: string;
+  revisionAttemptKind?: RevisionAttemptKind;
+  responseFormat?: RevisionResponseFormat;
+  revisionSequence?: number;
 }
 
 export function createQuizAttempts(input: {
@@ -65,6 +73,11 @@ export function createQuizAttempts(input: {
       gradingSource,
       gradingVersion: gradingSource === 'ai' ? rubricVersion : `${input.subjectId}-deterministic-v1`,
       ...(gradingSource === 'ai' ? { modelId: GRADING_MODEL } : {}),
+      ...(answer.revisionRoundId ? { revisionRoundId: answer.revisionRoundId } : {}),
+      ...(answer.revisionBatchId ? { revisionBatchId: answer.revisionBatchId } : {}),
+      ...(answer.revisionAttemptKind ? { revisionAttemptKind: answer.revisionAttemptKind } : {}),
+      ...(answer.responseFormat ? { responseFormat: answer.responseFormat } : {}),
+      ...(answer.revisionSequence !== undefined ? { revisionSequence: answer.revisionSequence } : {}),
       outcome,
       ...(answer.aiFeedback ? { feedback: answer.aiFeedback } : {})
     };

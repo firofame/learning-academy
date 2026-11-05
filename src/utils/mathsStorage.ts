@@ -147,7 +147,11 @@ export function loadMathsProgress(studentId: StudentId): MathsProgress {
   }
 }
 
-export function saveMathsResult(studentId: StudentId, result: MathsResult): MathsProgress | null {
+export function saveMathsResult(
+  studentId: StudentId,
+  result: MathsResult,
+  options: { mirrorAttempts?: boolean } = {}
+): MathsProgress | null {
   const lesson = getMathsLesson(studentId);
   if (!isValidResult(result, result.mode, lesson)) {
     emitStorageError('Unable to save an invalid or incomplete maths result.');
@@ -188,14 +192,16 @@ export function saveMathsResult(studentId: StudentId, result: MathsResult): Math
     if (typeof indexedDB !== 'undefined') {
       const repository = getDefaultLearningRepository();
       void persistProgressSnapshot(repository, studentId, 'maths', serialized, CONTENT_VERSIONS.maths).catch(() => undefined);
-      void saveLearningAttempts(repository, createQuizAttempts({
-        learnerId: studentId, subjectId: 'maths', lessonId: lesson.id, mode: result.mode,
-        completedAt: result.completedAt, provenance: lesson.sourceName,
-        answers: result.answers.map(answer => {
-          const question = lesson.questions.find(item => item.id === answer.questionId)!;
-          return { ...answer, prompt: question.prompt, referenceAnswer: question.answer, explanation: question.explanation };
-        })
-      })).catch(() => undefined);
+      if (options.mirrorAttempts !== false) {
+        void saveLearningAttempts(repository, createQuizAttempts({
+          learnerId: studentId, subjectId: 'maths', lessonId: lesson.id, mode: result.mode,
+          completedAt: result.completedAt, provenance: lesson.sourceName,
+          answers: result.answers.map(answer => {
+            const question = lesson.questions.find(item => item.id === answer.questionId)!;
+            return { ...answer, prompt: question.prompt, referenceAnswer: question.answer, explanation: question.explanation };
+          })
+        })).catch(() => undefined);
+      }
     }
     return next;
   } catch {

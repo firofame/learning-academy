@@ -4,15 +4,15 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
   {
     id: 'spell-bee',
     name: 'Spell Bee',
-    description: 'Build spelling confidence with guided learning, word practice, independent recall, and printable worksheets.',
+    description: 'Revise school spelling words with recall, feedback, and same-day rechecks.',
     availableGrades: [2, 6],
     startView: 'session',
-    views: ['session', 'curriculum', 'parent', 'worksheet']
+    views: ['session']
   },
   {
     id: 'robotics',
     name: 'Robotics',
-    description: 'Explore your school lessons with revision cards, assisted practice, and exam quizzes.',
+    description: 'Revise school lessons with recall, feedback, and same-day rechecks.',
     availableGrades: [2, 6],
     startView: 'robotics',
     views: ['robotics']
@@ -20,7 +20,7 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
   {
     id: 'maths',
     name: 'Maths',
-    description: 'Master school mathematics with visual revision cards, assisted practice, and exam quizzes.',
+    description: 'Revise school mathematics with visual questions, feedback, and same-day rechecks.',
     availableGrades: [2, 6],
     startView: 'maths',
     views: ['maths']
@@ -28,7 +28,7 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
   {
     id: 'malayalam',
     name: 'Malayalam',
-    description: 'Revise Fazia’s Grade 2 first-semester portions or Shiza’s Grade 6 Lessons 1–2 with recall practice and a full mock exam.',
+    description: 'Revise the current school portions with native-script answers, feedback, and same-day rechecks.',
     availableGrades: [2, 6],
     startView: 'malayalam',
     views: ['malayalam']
@@ -36,7 +36,7 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
   {
     id: 'hindi',
     name: 'Hindi',
-    description: 'Revise Shiza’s Grade 6 Hindi notebook portions with recall practice and a full mock exam.',
+    description: 'Revise school Hindi portions with native-script answers, feedback, and same-day rechecks.',
     availableGrades: [6],
     startView: 'hindi',
     views: ['hindi']

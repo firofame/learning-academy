@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import React, { act } from 'react';
+import React from 'react';
 import { JSDOM } from 'jsdom';
-import type { WordEntry, WordProgress } from '../types';
+import type { ExamRevisionViewProps, RevisionQuestion, RevisionResponse } from '../components/ExamRevisionView';
+import type { LearningRecord } from '../learning/persistence';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost' });
 Object.assign(globalThis, {
@@ -13,795 +14,489 @@ Object.assign(globalThis, {
   IS_REACT_ACT_ENVIRONMENT: true
 });
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
-
-class MockUtterance {
-  constructor(public text: string) {}
-  lang = '';
-  rate = 1;
-  pitch = 1;
-}
-const utterances: MockUtterance[] = [];
-let cancellations = 0;
-Object.defineProperty(globalThis, 'SpeechSynthesisUtterance', { value: MockUtterance });
-Object.defineProperty(window, 'speechSynthesis', {
-  value: {
-    cancel: () => { cancellations++; },
-    getVoices: () => [],
-    speak: (utterance: MockUtterance) => { utterances.push(utterance); }
-  }
-});
+Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true });
 
 const { render, fireEvent, cleanup, waitFor } = await import('@testing-library/react');
-const { SessionView } = await import('../components/SessionView');
-const { ParentDashboard } = await import('../components/ParentDashboard');
-const { RoboticsView } = await import('../components/RoboticsView');
-const { MathsView } = await import('../components/MathsView');
-const { MalayalamView } = await import('../components/MalayalamView');
-const { HindiView } = await import('../components/HindiView');
 const { default: App } = await import('../App');
-const { getWordsForStudent } = await import('../data/wordList');
+const { ExamRevisionView } = await import('../components/ExamRevisionView');
+const { SubjectRevisionView } = await import('../components/SubjectRevisionView');
+const { getStudentProfile } = await import('../data/profiles');
+const { getAvailableSubjectsForGrade } = await import('../data/subjects');
 const { getRoboticsLesson } = await import('../data/robotics');
-const { getMathsLesson } = await import('../data/maths');
-const { LEARNING_SUBJECTS } = await import('../data/subjects');
-const { getRoboticsStorageKey, loadRoboticsProgress, saveRoboticsResult } = await import('../utils/roboticsStorage');
-const {
-  DEFAULT_SETTINGS, SETTINGS_KEY, ACTIVE_PROFILE_KEY, MIGRATION_DONE_KEY,
-  getWordProgress, getAllProgress, getStudentStorageKey, recordAttempt, getLocalDateString
-} = await import('../utils/storage');
+const { ACTIVE_PROFILE_KEY, DEFAULT_SETTINGS, SETTINGS_KEY } = await import('../utils/appStorage');
+const { buildSubjectRevision } = await import('../learning/subjectRevision');
+const { loadRoboticsProgress } = await import('../utils/roboticsStorage');
+const { loadMathsProgress } = await import('../utils/mathsStorage');
+const { getAllProgress, getStudentStorageKey, getWordProgress } = await import('../utils/storage');
+const { audioService } = await import('../utils/audio');
+const { getDefaultLearningRepository } = await import('../learning/persistence');
 
-const settings = { ...DEFAULT_SETTINGS, soundEffects: false, speechAudio: false };
-const words = getWordsForStudent('fazia');
-const land = words.find(word => word.canonicalSpelling === 'land')!;
-const originalAvailableGrades = LEARNING_SUBJECTS.map(subject => [...subject.availableGrades]);
+const settings = { ...DEFAULT_SETTINGS, speechAudio: false };
 
-function renderSession(targetedWords: WordEntry[] = [land]) {
-  return render(React.createElement(SessionView, {
-    settings,
-    activeStudent: 'fazia',
-    targetedWords,
-    onSubjectChange: () => {},
-    onExploreAll: () => {},
-    onOpenParent: () => {}
+function question(
+  id: string,
+  answer: string,
+  overrides: Partial<RevisionQuestion> = {}
+): RevisionQuestion {
+  return {
+    id,
+    section: 'main',
+    sectionLabel: 'Main portion',
+    prompt: `What is the answer to ${id}?`,
+    answer,
+    responseFormat: 'written',
+    language: 'en',
+    languageCode: 'en-US',
+    grade: async response => ({
+      correct: response.trim().toLowerCase() === answer.toLowerCase(),
+      source: 'deterministic'
+    }),
+    ...overrides
+  };
+}
+
+function renderRevision(
+  questions: readonly RevisionQuestion[],
+  options: {
+    sessionSize?: number;
+    allowSectionAssessment?: boolean;
+    speechAudio?: boolean;
+    onComplete?: ExamRevisionViewProps['onComplete'];
+  } = {}
+) {
+  return render(React.createElement(ExamRevisionView, {
+    learnerId: 'fazia',
+    subjectId: 'spell-bee',
+    lessonId: 'interaction-test',
+    title: 'Test revision',
+    description: 'Recall first, then recheck after other questions.',
+    questions,
+    sessionSize: options.sessionSize ?? 5,
+    onSessionSizeChange: () => {},
+    speechAudio: options.speechAudio ?? false,
+    ...(options.allowSectionAssessment ? { allowSectionAssessment: true } : {}),
+    ...(options.onComplete ? { onComplete: options.onComplete } : {})
   }));
 }
 
-function saveProgress(progress: Record<string, WordProgress>) {
-  localStorage.setItem(getStudentStorageKey('fazia'), JSON.stringify(progress));
-}
-
-describe('Production component interactions', () => {
+describe('Shared exam-eve revision interactions', () => {
   beforeEach(() => {
     localStorage.clear();
-    localStorage.setItem(MIGRATION_DONE_KEY, 'true');
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     localStorage.setItem(ACTIVE_PROFILE_KEY, 'fazia');
-    utterances.length = 0;
-    cancellations = 0;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
   });
 
-  afterEach(() => {
-    cleanup();
-    LEARNING_SUBJECTS.forEach((subject, index) => {
-      subject.availableGrades = [...originalAvailableGrades[index]];
-    });
-  });
+  afterEach(cleanup);
 
-  test('Learning Academy opens on a grade-specific subject home with separate spelling navigation', async () => {
-    const view = render(React.createElement(App));
-    assert.ok(view.getByRole('button', { name: 'Learning Academy home' }));
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
-    assert.ok(view.getByRole('heading', { name: 'Spell Bee' }));
-    assert.ok(view.getByRole('heading', { name: 'Robotics' }));
-    assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    await view.findByRole('combobox', { name: 'Word category' });
-    assert.ok(view.getByRole('navigation', { name: 'Spell Bee navigation' }));
-    assert.ok(view.getByRole('combobox', { name: 'Word category' }));
-    assert.equal(view.getByRole('button', { name: 'Spell Bee' }).getAttribute('aria-current'), 'page');
-    fireEvent.click(view.getByRole('button', { name: 'Learning Academy home' }));
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
-    fireEvent.click(view.getByRole('button', { name: 'Open Robotics' }));
-    await view.findByRole('heading', { name: 'Simple and Complex Machines' });
-    assert.equal(view.queryByRole('combobox', { name: 'Practice session length' }), null);
-    assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
-  });
+  for (const learnerId of ['fazia', 'shiza'] as const) {
+    const grade = getStudentProfile(learnerId).grade;
+    for (const subject of getAvailableSubjectsForGrade(grade)) {
+      test(`${learnerId}'s ${subject.name} uses the shared revision overview`, async () => {
+        const view = render(React.createElement(SubjectRevisionView, {
+          activeStudent: learnerId,
+          subjectId: subject.id,
+          settings,
+          onSessionSizeChange: () => {}
+        }));
 
-  test('both children can practise their own grade’s Malayalam exam portions', async () => {
-    const view = render(React.createElement(App));
-    assert.ok(view.getByRole('button', { name: 'Open Malayalam' }));
-    fireEvent.click(view.getByRole('button', { name: 'Open Malayalam' }));
-    await view.findByRole('heading', { name: 'First Semester Exam Portions' });
-    assert.ok(view.getByRole('button', { name: 'Full mock exam (77)' }));
-    fireEvent.click(view.getByRole('button', { name: 'Practice this section (15)' }));
-    assert.ok(view.getByText('Question 1 of 15'));
-
-    fireEvent.change(view.getByRole('textbox', { name: 'Your Malayalam answer' }), {
-      target: { value: 'മഞ്ചാടി' }
-    });
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    assert.ok(view.getByText('Correct! Great job!'));
-    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
-    assert.ok(view.getByText('Question 2 of 15'));
-
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    await view.findByRole('heading', { name: 'Grade 6 Malayalam Exam Revision' });
-    assert.ok(view.getByText('Shiza · Grade 6', { exact: false }));
-    assert.ok(view.getByRole('button', { name: 'Full mock exam (69)' }));
-  });
-
-  test('Shiza can open her Grade 6 Hindi revision from the grade-specific subject home', async () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
-    fireEvent.click(view.getByRole('button', { name: 'Open Hindi' }));
-    await view.findByRole('heading', { name: 'Grade 6 Hindi Exam Revision' });
-    assert.ok(view.getByRole('button', { name: /Full mock exam \(74\)/ }));
-    assert.ok(view.getByRole('button', { name: /Word meanings/ }));
-    assert.ok(view.getByText(/A question leaves Review missed after one correct practice answer/));
-  });
-
-  test('Shiza Hindi progress is shown independently in Parent Insights', async () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    await view.findByRole('navigation', { name: 'Spell Bee navigation' });
-    fireEvent.click(view.getByRole('button', { name: /Parent Insights/ }));
-    await view.findByRole('region', { name: 'Hindi progress' });
-    fireEvent.click(view.getByRole('button', { name: 'Open Hindi revision' }));
-    await view.findByRole('heading', { name: 'Grade 6 Hindi Exam Revision' });
-  });
-
-  test('Hindi written practice checks equivalent answers with Gemini 3.5 Flash-Lite', async t => {
-    const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init: RequestInit) => {
-      assert.deepEqual(JSON.parse(String(init?.body)), {
-        lessonId: 'shiza-grade-6-hindi-exam',
-        questionId: 'g6-hin-tree-answer-1',
-        answer: 'पेड़ खड़े रहकर मुस्कुराते हैं'
-      });
-      return Response.json({ correct: true, feedback: 'आपने सही बात याद रखी।' });
-    });
-    const view = render(React.createElement(HindiView, {
-      activeStudent: 'shiza',
-      settings,
-      gradingApiUrl: 'https://grading.example/grade'
-    }));
-    fireEvent.click(view.getByRole('button', { name: /पेड़ questions/ }));
-    fireEvent.click(view.getByRole('button', { name: 'Practice this section (5)' }));
-    fireEvent.change(view.getByRole('textbox', { name: 'Your Hindi answer' }), {
-      target: { value: 'पेड़ खड़े रहकर मुस्कुराते हैं' }
-    });
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    await waitFor(() => assert.ok(view.getByText('Correct! Great job!')));
-    assert.equal(fetchMock.mock.calls.length, 1);
-    assert.ok(view.getByText('AI feedback: आपने सही बात याद रखी।'));
-  });
-
-  test('Malayalam synonym alternatives use Gemini and show feedback during practice', async t => {
-    const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init: RequestInit) => {
-      const request = JSON.parse(String(init?.body));
-      assert.deepEqual(request, {
-        lessonId: 'fazia-grade-2-malayalam-first-semester',
-        questionId: 'g2-mal-synonym-1',
-        answer: 'മരുന്ന്'
-      });
-      return Response.json({ correct: true, feedback: 'നല്ല പകരം പദം!' });
-    });
-    const view = render(React.createElement(MalayalamView, {
-      activeStudent: 'fazia',
-      settings,
-      gradingApiUrl: 'https://grading.example/grade'
-    }));
-    fireEvent.click(view.getByRole('button', { name: /II · Synonyms/ }));
-    fireEvent.click(view.getByRole('button', { name: 'Practice this section (10)' }));
-    fireEvent.change(view.getByRole('textbox', { name: 'Your Malayalam answer' }), {
-      target: { value: 'മരുന്ന്' }
-    });
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    await waitFor(() => assert.ok(view.getByText('Correct! Great job!')));
-    assert.equal(fetchMock.mock.calls.length, 1);
-    assert.ok(view.getByText('AI feedback: നല്ല പകരം പദം!'));
-  });
-
-  test('Shiza’s Grade 6 Malayalam written answers are checked with Gemini 3.5 Flash-Lite', async t => {
-    const fetchMock = t.mock.method(globalThis, 'fetch', async (_input: unknown, init: RequestInit) => {
-      assert.deepEqual(JSON.parse(String(init?.body)), {
-        lessonId: 'shiza-grade-6-malayalam-first-semester',
-        questionId: 'g6-mal-l1-answer-1',
-        answer: 'കണ്ണനെ കണ്ടപ്പോൾ യശോദ ഓടിയെത്തി അവനെ കെട്ടിപ്പിടിച്ചു.'
-      });
-      return Response.json({ correct: true, feedback: 'ശരിയായ ആശയം പറഞ്ഞു.' });
-    });
-    const view = render(React.createElement(MalayalamView, {
-      activeStudent: 'shiza',
-      settings,
-      gradingApiUrl: 'https://grading.example/grade'
-    }));
-    fireEvent.click(view.getByRole('button', { name: /ഉത്തരം എഴുതുക/ }));
-    fireEvent.click(view.getByRole('button', { name: 'Practice this section (11)' }));
-    const answer = view.getByRole('textbox', { name: 'Your Malayalam answer' });
-    assert.equal(answer.tagName, 'TEXTAREA');
-    fireEvent.change(answer, {
-      target: { value: 'കണ്ണനെ കണ്ടപ്പോൾ യശോദ ഓടിയെത്തി അവനെ കെട്ടിപ്പിടിച്ചു.' }
-    });
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    await waitFor(() => assert.ok(view.getByText('Correct! Great job!')));
-    assert.equal(fetchMock.mock.calls.length, 1);
-    assert.ok(view.getByText('AI feedback: ശരിയായ ആശയം പറഞ്ഞു.'));
-  });
-
-  test('Maths quiz uses shared session phases while keeping its written-answer interaction', async () => {
-    const lesson = getMathsLesson('fazia');
-    const view = render(React.createElement(MathsView, { activeStudent: 'fazia', settings }));
-    fireEvent.click(view.getByRole('button', { name: /Start Practice/ }));
-    await view.findByRole('textbox', { name: 'Your answer' });
-    assert.notEqual(document.activeElement, view.getByRole('textbox', { name: 'Your answer' }));
-    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: lesson.questions[0].answer } });
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    assert.ok(view.getByText('Correct! Great job!'));
-    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
-    assert.ok(view.getByText(`Question 2 of ${lesson.questions.length}`));
-  });
-
-  test('grade restrictions hide unavailable subjects everywhere and switching grades exits an unavailable subject', async () => {
-    LEARNING_SUBJECTS.find(subject => subject.id === 'robotics')!.availableGrades = [6];
-    localStorage.setItem(getRoboticsStorageKey('fazia'), '{"exam":"bad"}');
-    const view = render(React.createElement(App));
-    assert.equal(view.queryByRole('button', { name: 'Robotics' }), null);
-    assert.equal(view.queryByRole('button', { name: 'Open Robotics' }), null);
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    await view.findByRole('navigation', { name: 'Spell Bee navigation' });
-    fireEvent.click(view.getByRole('button', { name: /Parent Insights/ }));
-    assert.equal(view.queryByRole('region', { name: 'Robotics progress' }), null);
-    assert.equal(view.queryByRole('button', { name: 'Open robotics revision' }), null);
-    assert.equal(view.queryByRole('alert'), null, 'unavailable robotics progress is not loaded');
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    await view.findByRole('heading', { name: 'Exploring AI Domains' });
-    fireEvent.click(view.getByRole('button', { name: 'Start exam quiz' }));
-    fireEvent.click(view.getByTitle('Switch student (currently Shiza)'));
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
-    assert.equal(view.queryByRole('heading', { name: 'Exploring AI Domains' }), null);
-    assert.equal(loadRoboticsProgress('shiza').exam, null);
-  });
-
-  test('a robotics-only grade cannot retain spelling views after a profile switch', async () => {
-    LEARNING_SUBJECTS.find(subject => subject.id === 'spell-bee')!.availableGrades = [6];
-    localStorage.setItem(ACTIVE_PROFILE_KEY, 'shiza');
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    await view.findByRole('navigation', { name: 'Spell Bee navigation' });
-    fireEvent.click(view.getByRole('button', { name: /Worksheets/ }));
-    await view.findByRole('combobox', { name: 'Word category' });
-    fireEvent.change(view.getByRole('combobox', { name: 'Word category' }), { target: { value: 'Physics' } });
-    fireEvent.click(view.getByTitle('Switch student (currently Shiza)'));
-    await view.findByRole('region', { name: 'Subjects for Grade 2' });
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
-    assert.equal(view.queryByRole('button', { name: 'Spell Bee' }), null);
-    assert.equal(view.queryByRole('button', { name: 'Open Spell Bee' }), null);
-    assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
-    fireEvent.click(view.getByRole('button', { name: 'Open Robotics' }));
-    await view.findByRole('heading', { name: 'Simple and Complex Machines' });
-  });
-
-  test('a grade with no available subjects has a clear empty state and can switch profiles', () => {
-    LEARNING_SUBJECTS.forEach(subject => { subject.availableGrades = [6]; });
-    const view = render(React.createElement(App));
-    assert.match(view.getByRole('status').textContent!, /No subjects are available for Grade 2 yet/);
-    assert.equal(view.queryByRole('button', { name: 'Open Spell Bee' }), null);
-    assert.equal(view.queryByRole('button', { name: 'Open Robotics' }), null);
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
-    assert.ok(view.getByRole('button', { name: 'Open Spell Bee' }));
-    assert.ok(view.getByRole('button', { name: 'Open Robotics' }));
-  });
-
-  test('switching profiles resets grade-specific word filters on spelling screens', async () => {
-    localStorage.setItem(ACTIVE_PROFILE_KEY, 'shiza');
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    await view.findByRole('combobox', { name: 'Word category' });
-    fireEvent.click(view.getByRole('button', { name: new RegExp(`All ${getWordsForStudent('shiza').length} Words`) }));
-    await view.findByRole('combobox', { name: 'Word category' });
-    fireEvent.change(view.getByRole('combobox', { name: 'Word category' }), { target: { value: 'Physics' } });
-    fireEvent.click(view.getByTitle('Switch student (currently Shiza)'));
-    await waitFor(() => {
-      assert.equal((view.getByRole('combobox', { name: 'Word category' }) as HTMLSelectElement).value, 'All');
-    });
-    assert.equal(view.queryByRole('option', { name: 'Physics' }), null);
-    assert.equal(view.getAllByRole('button', { name: 'Practice This Word' }).length, words.length);
-    fireEvent.click(view.getByRole('button', { name: /Worksheets/ }));
-    await view.findByRole('combobox', { name: 'Word category' });
-    fireEvent.change(view.getByRole('combobox', { name: 'Word category' }), { target: { value: 'Hindi' } });
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    await view.findByRole('combobox', { name: 'Word category' });
-    assert.equal((view.getByRole('combobox', { name: 'Word category' }) as HTMLSelectElement).value, 'All');
-  });
-
-  test('subject navigation and reopening the academy preserve existing student progress', () => {
-    recordAttempt(land.id, 'fazia', true, 'practice');
-    const question = getRoboticsLesson('fazia').questions[0];
-    saveRoboticsResult('fazia', {
-      mode: 'practice', completedAt: new Date().toISOString(),
-      answers: [{ questionId: question.id, answer: 'True', correct: true, parentChecked: false }]
-    });
-    const savedSpelling = localStorage.getItem(getStudentStorageKey('fazia'));
-    const savedRobotics = localStorage.getItem(getRoboticsStorageKey('fazia'));
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    fireEvent.click(view.getByRole('button', { name: 'Subjects' }));
-    view.unmount();
-    const reopened = render(React.createElement(App));
-    assert.ok(reopened.getByRole('region', { name: 'Subjects for Grade 2' }));
-    assert.equal(localStorage.getItem(getStudentStorageKey('fazia')), savedSpelling);
-    assert.equal(localStorage.getItem(getRoboticsStorageKey('fazia')), savedRobotics);
-  });
-
-  test('initial Learn exposure cannot earn unaided typed credit; a fresh recall can', () => {
-    const view = renderSession();
-    assert.ok(view.getByRole('heading', { name: land.word }));
-    fireEvent.click(view.getByRole('button', { name: 'Skip to Test' }));
-    assert.ok(view.getByText('Assisted Recall Practice'));
-    fireEvent.change(view.getByPlaceholderText('Type word here...'), { target: { value: 'land' } });
-    fireEvent.click(view.getByRole('button', { name: 'Submit & Check Answer' }));
-    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 0);
-    view.unmount();
-
-    const recall = renderSession();
-    assert.ok(recall.getByText('Independent Test Mode (Unaided)'));
-    assert.equal(recall.queryByRole('heading', { name: land.word }), null);
-    assert.equal(recall.queryByText(/Sound guide:/), null);
-    assert.equal(recall.queryByText(land.word, { exact: true }), null);
-    fireEvent.change(recall.getByPlaceholderText('Type word here...'), { target: { value: 'land' } });
-    fireEvent.click(recall.getByRole('button', { name: 'Submit & Check Answer' }));
-    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 1);
-  });
-
-  test('duplicate events and switching modes or input methods cannot score a card twice', () => {
-    recordAttempt(land.id, 'fazia', true, 'practice');
-    const view = renderSession();
-    const input = view.getByPlaceholderText('Type word here...');
-    fireEvent.change(input, { target: { value: 'land' } });
-    const form = input.closest('form')!;
-    act(() => {
-      fireEvent.submit(form);
-      fireEvent.submit(form);
-    });
-    assert.equal(getWordProgress(land.id, 'fazia').attempts, 2);
-    fireEvent.click(view.getByRole('button', { name: '1. Learn' }));
-    fireEvent.click(view.getByRole('button', { name: '3. Test (Unaided Recall)' }));
-    fireEvent.submit(view.getByPlaceholderText('Type word here...').closest('form')!);
-    fireEvent.click(view.getByRole('button', { name: 'Paper Notebook' }));
-    fireEvent.click(view.getByRole('button', { name: 'Reveal Spelling to Verify' }));
-    assert.equal(view.queryByRole('button', { name: 'Spelled Correctly!' }), null);
-    assert.equal(getWordProgress(land.id, 'fazia').attempts, 2);
-  });
-
-  test('assisted notebook validation preserves revisit status and earns no unaided credit', () => {
-    recordAttempt(land.id, 'fazia', false, 'test', 'lnd');
-    const view = renderSession();
-    fireEvent.click(view.getByRole('button', { name: '2. Practice (Assisted)' }));
-    fireEvent.click(view.getByRole('button', { name: 'Test Word Unaided' }));
-    fireEvent.click(view.getByRole('button', { name: 'Paper Notebook' }));
-    fireEvent.click(view.getByRole('button', { name: 'Reveal Spelling to Verify' }));
-    fireEvent.click(view.getByRole('button', { name: 'Spelled Correctly!' }));
-    const progress = getWordProgress(land.id, 'fazia');
-    assert.equal(progress.unaidedCorrectCount, 0);
-    assert.equal(progress.needsRevisit, true);
-    assert.equal(progress.history.at(-1)?.mode, 'practice');
-    assert.ok(view.getByText(/This assisted attempt does not earn Test-Ready credit/));
-  });
-
-  test('independent notebook checks qualify, but revealing then typing does not', () => {
-    recordAttempt(land.id, 'fazia', true, 'practice');
-    const view = renderSession();
-    fireEvent.click(view.getByRole('button', { name: 'Paper Notebook' }));
-    fireEvent.click(view.getByRole('button', { name: 'Reveal Spelling to Verify' }));
-    fireEvent.click(view.getByRole('button', { name: 'Spelled Correctly!' }));
-    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 1);
-    assert.equal(getWordProgress(land.id, 'fazia').history.at(-1)?.mode, 'paper');
-    view.unmount();
-
-    const typing = renderSession();
-    fireEvent.click(typing.getByRole('button', { name: 'Paper Notebook' }));
-    fireEvent.click(typing.getByRole('button', { name: 'Reveal Spelling to Verify' }));
-    fireEvent.click(typing.getByRole('button', { name: 'Type on Screen' }));
-    fireEvent.change(typing.getByPlaceholderText('Type word here...'), { target: { value: 'land' } });
-    fireEvent.click(typing.getByRole('button', { name: 'Submit & Check Answer' }));
-    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 1);
-  });
-
-  test('native helpers are hidden until requested and opening them makes recall assisted', () => {
-    const word = words.find(word => word.nativeScript)!;
-    recordAttempt(word.id, 'fazia', true, 'practice');
-    const view = renderSession([word]);
-    assert.equal(view.queryByRole('button', { name: word.graphemeTiles[0] }), null);
-    fireEvent.click(view.getByRole('button', { name: 'Show native script tiles (assisted)' }));
-    assert.ok(view.getByText('Assisted Recall Practice'));
-    fireEvent.change(view.getByPlaceholderText('Type word here...'), { target: { value: word.nativeScript } });
-    fireEvent.click(view.getByRole('button', { name: 'Submit & Check Answer' }));
-    assert.equal(getWordProgress(word.id, 'fazia').unaidedCorrectCount, 0);
-  });
-
-  test('typing waits for a tap and requests no keyboard spelling hints', () => {
-    recordAttempt(land.id, 'fazia', true, 'practice');
-    const view = renderSession();
-    const input = view.getByLabelText('Type the exact spelling:');
-    assert.notEqual(document.activeElement, input);
-    assert.equal(input.hasAttribute('autofocus'), false);
-    assert.equal(input.getAttribute('autocomplete'), 'off');
-    assert.equal(input.getAttribute('autocapitalize'), 'none');
-    assert.equal(input.getAttribute('autocorrect'), 'off');
-    assert.equal(input.getAttribute('spellcheck'), 'false');
-    assert.equal(input.getAttribute('enterkeyhint'), 'done');
-    fireEvent.change(input, { target: { value: 'land' } });
-    fireEvent.submit(input.closest('form')!);
-    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 1);
-  });
-
-  test('native word-category pickers work in practice, curriculum, and worksheets', () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    const subjects = ['All', ...new Set(words.map(word => word.subject))];
-    let picker = view.getByRole('combobox', { name: 'Word category' });
-    assert.deepEqual(
-      Array.from(picker.querySelectorAll('option'), option => option.value),
-      subjects
-    );
-    fireEvent.change(picker, { target: { value: 'Hindi' } });
-    assert.equal((picker as HTMLSelectElement).value, 'Hindi');
-    assert.ok(view.getByRole('button', { name: 'Hindi', pressed: true }));
-    assert.ok(view.getByRole('heading', { name: words.find(word => word.subject === 'Hindi')!.word }));
-
-    fireEvent.click(view.getByRole('button', { name: /All 45 Words/ }));
-    picker = view.getByRole('combobox', { name: 'Word category' });
-    fireEvent.change(picker, { target: { value: 'Hindi' } });
-    assert.ok(view.getByRole('button', { name: 'Practice Hindi Words' }));
-    assert.equal(
-      view.getAllByRole('button', { name: 'Practice This Word' }).length,
-      words.filter(word => word.subject === 'Hindi').length
-    );
-
-    fireEvent.click(view.getByRole('button', { name: /Worksheets/ }));
-    picker = view.getByRole('combobox', { name: 'Word category' });
-    assert.match(picker.querySelector('option[value="Hindi"]')!.textContent!, /Hindi \(\d+\)/);
-    fireEvent.change(picker, { target: { value: 'Hindi' } });
-    assert.ok(view.getByRole('heading', { name: 'Hindi Spelling Test' }));
-    fireEvent.click(view.getByRole('button', { name: 'Teacher Answer Key' }));
-    assert.ok(view.getByRole('heading', { name: 'Hindi Exam Answer Key' }));
-  });
-
-  test('targeted queues use requested words and advance to a fresh hidden card', () => {
-    const target = [words[3], words[1]];
-    const view = renderSession(target);
-    assert.ok(view.getByRole('heading', { name: target[0].word }));
-    fireEvent.click(view.getByRole('button', { name: 'Skip to Test' }));
-    fireEvent.change(view.getByPlaceholderText('Type word here...'), { target: { value: target[0].canonicalSpelling } });
-    fireEvent.click(view.getByRole('button', { name: 'Submit & Check Answer' }));
-    fireEvent.click(view.getByRole('button', { name: /Next Word/ }));
-    assert.ok(view.getByText('Word 2 of 2'));
-    assert.ok(view.getByText('Independent Test Mode (Unaided)'));
-    fireEvent.change(view.getByPlaceholderText('Type word here...'), { target: { value: target[1].canonicalSpelling } });
-    fireEvent.click(view.getByRole('button', { name: 'Submit & Check Answer' }));
-    assert.deepEqual(Object.keys(getAllProgress('fazia')).sort(), target.map(word => word.id).sort());
-    assert.equal(getWordProgress(target[0].id, 'fazia').unaidedCorrectCount, 0);
-    assert.equal(getWordProgress(target[1].id, 'fazia').unaidedCorrectCount, 1);
-  });
-
-  test('multiword practice uses space tiles and the same evaluator as typed recall', () => {
-    const word = words.find(word => word.canonicalSpelling === 'scroll wheel')!;
-    const view = renderSession([word]);
-    fireEvent.click(view.getByRole('button', { name: 'Practice with Tiles' }));
-    for (const tile of word.graphemeTiles) {
-      fireEvent.click(view.getByRole('button', { name: tile === ' ' ? '␣ Space' : tile }));
-    }
-    assert.ok(view.getByText('Terrific! You assembled the word correctly.'));
-    assert.equal(getWordProgress(word.id, 'fazia').history.at(-1)?.wasCorrect, true);
-  });
-
-  for (const level of ['practising', 'remembered'] as const) {
-    test(`dashboard exposes actual due reviews when all words are ${level}`, () => {
-      const old = new Date(Date.now() - 4 * 86400000);
-      const oldDate = getLocalDateString(old);
-      saveProgress(Object.fromEntries(words.map(word => [word.id, {
-        ...getWordProgress(word.id, 'fazia'),
-        attempts: 2,
-        unaidedCorrectCount: 2,
-        consecutiveUnaidedCorrect: 2,
-        unaidedCorrectDates: [oldDate],
-        lastAttemptDate: old.toISOString(),
-        lastUnaidedCorrectDate: old.toISOString(),
-        level
-      }])));
-      let requested: WordEntry[] = [];
-      const view = render(React.createElement(ParentDashboard, {
-        activeStudent: 'fazia',
-        onStartTargetedSession: (targets: WordEntry[]) => { requested = targets; },
-        onOpenWorksheet: () => {},
-        onResetComplete: () => {}
-      }));
-      fireEvent.click(view.getByRole('button', { name: 'Review 5 Words Due for Review' }));
-      assert.deepEqual(requested.map(word => word.id), words.slice(0, 5).map(word => word.id));
-    });
-  }
-
-  test('mute and slow-speech settings affect actual speech on the curriculum screen', () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    fireEvent.click(view.getByRole('button', { name: /All 45 Words/ }));
-    const hear = view.getAllByTitle('Listen to pronunciation')[0];
-    fireEvent.click(hear);
-    assert.equal(utterances.length, 0);
-    fireEvent.click(view.getByRole('button', { name: 'Toggle audio' }));
-    fireEvent.click(hear);
-    assert.equal(utterances.at(-1)?.rate, 0.9);
-    fireEvent.click(view.getByTitle('Normal speech speed'));
-    fireEvent.click(hear);
-    assert.equal(utterances.at(-1)?.rate, 0.72);
-    const count = utterances.length;
-    const priorCancellations = cancellations;
-    fireEvent.click(view.getByRole('button', { name: 'Toggle audio' }));
-    fireEvent.click(hear);
-    assert.equal(utterances.length, count);
-    assert.ok(cancellations > priorCancellations, 'muting cancels active speech');
-    assert.equal(JSON.parse(localStorage.getItem(SETTINGS_KEY)!).speechAudio, false);
-  });
-
-  test('malformed progress is visibly reported on initial load and a new submission still works', async () => {
-    const partial = { ...getWordProgress(land.id, 'fazia'), attempts: 2, history: undefined };
-    localStorage.setItem(getStudentStorageKey('fazia'), JSON.stringify({ [land.id]: partial }));
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
-    await waitFor(() => assert.match(view.getByRole('alert').textContent || '', /malformed progress/));
-    fireEvent.click(view.getByRole('button', { name: 'Skip to Test' }));
-    fireEvent.change(view.getByPlaceholderText('Type word here...'), { target: { value: 'land' } });
-    fireEvent.click(view.getByRole('button', { name: 'Submit & Check Answer' }));
-    assert.equal(getWordProgress(land.id, 'fazia').attempts, 1);
-    assert.equal(getWordProgress(land.id, 'fazia').unaidedCorrectCount, 0);
-  });
-
-  test('robotics selects the right lesson and resets unfinished work when switching profiles', () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    assert.ok(view.getByRole('heading', { name: 'Simple and Complex Machines' }));
-    assert.equal(view.getByRole('button', { name: 'Robotics' }).getAttribute('aria-current'), 'page');
-    fireEvent.click(view.getByRole('button', { name: 'Start exam quiz' }));
-    assert.ok(view.getByText('Exam quiz · Question 1 of 23'));
-    fireEvent.click(view.getByTitle('Switch student (currently Fazia)'));
-    assert.ok(view.getByRole('heading', { name: 'Exploring AI Domains' }));
-    assert.ok(view.getByRole('button', { name: 'Start exam quiz' }));
-    assert.equal(loadRoboticsProgress('fazia').exam, null);
-    assert.equal(loadRoboticsProgress('shiza').exam, null);
-  });
-
-  test('robotics practice gives feedback, saves a completed review, and retains revisit flags', () => {
-    const question = getRoboticsLesson('fazia').questions[0];
-    saveRoboticsResult('fazia', {
-      mode: 'practice', completedAt: new Date().toISOString(),
-      answers: [{ questionId: question.id, answer: 'False', correct: false, parentChecked: false }]
-    });
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
-    fireEvent.click(view.getByRole('radio', { name: 'True' }));
-    const form = view.getByRole('button', { name: 'Check answer' }).closest('form')!;
-    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
-    assert.ok(view.getByText('Well done!'));
-    assert.ok(view.getByRole('radio', { name: 'False' }).closest('fieldset')!.disabled);
-    fireEvent.click(view.getByRole('button', { name: 'Finish practice' }));
-    assert.ok(view.getByRole('heading', { name: 'Practice complete' }));
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers.length, 1);
-    assert.equal(loadRoboticsProgress('fazia').exam, null);
-    assert.deepEqual(loadRoboticsProgress('fazia').reviewQuestionIds, [question.id]);
-  });
-
-  for (const studentId of ['fazia', 'shiza'] as const) {
-    test(`${studentId}'s full exam hides AI feedback, automatically grades, and persists the exact score`, async t => {
-      let calls = 0;
-      t.mock.method(globalThis, 'fetch', async () => {
-        calls++;
-        return Response.json({ correct: true, feedback: 'The essential idea is present.' });
-      });
-      localStorage.setItem(ACTIVE_PROFILE_KEY, studentId);
-      const view = render(React.createElement(RoboticsView, {
-        activeStudent: studentId, settings, gradingApiUrl: 'https://grading.example/grade'
-      }));
-      const lesson = getRoboticsLesson(studentId);
-      fireEvent.click(view.getByRole('button', { name: 'Start exam quiz' }));
-      for (const [index, question] of lesson.questions.entries()) {
-        assert.ok(view.getByText(`Exam quiz · Question ${index + 1} of ${lesson.questions.length}`));
-        assert.equal(view.queryByText('Model answer:'), null);
-        assert.equal(view.queryByText('Well done!'), null);
-        if (index === 0) {
-          fireEvent.click(view.getByRole('button', { name: "I don't know yet" }));
-          continue;
-        }
-        if (question.kind === 'choice' || question.kind === 'true-false') {
-          fireEvent.click(view.getByRole('radio', { name: question.answer }));
-        } else if (question.kind === 'fill') {
-          const field = view.getByLabelText('Fill in the blank');
-          assert.notEqual(document.activeElement, field);
-          assert.equal(field.getAttribute('spellcheck'), 'false');
-          fireEvent.change(field, { target: { value: question.answer.toUpperCase() } });
+        await view.findByRole('region', { name: 'Revision overview' });
+        assert.ok(view.getByRole('heading', { name: 'Exam-eve revision' }));
+        assert.ok(view.getByLabelText('Choose a portion'));
+        const batchSize = view.getByRole('combobox', { name: 'Questions per batch' });
+        assert.ok(batchSize.className.includes('min-h-12'), 'batch control remains touch-friendly on small screens');
+        assert.ok(view.getByRole('button', { name: 'Start revision' }));
+        assert.ok(view.getByRole('button', { name: 'Optional full mock exam' }));
+        assert.ok(view.getByText(/Recall first, get feedback, then recheck mistakes after other questions/));
+        if (subject.id === 'maths') {
+          const portion = view.getByRole('combobox', { name: 'Choose a portion' }) as HTMLSelectElement;
+          const firstPortion = Array.from(portion.options).find(option => option.value !== 'all');
+          assert.ok(firstPortion);
+          fireEvent.change(portion, { target: { value: firstPortion.value } });
+          assert.ok(view.getByRole('button', { name: /Optional .* assessment/ }));
         } else {
-          assert.equal(view.queryByLabelText('Grading access code'), null);
-          fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: question.answer } });
+          assert.equal(view.queryByRole('button', { name: /Optional .* assessment/ }), null);
         }
-        fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
-        if (index + 1 < lesson.questions.length) {
-          await waitFor(() => assert.ok(view.getByText(`Exam quiz · Question ${index + 2} of ${lesson.questions.length}`)));
-          assert.equal(loadRoboticsProgress(studentId).exam, null, 'unfinished exams are not saved');
-          assert.equal(view.queryByText('AI feedback: The essential idea is present.'), null);
-        }
-      }
-      await waitFor(() => assert.ok(view.getByRole('heading', { name: 'Exam quiz complete' })));
-      const result = loadRoboticsProgress(studentId).exam!;
-      assert.equal(result.answers.length, lesson.questions.length);
-      assert.equal(result.answers.filter(answer => answer.correct).length, lesson.questions.length - 1);
-      assert.equal(result.answers.filter(answer => answer.parentChecked).length, 0);
-      assert.equal(result.answers.filter(answer => answer.aiChecked).length, lesson.cards.length);
-      assert.equal(calls, lesson.cards.length);
-      assert.deepEqual(loadRoboticsProgress(studentId).reviewQuestionIds, [lesson.questions[0].id]);
-      assert.deepEqual(getAllProgress(studentId), {}, 'robotics does not alter spelling mastery');
-      view.unmount();
+      });
+    }
+  }
 
-      const reopened = render(React.createElement(App));
-      fireEvent.click(reopened.getByRole('button', { name: 'Robotics' }));
-      assert.ok(reopened.getByText(`Last exam quiz: ${lesson.questions.length - 1} / ${lesson.questions.length} correct`));
-      fireEvent.click(reopened.getByRole('button', { name: 'Spell Bee' }));
-      fireEvent.click(reopened.getByRole('button', { name: /Parent Insights/ }));
-      assert.match(reopened.getByRole('region', { name: 'Robotics progress' }).textContent!, /Last exam quiz:/);
-      fireEvent.click(reopened.getByRole('button', { name: 'Open robotics revision' }));
-      assert.ok(reopened.getByRole('heading', { name: lesson.title }));
+  test('the app routes directly to shared Spell Bee revision without legacy subnavigation', async () => {
+    const view = render(React.createElement(App));
+    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
+    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+
+    await view.findByRole('heading', { name: 'Exam-eve revision' });
+    assert.ok(view.getByRole('region', { name: 'Revision overview' }));
+    assert.equal(view.queryByRole('navigation', { name: 'Spell Bee navigation' }), null);
+    assert.equal(view.queryByRole('button', { name: /Worksheets/ }), null);
+  });
+
+  test('legacy subject summaries keep the initial result after an immediate correction and recheck', () => {
+    const definition = buildSubjectRevision('robotics', 'fazia', '');
+    if (!definition.onComplete) throw new Error('Robotics revision must save its completed result.');
+    const questionId = getRoboticsLesson('fazia').questions[0].id;
+    const answers: RevisionResponse[] = [
+      {
+        questionId, answer: 'not yet', outcome: 'incorrect', attemptKind: 'initial',
+        assistance: [], attemptId: 'initial-attempt', attemptedAt: '2026-11-04T10:00:00.000Z'
+      },
+      {
+        questionId, answer: 'corrected answer', outcome: 'correct', attemptKind: 'correction',
+        assistance: ['answer-revealed'], attemptId: 'correction-attempt', attemptedAt: '2026-11-04T10:01:00.000Z'
+      },
+      {
+        questionId, answer: 'corrected answer', outcome: 'correct', attemptKind: 'recheck',
+        assistance: [], attemptId: 'recheck-attempt', attemptedAt: '2026-11-04T10:05:00.000Z'
+      }
+    ];
+
+    assert.equal(definition.onComplete({
+      mode: 'practice', section: 'all', completedAt: '2026-11-04T10:05:00.000Z', answers
+    }), true);
+    const savedAnswer = loadRoboticsProgress('fazia').practice?.answers[0];
+    assert.equal(savedAnswer?.attemptId, 'initial-attempt');
+    assert.equal(savedAnswer?.correct, false);
+  });
+
+  test('a correction does not erase the first mistake and a later unaided recheck resolves it', async () => {
+    const first = question('q1', 'first answer', {
+        helpContent: React.createElement('p', null, 'Hint: recall the first answer.')
+    });
+    const view = renderRevision([
+      first,
+      question('q2', 'second answer'),
+      question('q3', 'third answer')
+    ], { sessionSize: 3 });
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    await view.findByRole('textbox', { name: 'Your answer' });
+
+    fireEvent.click(view.getByRole('button', { name: 'Show help' }));
+    assert.ok(view.getByText('Hint: recall the first answer.'));
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'not yet' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Let’s review this answer.');
+    assert.ok(view.getByText((_, element) =>
+      element?.tagName === 'P' && element.textContent?.replace(/\s+/g, ' ').trim() === 'Answer: first answer'
+    ));
+
+    fireEvent.click(view.getByRole('button', { name: 'Try once more now' }));
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'first answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
+
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'second answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
+
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'third answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
+
+    await view.findByText(/Recheck after other questions/);
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'first answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
+
+    await view.findByRole('heading', { name: 'Revision batch complete' });
+    assert.ok(view.getAllByText(/Same-day recheck/).length >= 2);
+    assert.ok(view.getAllByText(/Help used/).length >= 1);
+    fireEvent.click(view.getByRole('button', { name: 'Return to revision' }));
+    assert.ok(view.getByText(/3 of 3 checked · 0 to recheck/));
+  });
+
+  test('mock exam hides answers until completion and records skips in the result', async () => {
+    const completed: Parameters<NonNullable<ExamRevisionViewProps['onComplete']>>[0][] = [];
+    const view = renderRevision([
+      question('q1', 'first answer'),
+      question('q2', 'second answer')
+    ], {
+      allowSectionAssessment: true,
+      onComplete: result => {
+        completed.push(result);
+        return true;
+      }
+    });
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Optional full mock exam' }));
+    await view.findByRole('button', { name: 'Save answer and continue' });
+    assert.equal(view.queryByText(/Answer: first answer/), null);
+    fireEvent.click(view.getByRole('button', { name: /I don’t know yet/ }));
+
+    await view.findByRole('heading', { name: 'What is the answer to q2?' });
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'second answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    await view.findByRole('heading', { name: 'Mock exam complete' });
+
+    assert.ok(view.getByText('1 correct of 2 checked'));
+    assert.ok(view.getByText((_, element) =>
+      element?.tagName === 'P' && element.textContent?.replace(/\s+/g, ' ').trim() === 'Answer: first answer'
+    ));
+    assert.equal(completed.length, 1);
+    assert.equal(completed[0].mode, 'exam');
+    assert.deepEqual(completed[0].answers.map(answer => answer.outcome), ['skipped', 'correct']);
+  });
+
+  test('save and exit resumes the same batch with its feedback and unfinished answer', async () => {
+    const completed: Parameters<NonNullable<ExamRevisionViewProps['onComplete']>>[0][] = [];
+    const view = renderRevision([
+      question('q1', 'first answer'),
+      question('q2', 'second answer')
+    ], {
+      onComplete: result => {
+        completed.push(result);
+        return true;
+      }
+    });
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    fireEvent.change(await view.findByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'first answer' }
+    });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Save and exit' }));
+    assert.equal(view.queryByRole('button', { name: 'Resume saved session' }), null);
+    fireEvent.click(view.getByRole('button', { name: 'Resume current session' }));
+    assert.ok(view.getByText('Correct. Keep going.'));
+    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
+
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), {
+      target: { value: 'second answer' }
+    });
+    fireEvent.click(view.getByRole('button', { name: 'Save and exit' }));
+    fireEvent.click(view.getByRole('button', { name: 'Resume current session' }));
+    assert.ok(view.getByText('Revision · Question 2 of 2'));
+    assert.equal((view.getByRole('textbox', { name: 'Your answer' }) as HTMLTextAreaElement).value, 'second answer');
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
+    await view.findByRole('heading', { name: 'Revision batch complete' });
+
+    assert.equal(completed.length, 1);
+    assert.deepEqual(completed[0].answers.map(answer => answer.outcome), ['correct', 'correct']);
+    assert.equal(completed[0].answers[0].attemptId.split(':')[0], completed[0].answers[1].attemptId.split(':')[0]);
+    fireEvent.click(view.getByRole('button', { name: 'Return to revision' }));
+    assert.equal(view.queryByRole('button', { name: 'Resume current session' }), null);
+  });
+
+  test('a Maths assessment saves graded answers after read-aloud, including the final question', async t => {
+    const speak = t.mock.method(audioService, 'speak', () => true);
+    const definition = buildSubjectRevision('maths', 'fazia', '');
+    const portion = definition.questions[0].section;
+    const questions = definition.questions.filter(item => item.section === portion);
+    const view = render(React.createElement(ExamRevisionView, {
+      ...definition,
+      learnerId: 'fazia',
+      subjectId: 'maths',
+      sessionSize: 5,
+      onSessionSizeChange: () => {},
+      speechAudio: true
+    }));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.change(view.getByRole('combobox', { name: 'Choose a portion' }), { target: { value: portion } });
+    fireEvent.click(view.getByRole('button', { name: /Optional .* assessment/ }));
+    for (const item of questions) {
+      await view.findByRole('heading', { name: item.prompt });
+      fireEvent.click(view.getByRole('button', { name: 'Listen to question' }));
+      if (item.options) {
+        fireEvent.click(view.getByRole('radio', { name: item.answer }));
+      } else {
+        fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: item.answer } });
+      }
+      fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    }
+
+    await view.findByRole('heading', { name: 'Mock exam complete' });
+    assert.ok(view.getByText(`${questions.length} correct of ${questions.length} checked`));
+    assert.ok(view.getByText('Result saved on this device.'));
+    assert.equal(view.queryByText('Not checked'), null);
+    assert.equal(speak.mock.callCount(), questions.length);
+    const saved = loadMathsProgress('fazia').exam;
+    assert.equal(saved?.answers.length, questions.length);
+    assert.ok(saved?.answers.every(answer => answer.correct && answer.assistance?.includes('read-aloud')));
+    assert.equal(loadMathsProgress('shiza').exam, null);
+  });
+
+  for (const finish of ['check', 'skip'] as const) {
+    test(`a failed exam check can ${finish === 'check' ? 'be retried' : 'be skipped'} without retaining an ungraded duplicate`, async () => {
+      let checks = 0;
+      const completed: Parameters<NonNullable<ExamRevisionViewProps['onComplete']>>[0][] = [];
+      const view = renderRevision([
+        question('q1', 'first answer'),
+        question('q2', 'second answer', {
+          grade: async () => {
+            checks++;
+            if (checks === 1) throw new Error('Checking unavailable. Retry this answer.');
+            return { correct: true, source: 'ai', feedback: 'Correct idea.' };
+          }
+        })
+      ], {
+        onComplete: result => {
+          completed.push(result);
+          return result.answers.every(answer => answer.outcome !== 'ungraded');
+        }
+      });
+
+      await view.findByRole('region', { name: 'Revision overview' });
+      fireEvent.click(view.getByRole('button', { name: 'Optional full mock exam' }));
+      fireEvent.change(await view.findByRole('textbox', { name: 'Your answer' }), { target: { value: 'first answer' } });
+      fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+      await view.findByRole('heading', { name: 'What is the answer to q2?' });
+      fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'second answer' } });
+      fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+      await view.findByText('Checking unavailable. Retry this answer.');
+      fireEvent.click(view.getByRole('button', { name: finish === 'check' ? 'Save answer and continue' : 'I don’t know yet' }));
+
+      await view.findByRole('heading', { name: 'Mock exam complete' });
+      assert.ok(view.getByText('Result saved on this device.'));
+      assert.equal(view.queryByText('Not checked'), null);
+      assert.equal(completed.length, 1);
+      assert.deepEqual(completed[0].answers.map(answer => answer.outcome), ['correct', finish === 'check' ? 'correct' : 'skipped']);
+      assert.equal(new Set(completed[0].answers.map(answer => answer.attemptId)).size, 2);
+      assert.equal(checks, finish === 'check' ? 2 : 1);
     });
   }
 
-  test('robotics short-answer practice checks equivalent wording without an access code or parent confirmation', async t => {
-    t.mock.method(globalThis, 'fetch', async () => Response.json({ correct: true, feedback: 'That means the same thing.' }));
-    const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
-    saveRoboticsResult('fazia', {
-      mode: 'practice', completedAt: new Date().toISOString(),
-      answers: [{ questionId: question.id, answer: '', correct: false, parentChecked: false }]
-    });
-    const view = render(React.createElement(RoboticsView, {
-      activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
+  test('Spell Bee completion updates only the learner summary, preserves first attempts, and is safe to retry', () => {
+    const definition = buildSubjectRevision('spell-bee', 'fazia', '');
+    assert.ok(definition.onComplete, 'Spell Bee must save its legacy summary on completion.');
+    const [first, second] = definition.questions;
+    const answers: RevisionResponse[] = [
+      {
+        questionId: first.id, answer: 'not yet', outcome: 'incorrect', attemptKind: 'initial',
+        assistance: [], attemptId: 'spelling-initial', attemptedAt: '2026-11-04T10:00:00.000Z'
+      },
+      {
+        questionId: first.id, answer: first.answer, outcome: 'correct', attemptKind: 'correction',
+        assistance: ['answer-revealed'], attemptId: 'spelling-correction', attemptedAt: '2026-11-04T10:01:00.000Z'
+      },
+      {
+        questionId: first.id, answer: first.answer, outcome: 'correct', attemptKind: 'recheck',
+        assistance: [], attemptId: 'spelling-recheck', attemptedAt: '2026-11-04T10:05:00.000Z'
+      },
+      {
+        questionId: second.id, answer: second.answer, outcome: 'ungraded', attemptKind: 'initial',
+        assistance: [], attemptId: 'spelling-second', attemptedAt: '2026-11-04T10:06:00.000Z'
+      }
+    ];
+    const result = { mode: 'practice' as const, section: 'all', completedAt: '2026-11-04T10:06:00.000Z', answers };
+
+    assert.equal(definition.onComplete({ ...result, answers: [] }), false);
+    assert.equal(definition.onComplete(result), false);
+    assert.deepEqual(getAllProgress('fazia'), {});
+    answers[3] = { ...answers[3], outcome: 'skipped', answer: '', skipped: true };
+    assert.equal(definition.onComplete(result), true);
+    assert.equal(definition.onComplete(result), true);
+    const saved = getWordProgress(first.id, 'fazia');
+    assert.equal(saved.attempts, 1);
+    assert.equal(saved.history[0].wasCorrect, false);
+    assert.equal(saved.history[0].mode, 'practice');
+    assert.equal(saved.lastMistake, 'not yet');
+    assert.equal(getWordProgress(second.id, 'fazia').attempts, 1);
+    assert.equal(getWordProgress(second.id, 'fazia').needsRevisit, true);
+    assert.deepEqual(getAllProgress('shiza'), {});
+  });
+
+  test('Spell Bee exam summaries keep assisted answers out of unaided recall evidence', () => {
+    const definition = buildSubjectRevision('spell-bee', 'shiza', '');
+    assert.ok(definition.onComplete);
+    const answers: RevisionResponse[] = definition.questions.slice(0, 2).map((item, index) => ({
+      questionId: item.id, answer: item.answer, outcome: 'correct', attemptKind: 'exam',
+      assistance: index === 0 ? [] : ['read-aloud'], attemptId: `spell-exam-${index}`,
+      attemptedAt: '2026-11-04T10:00:00.000Z'
     }));
-    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
-    assert.equal(view.queryByLabelText('Grading access code'), null);
-    assert.equal(view.getByRole('button', { name: 'Check answer' }).hasAttribute('disabled'), true);
-    fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes our work easier.' } });
-    assert.equal(view.getByRole('button', { name: 'Check answer' }).hasAttribute('disabled'), false);
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    await waitFor(() => assert.ok(view.getByText('Well done!')));
-    assert.ok(view.getByText('AI feedback: That means the same thing.'));
-    assert.equal(view.queryByRole('button', { name: 'Parent: answer is correct' }), null);
-    fireEvent.click(view.getByRole('button', { name: 'Finish practice' }));
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].parentChecked, false);
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].aiChecked, true);
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].correct, true);
+    assert.equal(definition.onComplete({
+      mode: 'exam', section: 'all', completedAt: '2026-11-04T10:00:00.000Z', answers
+    }), true);
+    const unaided = getWordProgress(answers[0].questionId, 'shiza');
+    const assisted = getWordProgress(answers[1].questionId, 'shiza');
+    assert.equal(unaided.history[0].mode, 'test');
+    assert.equal(unaided.unaidedCorrectCount, 1);
+    assert.equal(assisted.history[0].mode, 'practice');
+    assert.equal(assisted.unaidedCorrectCount, 0);
+    assert.equal(assisted.lastUnaidedCorrectDate, null);
+    assert.deepEqual(getAllProgress('fazia'), {});
   });
 
-  test('a failed AI check retains the answer and score, prevents double submits, and can be retried', async t => {
-    const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
-    saveRoboticsResult('fazia', {
-      mode: 'practice', completedAt: new Date().toISOString(),
-      answers: [{ questionId: question.id, answer: '', correct: false, parentChecked: false }]
-    });
-    let complete: (response: Response) => void = () => { throw new Error('No request is pending'); };
-    let calls = 0;
-    t.mock.method(globalThis, 'fetch', () => {
-      calls++;
-      return new Promise<Response>(resolve => { complete = resolve; });
-    });
-    const view = render(React.createElement(RoboticsView, {
-      activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
+  test('Spell Bee save failure remains retryable without counting already saved words twice', t => {
+    const definition = buildSubjectRevision('spell-bee', 'fazia', '');
+    assert.ok(definition.onComplete);
+    const answers: RevisionResponse[] = definition.questions.slice(0, 2).map((item, index) => ({
+      questionId: item.id, answer: item.answer, outcome: 'correct', attemptKind: 'exam',
+      assistance: [], attemptId: `spell-retry-${index}`, attemptedAt: '2026-11-04T10:00:00.000Z'
     }));
-    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
-    fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes work easier.' } });
-    const form = view.getByRole('button', { name: 'Check answer' }).closest('form')!;
-    act(() => { fireEvent.submit(form); fireEvent.submit(form); });
-    assert.equal(calls, 1);
-    assert.ok(view.getByRole('button', { name: "I don't know yet" }).hasAttribute('disabled'));
-    await act(async () => { complete(new Response(null, { status: 503 })); });
-    assert.match(view.getByRole('alert').textContent!, /has not been marked/);
-    assert.equal((view.getByLabelText('Write your answer') as HTMLTextAreaElement).value, 'It makes work easier.');
-    assert.equal(view.queryByText('Model answer:'), null);
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].answer, '');
-    fireEvent.click(view.getByRole('button', { name: 'Retry checking answer' }));
-    await act(async () => { complete(Response.json({ correct: false, feedback: 'Add the missing idea.' })); });
-    assert.ok(view.getByText('Let us practise this again.'));
-    fireEvent.click(view.getByRole('button', { name: 'Finish practice' }));
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].aiChecked, true);
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].correct, false);
-  });
-
-  test('leaving during an AI check aborts it and never saves an unfinished result', async t => {
-    const question = getRoboticsLesson('fazia').questions.find(question => question.kind === 'short')!;
-    saveRoboticsResult('fazia', {
-      mode: 'practice', completedAt: new Date().toISOString(),
-      answers: [{ questionId: question.id, answer: '', correct: false, parentChecked: false }]
+    const result = { mode: 'exam' as const, section: 'all', completedAt: '2026-11-04T10:00:00.000Z', answers };
+    const originalSetItem = dom.window.Storage.prototype.setItem;
+    let writes = 0;
+    const storage = t.mock.method(dom.window.Storage.prototype, 'setItem', function (this: Storage, key: string, value: string) {
+      if (key === getStudentStorageKey('fazia') && ++writes === 2) throw new Error('QuotaExceededError');
+      originalSetItem.call(this, key, value);
     });
-    let signal: AbortSignal | undefined;
-    t.mock.method(globalThis, 'fetch', (_url: unknown, init: RequestInit) => {
-      signal = init.signal ?? undefined;
-      return new Promise<Response>((_resolve, reject) => {
-        signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
-      });
-    });
-    const view = render(React.createElement(RoboticsView, {
-      activeStudent: 'fazia', settings, gradingApiUrl: 'https://grading.example/grade'
-    }));
-    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
-    fireEvent.change(view.getByLabelText('Write your answer'), { target: { value: 'It makes work easier.' } });
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    await act(async () => { view.unmount(); });
-    assert.equal(signal?.aborted, true);
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].answer, '');
+
+    assert.equal(definition.onComplete(result), false);
+    assert.equal(getWordProgress(answers[0].questionId, 'fazia').attempts, 1);
+    assert.equal(getWordProgress(answers[1].questionId, 'fazia').attempts, 0);
+    storage.mock.restore();
+    assert.equal(definition.onComplete(result), true);
+    assert.ok(answers.every(answer => getWordProgress(answer.questionId, 'fazia').attempts === 1));
   });
 
-  test('robotics read-aloud honors mute and slow speech and stops when the lesson is left', () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    const listen = view.getByRole('button', { name: 'Listen to Machines make work easier' });
-    assert.equal(listen.hasAttribute('disabled'), true);
-    fireEvent.click(view.getByRole('button', { name: 'Toggle audio' }));
-    fireEvent.click(view.getByTitle('Normal speech speed'));
-    fireEvent.click(listen);
-    assert.match(utterances.at(-1)!.text, /A machine helps us do work easily/);
-    assert.equal(utterances.at(-1)!.rate, 0.72);
-    const previous = cancellations;
-    fireEvent.click(view.getByRole('button', { name: 'Spell Bee' }));
-    fireEvent.click(view.getByRole('button', { name: /All 45 Words/ }));
-    assert.ok(cancellations > previous);
-  });
-
-  test('malformed robotics progress is visibly reported without hiding the lesson', async () => {
-    localStorage.setItem(getRoboticsStorageKey('fazia'), '{"exam":"bad"}');
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    await waitFor(() => assert.match(view.getByRole('alert').textContent!, /Robotics progress.*malformed/));
-    assert.ok(view.getByRole('heading', { name: 'Simple and Complex Machines' }));
-  });
-
-  test('leaving an unfinished quiz asks for confirmation and does not save it', () => {
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    fireEvent.click(view.getByRole('button', { name: 'Start practice' }));
-    fireEvent.click(view.getByRole('button', { name: 'Back to lesson' }));
-    assert.ok(view.getByRole('alert'));
-    fireEvent.click(view.getByRole('button', { name: 'Keep answering' }));
-    assert.ok(view.getByText('Assisted practice · Question 1 of 23'));
-    fireEvent.click(view.getByRole('button', { name: 'Back to lesson' }));
-    fireEvent.click(view.getByRole('button', { name: 'Discard unfinished quiz' }));
-    assert.ok(view.getByRole('button', { name: 'Start practice' }));
-    assert.equal(loadRoboticsProgress('fazia').practice, null);
-  });
-
-  test('a failed robotics save is visible and retry preserves the completed answers', async () => {
-    const question = getRoboticsLesson('fazia').questions[0];
-    saveRoboticsResult('fazia', {
-      mode: 'practice', completedAt: new Date().toISOString(),
-      answers: [{ questionId: question.id, answer: 'False', correct: false, parentChecked: false }]
-    });
-    const view = render(React.createElement(App));
-    fireEvent.click(view.getByRole('button', { name: 'Robotics' }));
-    fireEvent.click(view.getByRole('button', { name: 'Review missed (1)' }));
-    fireEvent.click(view.getByRole('radio', { name: 'True' }));
-    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
-    const prototype = Object.getPrototypeOf(localStorage);
-    const original = prototype.setItem;
+  test('Spell Bee completion mirrors its summary but does not duplicate per-answer history', async t => {
+    const records: LearningRecord[] = [];
+    t.mock.method(getDefaultLearningRepository(), 'put', async (record: LearningRecord) => { records.push(record); });
+    const definition = buildSubjectRevision('spell-bee', 'fazia', '');
+    assert.ok(definition.onComplete);
+    const item = definition.questions[0];
+    Object.defineProperty(globalThis, 'indexedDB', { value: {}, configurable: true });
     try {
-      prototype.setItem = function(key: string, value: string) {
-        if (key === getRoboticsStorageKey('fazia')) throw new Error('Storage quota exceeded');
-        return original.call(this, key, value);
-      };
-      fireEvent.click(view.getByRole('button', { name: 'Finish practice' }));
-      await waitFor(() => assert.match(view.getByRole('alert').textContent!, /Storage save failed/));
-      assert.ok(view.getByText('Result not saved. Please retry before leaving this page.'));
-      assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].correct, false);
-    } finally { prototype.setItem = original; }
-    fireEvent.click(view.getByRole('button', { name: 'Retry saving result' }));
-    assert.equal(loadRoboticsProgress('fazia').practice?.answers[0].correct, true);
-    assert.ok(view.getByText('Saved for Fazia on this browser.'));
+      assert.equal(definition.onComplete({
+        mode: 'practice', section: 'all', completedAt: '2026-11-04T10:00:00.000Z',
+        answers: [{
+          questionId: item.id, answer: item.answer, outcome: 'correct', attemptKind: 'initial',
+          assistance: [], attemptId: 'already-recorded', attemptedAt: '2026-11-04T10:00:00.000Z'
+        }]
+      }), true);
+      await waitFor(() => assert.equal(records.length, 1));
+      assert.equal(records[0].kind, 'progress');
+    } finally {
+      Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true });
+    }
+  });
+
+  test('an unavailable automatic check preserves the answer and allows retry', async () => {
+    let checks = 0;
+    const writtenQuestion = question('written', 'right answer', {
+      grade: async () => {
+        checks++;
+        if (checks === 1) throw new Error('Automatic written-answer checking is temporarily unavailable.');
+        return { correct: true, source: 'ai', feedback: 'The essential idea is present.' };
+      }
+    });
+    const view = renderRevision([writtenQuestion]);
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    const answerField = await view.findByRole('textbox', { name: 'Your answer' });
+    fireEvent.change(answerField, { target: { value: 'My saved response' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+
+    await view.findByText('Automatic written-answer checking is temporarily unavailable.');
+    assert.equal(
+      (view.getByRole('textbox', { name: 'Your answer' }) as HTMLTextAreaElement).value,
+      'My saved response'
+    );
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    assert.ok(view.getByText('The essential idea is present.'));
+    assert.equal(checks, 2);
   });
 });

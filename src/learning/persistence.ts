@@ -15,7 +15,7 @@ const BACKUP_FORMAT = 'learning-academy-backup';
 export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 export const MAX_BACKUP_RECORDS = 5000;
 
-export type LearningRecordKind = 'progress' | 'attempt' | 'draft' | 'result' | 'legacy-summary';
+export type LearningRecordKind = 'progress' | 'attempt' | 'draft' | 'revision-state' | 'result' | 'legacy-summary';
 
 export interface LearningRecord<T = unknown> {
   id: string;
@@ -46,6 +46,16 @@ export interface SessionDraftRecord<T = unknown> {
   rubricVersion: string;
   savedAt: string;
   state: T;
+}
+
+export interface RevisionRoundRecord {
+  revisionRoundId: string;
+  learnerId: StudentId;
+  subjectId: LearningSubjectId;
+  lessonId: string;
+  contentVersion: string;
+  startedAt: string;
+  questionIds: string[];
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -141,7 +151,7 @@ function isLearningRecord(value: unknown): value is LearningRecord {
   return isPlainRecord(value) && typeof value.id === 'string' && value.schemaVersion === 1 &&
     (value.learnerId === 'fazia' || value.learnerId === 'shiza' || value.learnerId === 'global') &&
     typeof value.subjectId === 'string' && typeof value.kind === 'string' &&
-    ['progress', 'attempt', 'draft', 'result', 'legacy-summary'].includes(value.kind) &&
+    ['progress', 'attempt', 'draft', 'revision-state', 'result', 'legacy-summary'].includes(value.kind) &&
     typeof value.contentVersion === 'string' && typeof value.updatedAt === 'string' &&
     Number.isFinite(Date.parse(value.updatedAt)) && 'data' in value;
 }
@@ -167,6 +177,13 @@ function isLearningAttempt(value: unknown): value is LearningAttempt {
   if (value.explanation !== undefined && typeof value.explanation !== 'string') return false;
   if (value.provenance !== undefined && typeof value.provenance !== 'string') return false;
   if (value.gradingSource === 'ai' && typeof value.modelId !== 'string') return false;
+  if (value.revisionRoundId !== undefined && typeof value.revisionRoundId !== 'string') return false;
+  if (value.revisionBatchId !== undefined && typeof value.revisionBatchId !== 'string') return false;
+  if (value.revisionAttemptKind !== undefined &&
+      !['initial', 'correction', 'recheck', 'exam'].includes(String(value.revisionAttemptKind))) return false;
+  if (value.responseFormat !== undefined && !['written', 'choice'].includes(String(value.responseFormat))) return false;
+  if (value.revisionSequence !== undefined &&
+      (typeof value.revisionSequence !== 'number' || !Number.isInteger(value.revisionSequence) || value.revisionSequence < 0)) return false;
   return value.learnerId === 'fazia' || value.learnerId === 'shiza';
 }
 
@@ -280,7 +297,7 @@ export async function persistProgressSnapshot(
     await repository.put(record);
     pendingWrites.delete(record.id);
   } catch (error) {
-    emitStorageError('Your browser copy was saved, but the IndexedDB progress backup did not finish. Retry the backup from Parent Insights.');
+    emitStorageError('Your browser copy was saved, but the IndexedDB progress backup did not finish. Retry the backup from Progress & backup.');
     throw error;
   }
 }
@@ -313,7 +330,7 @@ export async function saveLearningAttempt(repository: LearningRepository, attemp
     await repository.put(record);
     pendingWrites.delete(record.id);
   } catch (error) {
-    emitStorageError('The browser result was saved, but its IndexedDB attempt history did not finish. Retry the save from Parent Insights.');
+    emitStorageError('The browser result was saved, but its IndexedDB attempt history did not finish. Retry the save from Progress & backup.');
     throw error;
   }
 }
@@ -385,6 +402,54 @@ export async function deleteSessionDraft(
   sessionId: string
 ): Promise<void> {
   await repository.delete(`draft:${learnerId}:${subjectId}:${sessionId}`);
+}
+
+function isRevisionRoundRecord(value: unknown): value is RevisionRoundRecord {
+  return isPlainRecord(value) && typeof value.revisionRoundId === 'string' &&
+    (value.learnerId === 'fazia' || value.learnerId === 'shiza') &&
+    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi'].includes(String(value.subjectId)) &&
+    typeof value.lessonId === 'string' && typeof value.contentVersion === 'string' &&
+    typeof value.startedAt === 'string' && Number.isFinite(Date.parse(value.startedAt)) &&
+    Array.isArray(value.questionIds) && value.questionIds.length > 0 &&
+    value.questionIds.every(id => typeof id === 'string') &&
+    new Set(value.questionIds).size === value.questionIds.length;
+}
+
+export async function loadRevisionRound(
+  repository: LearningRepository,
+  learnerId: StudentId,
+  subjectId: LearningSubjectId,
+  lessonId: string,
+  contentVersion: string
+): Promise<RevisionRoundRecord | null> {
+  const record = await repository.get(`revision:${learnerId}:${subjectId}:${lessonId}`);
+  if (!record) return null;
+  if (record.kind !== 'revision-state' || record.learnerId !== learnerId ||
+      record.subjectId !== subjectId || !isRevisionRoundRecord(record.data) ||
+      record.data.learnerId !== learnerId ||
+      record.data.subjectId !== subjectId || record.data.lessonId !== lessonId ||
+      record.data.contentVersion !== record.contentVersion) {
+    throw new Error('The saved revision progress does not match this lesson. Your previous records have been kept.');
+  }
+  if (record.contentVersion !== contentVersion) return null;
+  return record.data;
+}
+
+export async function saveRevisionRound(
+  repository: LearningRepository,
+  round: RevisionRoundRecord
+): Promise<void> {
+  if (!isRevisionRoundRecord(round)) throw new Error('The revision progress is incomplete and was not saved.');
+  await repository.put({
+    id: `revision:${round.learnerId}:${round.subjectId}:${round.lessonId}`,
+    schemaVersion: 1,
+    learnerId: round.learnerId,
+    subjectId: round.subjectId,
+    kind: 'revision-state',
+    contentVersion: round.contentVersion,
+    updatedAt: new Date().toISOString(),
+    data: round
+  });
 }
 
 export function getDefaultLearningRepository(): LearningRepository {

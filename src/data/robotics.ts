@@ -12,6 +12,7 @@ export interface RoboticsCard {
 
 interface QuestionBase {
   id: string;
+  sourceCardId?: string;
   prompt: string;
   answer: string;
   explanation?: string;
@@ -43,7 +44,8 @@ const fill = (id: string, prompt: string, answer: string, aliases: string[] = []
 
 const shortAnswers = (cards: RoboticsCard[]): RoboticsQuestion[] =>
   cards.map(card => ({
-    id: card.id, kind: 'short', prompt: card.prompt, answer: card.answer, gradingCriteria: card.gradingCriteria
+    id: card.id, sourceCardId: card.id, kind: 'short', prompt: card.prompt,
+    answer: card.answer, gradingCriteria: card.gradingCriteria
   }));
 
 const machinesCards: RoboticsCard[] = [

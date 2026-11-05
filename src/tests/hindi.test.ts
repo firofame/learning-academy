@@ -7,7 +7,6 @@ import {
   HINDI_SECTIONS,
   SHIZA_HINDI_LESSON
 } from '../data/hindi';
-import { getHindiExamDateLabel } from '../components/HindiView';
 import {
   getHindiStorageKey,
   HindiResult,
@@ -88,15 +87,11 @@ describe('Shiza Grade 6 Hindi exam portions', () => {
     assert.equal(checkHindiAnswer(trees, 'वृक्ष'), false);
   });
 
-  test('normalizes Hindi punctuation and Unicode and labels the exam date', () => {
+  test('normalizes Hindi punctuation and Unicode', () => {
     const line = SHIZA_HINDI_LESSON.questions.find(question => question.id === 'g6-hin-poem-3')!;
     assert.equal(checkHindiAnswer(line, 'तेज़ कड़क हो।'), true);
     const newWord = SHIZA_HINDI_LESSON.questions.find(question => question.id === 'g6-hin-translation-5')!;
     assert.equal(checkHindiAnswer(newWord, 'ताजा'), true);
-    assert.equal(
-      getHindiExamDateLabel('2026-11-05', new Date(2026, 10, 4)),
-      'Exam tomorrow · Thursday, November 5, 2026'
-    );
   });
 
   test('saves exam and practice separately and revisits missed questions', () => {
