@@ -53,4 +53,4 @@ Help children understand, remember, and apply what they learn, not just finish q
 - For learning-flow changes, test answer visibility before attempts, hints and retries, independent versus assisted outcomes, delayed review eligibility, learner isolation, and saved-session recovery as applicable.
 - For grading changes, cover equivalent answers, genuinely incorrect answers, invalid responses, and network failures without corrupting scores or progress.
 - For UI changes, verify phone and laptop layouts, keyboard and touch interactions, long prompts, native-script content, and the on-screen keyboard when applicable.
-- Use the smallest relevant tests first. Run `npm test`, `npm run lint` (TypeScript checking), and `npm run build` for application changes as appropriate. Documentation-only changes do not require application builds.
+- Use the smallest relevant tests first. Run `npm test`, `npm run lint` (TypeScript checking), and `npm run build` for application changes as appropriate. For grading Worker code or configuration changes, also run `npm run worker:check`. Documentation-only changes do not require application builds.
