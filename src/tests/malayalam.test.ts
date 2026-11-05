@@ -212,6 +212,8 @@ describe('Shiza Grade 6 Malayalam exam portions', () => {
     assert.equal(checkMalayalamAnswer(standard, 'ചാലെ + പിടിച്ച് + അങ്ങ്'), true);
     assert.equal(checkMalayalamAnswer(standard, 'ചാലെ, പിടിച്ച്, അങ്ങ്'), true);
     assert.equal(checkMalayalamAnswer(standard, 'ചാലെ പിടിച്ച് അങ്ങ്'), true);
+    assert.equal(checkMalayalamAnswer(standard, 'ചാലെ + പിടിച്ച് അങ്ങ്'), true);
+    assert.equal(checkMalayalamAnswer(standard, 'ചാലെ, പിടിച്ച് + അങ്ങ്'), true);
     assert.equal(checkMalayalamAnswer(standard, 'പിടിച്ച് + ചാലെ + അങ്ങ്'), false);
     assert.equal(checkMalayalamAnswer(standard, 'ചാലെ + പിടിച്ച്'), false);
 

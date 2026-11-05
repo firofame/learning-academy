@@ -378,7 +378,7 @@ const lessonOneAnswers: { prompt: string; answer: string; criteria: string }[] =
   {
     prompt: 'കൃഷ്ണന്റെ മുഖത്ത് ഉമ്മവച്ചുകൊണ്ട് അമ്മയായ യശോദ എന്താണ് പറഞ്ഞത്?',
     answer: '“എന്റെ മുഖത്തു നോക്കി പുഞ്ചിരിക്കുന്ന നിന്റെ നല്ല മുഖം കാണട്ടെ” എന്നാണ് യശോദ പറഞ്ഞത്.',
-    criteria: 'The answer must include the idea that Yashoda kissed Krishna’s face and asked to see his good face smiling at her. Accept a paraphrase of the quoted words in equivalent Malayalam.'
+    criteria: 'The answer must give Yashoda’s words: that she wants to see his good face smiling at her. Accept a paraphrase of the quoted words in equivalent Malayalam. The kiss does not need to be repeated because the prompt already includes it.'
   },
   {
     prompt: 'നന്ദഗോപരുടെ മനസ്സുതെളിയാനുള്ള കാരണമെന്ത്?',
@@ -618,7 +618,7 @@ export const SHIZA_MALAYALAM_LESSON: MalayalamLesson = {
       'sentence',
       'പാഠം 2 · “ദുരിതകാലം” എന്ന വാക്ക് ഉൾപ്പെടുത്തി ഒരു വാക്യം എഴുതുക.',
       'കോവിഡ് എന്ന മഹാമാരി നൽകിയ ദുരിതകാലത്തിൽ നിന്ന് കരകയറാൻ നമുക്ക് കഴിഞ്ഞു.',
-      'The answer must be a complete, meaningful Malayalam sentence that uses ദുരിതകാലം or an inflected form of it. Accept any suitable sentence with the same meaning; reject a fragment that does not use the word.'
+      'The answer must be a complete, meaningful Malayalam sentence that uses ദുരിതകാലം or an inflected form of it. Any suitable context is acceptable; the COVID example is only a model. Reject a fragment or a sentence that does not use the word.'
     ),
     writtenQuestion(
       'g6-mal-l2-sentence-2',
@@ -674,13 +674,11 @@ export function normalizeMalayalamAnswer(answer: string): string {
 }
 
 function splitAnswerParts(answer: string): string[] {
-  const normalized = answer.normalize('NFC').trim();
-  const separated = normalized
-    .split(/[+,/;|]+/u)
-    .map(part => part.trim())
+  return answer
+    .normalize('NFC')
+    .split(/[+,/;|\s]+/u)
+    .map(normalizeMalayalamAnswer)
     .filter(Boolean);
-  const rawParts = separated.length > 1 ? separated : normalized.split(/\s+/u);
-  return rawParts.map(normalizeMalayalamAnswer).filter(Boolean);
 }
 
 export function checkMalayalamAnswer(question: MalayalamQuestion, answer: string): boolean {
