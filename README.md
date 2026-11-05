@@ -157,8 +157,15 @@ required, including after leaving Robotics or reloading.
 
 The grading endpoint is publicly usable. Origin checks restrict browser access
 but are not authentication; other clients can imitate an allowed origin and
-consume your Gemini quota. Rate limits reduce abuse, not eliminate it. Set
-appropriate Gemini quotas and monitor billing before deploying.
+consume your Gemini quota. The Worker keeps Cloudflare per-IP and shared-family
+rate limits, each configured at six requests per minute, as best-effort abuse
+protection. These counters are approximate and location-local, not a guaranteed
+global ceiling for Gemini's project-level RPM. An uncertain answer can use a
+second Gemini request, so six grading attempts can generate up to 12 model
+requests in a rate-limit window. Check the actual RPM, TPM, and daily quotas in
+Google AI Studio, keep the Gemini key exclusively in the Worker, and monitor
+usage and billing. Other clients using the same Gemini project share its quota.
+Revisit stricter global enforcement if usage or costs become significant.
 
 When upgrading an existing deployment, redeploy both the Worker and GitHub Pages.
 The old family-code Worker secret is no longer required or read.
@@ -196,7 +203,7 @@ available on the deployed Worker.
   questions finish. Completed results and per-answer attempt records are saved;
   unfinished quizzes are kept as resumable drafts.
 - Requests do not require authentication and have per-IP and shared limits of
-  30 requests per minute **per Cloudflare location**. Cloudflare's counters are
+  6 requests per minute **per Cloudflare location**. Cloudflare's counters are
   approximate, not a strict global spending cap. Each request can make up to two
   Gemini calls. Check Gemini quotas/billing separately; free Worker hosting does
   not imply free or unlimited Gemini usage.
