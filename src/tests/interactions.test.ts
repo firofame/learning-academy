@@ -29,6 +29,7 @@ const { loadRoboticsProgress } = await import('../utils/roboticsStorage');
 const { loadMathsProgress } = await import('../utils/mathsStorage');
 const { loadMalayalamProgress } = await import('../utils/malayalamStorage');
 const { loadEvsProgress } = await import('../utils/evsStorage');
+const { loadBiologyProgress } = await import('../utils/biologyStorage');
 const { getAllProgress, getStudentStorageKey, getWordProgress } = await import('../utils/storage');
 const { audioService } = await import('../utils/audio');
 const { getDefaultLearningRepository } = await import('../learning/persistence');
@@ -617,5 +618,38 @@ describe('Shared exam-eve revision interactions', () => {
 
     await view.findByText('Correct. Keep going.');
   });
+
+  test('Shiza Grade 6 Biology section revision supports recall, feedback, and saves progress', async () => {
+    const view = render(React.createElement(SubjectRevisionView, {
+      activeStudent: 'shiza',
+      subjectId: 'biology',
+      settings: { ...settings, sessionSize: 2 },
+      onSessionSizeChange: () => {}
+    }));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.ok(view.getByRole('option', { name: /Chapter 1 · The Leaf/ }));
+    assert.ok(view.getByRole('option', { name: /Chapter 2 · The Flower/ }));
+    assert.ok(view.getByRole('option', { name: /Chapter 3 · The Cell/ }));
+    assert.ok(view.getByRole('option', { name: /Chapter 4 · The Digestive System/ }));
+
+    // Select Chapter 1: The Leaf
+    fireEvent.change(view.getByRole('combobox', { name: 'Choose a portion' }), {
+      target: { value: 'leaf' }
+    });
+
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    const input = await view.findByRole('textbox', { name: 'Your answer' });
+
+    // Active retrieval: answer is not revealed before submitting
+    assert.equal(view.queryByText('The point on the stem from where a leaf arises is called a node.'), null);
+
+    // Answer the first question correctly with valid alias
+    fireEvent.change(input, { target: { value: 'A node is the point on the stem from where a leaf arises.' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+
+    await view.findByText('Correct. Keep going.');
+  });
 });
+
 

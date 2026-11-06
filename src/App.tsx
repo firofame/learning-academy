@@ -23,6 +23,7 @@ const MathsView = lazy(() => import('./components/MathsView').then(module => ({ 
 const MalayalamView = lazy(() => import('./components/MalayalamView').then(module => ({ default: module.MalayalamView })));
 const HindiView = lazy(() => import('./components/HindiView').then(module => ({ default: module.HindiView })));
 const EvsView = lazy(() => import('./components/EvsView').then(module => ({ default: module.EvsView })));
+const BiologyView = lazy(() => import('./components/BiologyView').then(module => ({ default: module.BiologyView })));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
@@ -194,6 +195,15 @@ export default function App() {
         {currentView === 'evs' && (
           <EvsView
             key={`evs-${activeStudent}-${refreshKey}`}
+            activeStudent={activeStudent}
+            settings={settings}
+            onSessionSizeChange={handleSessionSizeChange}
+          />
+        )}
+
+        {currentView === 'biology' && (
+          <BiologyView
+            key={`biology-${activeStudent}-${refreshKey}`}
             activeStudent={activeStudent}
             settings={settings}
             onSessionSizeChange={handleSessionSizeChange}

@@ -48,6 +48,14 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     availableGrades: [2],
     startView: 'evs',
     views: ['evs']
+  },
+  {
+    id: 'biology',
+    name: 'Biology',
+    description: 'Revise school Biology portions with recall, feedback, and same-day rechecks.',
+    availableGrades: [6],
+    startView: 'biology',
+    views: ['biology']
   }
 ];
 

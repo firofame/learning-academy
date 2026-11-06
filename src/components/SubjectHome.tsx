@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
@@ -38,6 +38,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               <Languages className="w-8 h-8 text-amber-700" aria-hidden="true" />
             ) : subject.id === 'evs' ? (
               <Leaf className="w-8 h-8 text-emerald-700" aria-hidden="true" />
+            ) : subject.id === 'biology' ? (
+              <Dna className="w-8 h-8 text-emerald-700" aria-hidden="true" />
             ) : (
               <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
             )}
