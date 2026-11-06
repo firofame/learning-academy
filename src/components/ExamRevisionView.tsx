@@ -321,20 +321,20 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     setScreen('session');
   };
 
-  const startRevision = async (newRound = false) => {
+  const startRevision = (newRound = false) => {
     let revisionRoundId = round?.revisionRoundId;
     if (newRound || !revisionRoundId) {
       revisionRoundId = createSessionId();
-      await persistRound(revisionRoundId);
+      void persistRound(revisionRoundId);
     }
     makeSession(revisionRoundId, 'practice', selectedSection);
   };
 
-  const startExam = async (section = 'all') => {
+  const startExam = (section = 'all') => {
     let revisionRoundId = round?.revisionRoundId;
     if (!revisionRoundId) {
       revisionRoundId = createSessionId();
-      await persistRound(revisionRoundId);
+      void persistRound(revisionRoundId);
     }
     makeSession(revisionRoundId, 'exam', section);
   };
