@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Volume2 } from 'lucide-react';
 import type { AssistanceKind, AttemptOutcome, LearningAttempt, RevisionAttemptKind, RevisionResponseFormat } from '../learning/contracts';
-import { canScheduleRevisionRecheck, deriveRevisionProgress, selectRevisionBatch, type RevisionStep } from '../learning/revision';
+import { canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch, type RevisionStep } from '../learning/revision';
 import { createQuizAttempts, recordQuizAnswerAttempt } from '../learning/attemptRecords';
 import {
   getDefaultLearningRepository, listLearningAttempts, loadRevisionRound, saveRevisionRound,
@@ -10,7 +10,7 @@ import {
 import { usePersistentDraft } from '../learning/usePersistentDraft';
 import { CONTENT_VERSIONS } from '../data/contentVersions';
 import { getStudentProfile } from '../data/profiles';
-import { localCalendarDate } from '../learning/domain';
+import { isPortionExamReady, localCalendarDate } from '../learning/domain';
 import { createSessionId } from '../learning/sessionController';
 import { emitStorageError } from '../utils/appStorage';
 import { audioService } from '../utils/audio';
@@ -179,6 +179,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   );
   const progressById = useMemo(() => new Map(progress.map(item => [item.questionId, item])), [progress]);
   const coveredCount = progress.filter(item => item.checked).length;
+  const readyCount = progress.filter(item => item.examReady).length;
   const pendingCount = progress.filter(item => item.pendingRecheck).length;
   const remainingCount = progress.filter(item => !item.checked).length;
   const currentStep = session?.steps[session.index];
@@ -271,15 +272,27 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     section: string,
     batchId = createSessionId()
   ) => {
+    const isAllPortions = section === 'all';
     const sectionIds = questions
-      .filter(question => section === 'all' || question.section === section)
+      .filter(question => isAllPortions || question.section === section)
       .map(question => question.id);
     const batchSize = sessionSize > 0 ? sessionSize : 0;
     const steps = mode === 'exam'
-      ? sectionIds.map(questionId => ({ questionId, attemptKind: 'exam' as const }))
-      : selectRevisionBatch(sectionIds, attemptsRef.current.filter(attempt =>
-          attempt.revisionRoundId === revisionRoundId
-        ), batchId, batchSize, roundQuestionIds);
+      ? (isAllPortions
+          ? interleaveItems(sectionIds, id => questionById.get(id)?.section ?? 'all')
+              .map(questionId => ({ questionId, attemptKind: 'exam' as const }))
+          : sectionIds.map(questionId => ({ questionId, attemptKind: 'exam' as const })))
+      : selectRevisionBatch(
+          sectionIds,
+          attemptsRef.current.filter(attempt => attempt.revisionRoundId === revisionRoundId),
+          batchId,
+          batchSize,
+          roundQuestionIds,
+          {
+            interleave: isAllPortions,
+            categoryByQuestionId: id => questionById.get(id)?.section
+          }
+        );
     if (steps.length === 0) {
       setError(mode === 'exam'
         ? 'There are no questions in this portion.'
@@ -737,9 +750,10 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
             {round && (
               <div className="space-y-2 text-sm text-slate-700">
+                <p><strong>Exam-Ready for tomorrow:</strong> {readyCount} of {round.questionIds.length} question(s) ready.</p>
                 {remainingCount > 0 && <p>{remainingCount} question(s) have not been checked in this revision round.</p>}
-                {pendingCount > 0 && <p>Rechecks need two other completed questions first. Same-day rechecks are revision, not proof of long-term mastery.</p>}
-                {remainingCount === 0 && pendingCount === 0 && <p>All questions were checked in this round. Start a new round to practise them again.</p>}
+                {pendingCount > 0 && <p>Rechecks need two other completed questions first. Once rechecked unaided, questions are exam-ready for tomorrow.</p>}
+                {isPortionExamReady(progress) && <p>All questions are exam-ready for tomorrow! Start a new round to practise them again.</p>}
               </div>
             )}
           </section>
@@ -889,12 +903,14 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 </p>
               )}
               {currentQuestion.explanation && <p className="text-sm text-slate-700">{currentQuestion.explanation}</p>}
-              {session.feedback.outcome === 'incorrect' && currentStep.attemptKind !== 'recheck' && (
+              {currentStep.attemptKind !== 'recheck' &&
+                (session.feedback.outcome !== 'correct' ||
+                  (currentStep.attemptKind === 'initial' && session.feedback.assistance.length > 0)) && (
                 <button type="button" className={buttonSecondary} onClick={tryAgainNow}>
                   Try once more now
                 </button>
               )}
-              {session.feedback.outcome === 'incorrect' && currentStep.attemptKind === 'recheck' && (
+              {(session.feedback.outcome !== 'correct' || session.feedback.assistance.length > 0) && currentStep.attemptKind === 'recheck' && (
                 <p className="text-sm text-slate-600">This still needs another recheck after more questions.</p>
               )}
               <button type="button" className={buttonPrimary} onClick={() => moveToNext()}>
@@ -912,8 +928,8 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
             <h2 className="text-xl font-bold text-slate-900">{session.mode === 'exam' ? 'Mock exam complete' : 'Revision batch complete'}</h2>
             <p className="mt-1 text-sm text-slate-600">
               {session.mode === 'exam'
-                ? 'This score is an exam snapshot, not proof of long-term recall.'
-                : 'Same-day rechecks show revision progress, not durable mastery.'}
+                ? 'This score is an exam snapshot.'
+                : 'Same-day rechecks make questions Exam-Ready for tomorrow once answered correctly unaided or after a 2-question lag.'}
             </p>
           </div>
           {session.mode === 'exam' && (

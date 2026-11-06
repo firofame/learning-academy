@@ -5,11 +5,14 @@ A grade-aware app for calm exam-eve revision in **Spell Bee**, **Robotics**, **M
 
 ## Shared Learning Flow
 
-- Every subject uses the same recall-first sequence: answer from memory, get feedback
-  and optional help, then recheck a missed or assisted question after two other
-  completed questions.
-- Immediate corrections do not erase the first attempt. Same-day rechecks are
-  revision evidence, not a claim of long-term mastery.
+- Every subject uses the same evidence-based learning framework: active retrieval practice
+  (memory prompt first), immediate feedback with specific explanations, immediate
+  "Try once more now" correction for encoding, and a required lagged recheck after at
+  least 2 distinct intervening questions (`gapCount >= 2`).
+- A question or portion is "Exam-Ready for Tomorrow" once answered correctly unaided
+  OR successfully rechecked after a 2+ question lag in the revision session.
+- Revising "All Portions" interleaves questions across subtopics/categories to promote
+  cognitive discrimination; single-portion revision stays sequential.
 - Optional mock exams hide feedback until completion. Subject curricula, native
   scripts, deterministic checks, and rubric-based Gemini grading remain specific
   to each lesson.
@@ -248,9 +251,10 @@ browser client, automatic marking, legacy storage, and retry/cancellation flows.
 
 - **Retrieval practice:** all five subjects ask learners to recall before showing help
   or answers. Incorrect and skipped items remain visible until a later recheck.
-- **Same-day spacing:** a recheck is scheduled only after two other completed
-  questions. Assisted answers and immediate corrections cannot clear the original
-  difficulty; a correct unaided recheck can. No multi-day mastery is claimed.
+- **Same-day spacing & Exam-Readiness:** a recheck is scheduled after at least two
+  other distinct completed questions (`gapCount >= 2`). An item or portion becomes Exam-Ready
+  for tomorrow once answered correctly unaided or after an unaided lagged recheck.
+  Immediate corrections aid encoding but do not bypass the lagged recheck.
 - **Curriculum fidelity:** Grade 2 and Grade 6 content remains tied to the supplied
   school materials. Malayalam and Hindi retain native-script input and lesson-specific
   answer checks; uncertain source material is not guessed.

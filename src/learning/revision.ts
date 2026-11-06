@@ -18,6 +18,7 @@ export interface RevisionQuestionProgress {
   pendingRecheck: boolean;
   successfulRecheck: boolean;
   gapCount: number;
+  examReady: boolean;
 }
 
 export interface RevisionStep {
@@ -29,6 +30,43 @@ function compareAttempts(a: RevisionAttemptEvidence, b: RevisionAttemptEvidence)
   const timestampOrder = Date.parse(a.timestamp) - Date.parse(b.timestamp);
   if (timestampOrder !== 0) return timestampOrder;
   return (a.revisionSequence ?? 0) - (b.revisionSequence ?? 0);
+}
+
+export function interleaveItems<T>(
+  items: readonly T[],
+  getCategory: (item: T) => string
+): T[] {
+  if (items.length <= 1) return [...items];
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const cat = getCategory(item);
+    let group = groups.get(cat);
+    if (!group) {
+      group = [];
+      groups.set(cat, group);
+    }
+    group.push(item);
+  }
+  if (groups.size <= 1) return [...items];
+
+  const queues = Array.from(groups.values()).map(g => [...g]);
+  const interleaved: T[] = [];
+  let added = true;
+  while (added) {
+    added = false;
+    for (const queue of queues) {
+      if (queue.length > 0) {
+        interleaved.push(queue.shift()!);
+        added = true;
+      }
+    }
+  }
+  return interleaved;
+}
+
+export interface SelectRevisionBatchOptions {
+  interleave?: boolean;
+  categoryByQuestionId?: (questionId: string) => string | undefined;
 }
 
 export function deriveRevisionProgress(
@@ -43,8 +81,13 @@ export function deriveRevisionProgress(
       initialAssisted: false,
       pendingRecheck: false,
       successfulRecheck: false,
-      gapCount: 0
+      gapCount: 0,
+      examReady: false
     }])
+  );
+
+  const interveningQuestions = new Map<string, Set<string>>(
+    questionIds.map(questionId => [questionId, new Set<string>()])
   );
 
   const ordered = [...attempts]
@@ -53,8 +96,13 @@ export function deriveRevisionProgress(
     .sort(compareAttempts);
 
   for (const attempt of ordered) {
-    for (const item of progress.values()) {
-      if (item.pendingRecheck && item.questionId !== attempt.questionId) item.gapCount++;
+    if (attempt.revisionAttemptKind !== 'correction') {
+      for (const item of progress.values()) {
+        if (item.pendingRecheck && item.questionId !== attempt.questionId) {
+          interveningQuestions.get(item.questionId)?.add(attempt.questionId);
+          item.gapCount = interveningQuestions.get(item.questionId)?.size ?? 0;
+        }
+      }
     }
 
     const item = progress.get(attempt.questionId)!;
@@ -66,14 +114,18 @@ export function deriveRevisionProgress(
         item.initialAssisted = attempt.assistance.length > 0;
         item.pendingRecheck = attempt.outcome !== 'correct' || item.initialAssisted;
         item.successfulRecheck = false;
+        interveningQuestions.get(attempt.questionId)?.clear();
         item.gapCount = 0;
+        item.examReady = item.initialOutcome === 'correct' && !item.initialAssisted;
         break;
       case 'correction':
         break;
       case 'recheck':
         item.successfulRecheck = attempt.outcome === 'correct' && attempt.assistance.length === 0;
         item.pendingRecheck = !item.successfulRecheck;
+        interveningQuestions.get(attempt.questionId)?.clear();
         item.gapCount = 0;
+        item.examReady = item.successfulRecheck;
         break;
     }
   }
@@ -86,7 +138,8 @@ export function selectRevisionBatch(
   attempts: readonly RevisionAttemptEvidence[],
   batchId: string,
   batchSize: number,
-  progressQuestionIds: readonly string[] = questionIds
+  progressQuestionIds: readonly string[] = questionIds,
+  options?: SelectRevisionBatchOptions
 ): RevisionStep[] {
   if (!Number.isInteger(batchSize) || batchSize < 0) {
     throw new Error('Revision batch size must be a non-negative integer.');
@@ -97,15 +150,37 @@ export function selectRevisionBatch(
   const alreadyRechecked = new Set(attempts
     .filter(attempt => attempt.revisionBatchId === batchId && attempt.revisionAttemptKind === 'recheck')
     .map(attempt => attempt.questionId));
-  const rechecks = progress
+
+  let candidateRechecks = progress
     .filter(item => allowedIds.has(item.questionId) && item.pendingRecheck &&
-      item.gapCount >= 2 && !alreadyRechecked.has(item.questionId))
+      item.gapCount >= 2 && !alreadyRechecked.has(item.questionId));
+
+  if (options?.interleave && options.categoryByQuestionId) {
+    candidateRechecks = interleaveItems(
+      candidateRechecks,
+      item => options.categoryByQuestionId!(item.questionId) ?? 'default'
+    );
+  }
+
+  const rechecks = candidateRechecks
     .map(item => ({ questionId: item.questionId, attemptKind: 'recheck' as const }));
+
   const remainingSlots = Math.max(0, limit - rechecks.length);
-  const initial = progress
-    .filter(item => allowedIds.has(item.questionId) && !item.checked)
+
+  let candidateInitial = progress
+    .filter(item => allowedIds.has(item.questionId) && !item.checked);
+
+  if (options?.interleave && options.categoryByQuestionId) {
+    candidateInitial = interleaveItems(
+      candidateInitial,
+      item => options.categoryByQuestionId!(item.questionId) ?? 'default'
+    );
+  }
+
+  const initial = candidateInitial
     .slice(0, remainingSlots)
     .map(item => ({ questionId: item.questionId, attemptKind: 'initial' as const }));
+
   return [...rechecks.slice(0, limit), ...initial];
 }
 

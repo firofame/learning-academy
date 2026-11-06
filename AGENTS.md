@@ -1,9 +1,14 @@
 # Learning Academy
 
-- Design for children revising on the day before an exam.
-- Keep the learning flow simple and consistent across subjects; remove spelling-only modes rather than adding them everywhere.
-- Put recall before answers. Give specific feedback, then revisit mistakes after other questions in the same revision session.
-- Use short, resumable sessions. Same-day rechecks are revision, not proof of durable mastery.
+- Design for children revising on the day before an exam (exam-eve revision).
+- Consistent evidence-based learning framework across all 5 subjects (Spell Bee, Robotics, Maths, Malayalam, Hindi):
+  - Active retrieval practice: memory prompt first, no answers revealed.
+  - Immediate feedback with specific explanations (why, tricky spot, marking criteria).
+  - Immediate correction: "Try once more now" aids initial encoding after feedback.
+  - Lagged error recheck: questions answered incorrectly or with assistance strictly require a recheck after 2+ other questions (`gapCount >= 2`).
+  - Interleaved batches: "All Portions" revision interleaves questions across subtopics/categories; single-portion revision stays sequential.
+  - Consistent Spell Bee: sentence clue, read-aloud audio button, typing recall, deterministic evaluation, and identical lagged recheck cycle.
+  - "Exam-Ready for Tomorrow": a question or portion is Exam-Ready once answered correctly unaided OR successfully rechecked after a 2+ question lag in the revision session.
 - Follow each grade's supplied curriculum and marking rubric. Flag gaps; never invent lesson content or answers.
 - Build for phones and laptops, including 320px-wide screens, 48px touch targets, keyboard access, readable text, and visible focus.
 - Preserve Malayalam and Hindi scripts. Keep pronunciation/read-aloud learner-controlled and answer-safe.

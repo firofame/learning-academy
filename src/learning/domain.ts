@@ -36,8 +36,32 @@ export function isIndependentCorrectRecall(attempt: LearningAttempt): boolean {
 export function countsAsIncorrect(outcome: AttemptOutcome): boolean {
   return outcome === 'incorrect' || outcome === 'skipped';
 }
+export interface ExamReadinessEvidence {
+  checked: boolean;
+  initialOutcome?: AttemptOutcome;
+  initialAssisted?: boolean;
+  pendingRecheck?: boolean;
+  successfulRecheck?: boolean;
+}
 
-/** The spelling Test-Ready rule: two unaided correct recalls on distinct local dates. */
+/**
+ * Exam-Ready for Tomorrow:
+ * A question or portion is Exam-Ready once answered correctly unaided
+ * OR successfully rechecked after a 2+ question lag in the revision session.
+ * Multi-day requirements contradict exam-eve study and do not apply.
+ */
+export function isQuestionExamReady(question: ExamReadinessEvidence): boolean {
+  if (!question.checked) return false;
+  if (question.pendingRecheck) return false;
+  if (question.initialOutcome === 'correct' && !question.initialAssisted) return true;
+  return Boolean(question.successfulRecheck);
+}
+
+export function isPortionExamReady(questions: readonly ExamReadinessEvidence[]): boolean {
+  return questions.length > 0 && questions.every(isQuestionExamReady);
+}
+
+/** Legacy Test-Ready rule maintained for historical record evaluation. For exam-eve revision, use isQuestionExamReady. */
 export function deriveReadiness(attempts: readonly LearningAttempt[]): ReadinessEvidence {
   const eligible = [...attempts]
     .filter(attempt => attempt.assistance.length === 0 &&

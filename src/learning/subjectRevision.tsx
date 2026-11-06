@@ -109,6 +109,19 @@ function spellingQuestion(word: WordEntry): RevisionQuestion {
   };
 }
 
+function roboticsSectionInfo(question: RoboticsQuestion): { id: string; label: string } {
+  switch (question.kind) {
+    case 'true-false':
+      return { id: 'true-false', label: 'True or False' };
+    case 'choice':
+      return { id: 'choice', label: 'Multiple Choice' };
+    case 'fill':
+      return { id: 'fill', label: 'Fill in the Blanks' };
+    case 'short':
+      return { id: 'short', label: 'Short Answers' };
+  }
+}
+
 function roboticsQuestion(
   question: RoboticsQuestion,
   lesson: RoboticsLesson,
@@ -118,10 +131,11 @@ function roboticsQuestion(
   const sourceCard = question.sourceCardId
     ? lesson.cards.find(card => card.id === question.sourceCardId)
     : undefined;
+  const sectionInfo = roboticsSectionInfo(question);
   return {
     id: question.id,
-    section: 'lesson',
-    sectionLabel: 'Lesson questions',
+    section: sectionInfo.id,
+    sectionLabel: sectionInfo.label,
     prompt: question.prompt,
     answer: question.answer,
     responseFormat: isChoice ? 'choice' : 'written',

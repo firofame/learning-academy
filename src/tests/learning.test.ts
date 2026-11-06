@@ -2,12 +2,15 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { LearningAttempt, SessionMode } from '../learning/contracts';
 import {
-  deriveReadiness, isRetentionCheckDue, isReviewDue, nextIndependentReviewDate,
-  readinessFromRecallEvidence, shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES
+  deriveReadiness, isQuestionExamReady, isPortionExamReady, isRetentionCheckDue, isReviewDue,
+  nextIndependentReviewDate, readinessFromRecallEvidence, shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES
 } from '../learning/domain';
 import { sessionReducer, startSession } from '../learning/sessionController';
 import { createQuizAttempts } from '../learning/attemptRecords';
-import { canScheduleRevisionRecheck, deriveRevisionProgress, selectRevisionBatch } from '../learning/revision';
+import {
+  canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch
+} from '../learning/revision';
+import { buildSubjectRevision } from '../learning/subjectRevision';
 import { getRoboticsLesson } from '../data/robotics';
 import { getMalayalamLesson } from '../data/malayalam';
 import { CONTENT_VERSIONS } from '../data/contentVersions';
@@ -481,5 +484,206 @@ describe('Shared IndexedDB persistence contracts', () => {
     assert.equal(await loadSessionDraft(
       restored, 'fazia', 'malayalam', draft.lessonId, 'malayalam-v1'
     ), null);
+  });
+});
+
+describe('Unified Evidence-Based Learning Framework (Exam-Eve Revision)', () => {
+  const revisionItem = (
+    questionId: string,
+    revisionAttemptKind: LearningAttempt['revisionAttemptKind'],
+    outcome: LearningAttempt['outcome'],
+    revisionSequence: number,
+    assistance: LearningAttempt['assistance'] = [],
+    revisionBatchId = 'batch-1'
+  ) => ({
+    questionId,
+    revisionAttemptKind,
+    outcome,
+    revisionSequence,
+    revisionBatchId,
+    timestamp: `2026-11-04T10:${String(revisionSequence).padStart(2, '0')}:00.000Z`,
+    assistance
+  });
+
+  test('Exam-Ready for Tomorrow definition: unaided correct or successful 2+ lagged recheck', () => {
+    // 1. Unaided correct on initial recall is immediately exam-ready
+    const [q1Progress] = deriveRevisionProgress(['q1'], [
+      revisionItem('q1', 'initial', 'correct', 1, [])
+    ]);
+    assert.equal(q1Progress.examReady, true);
+    assert.equal(isQuestionExamReady(q1Progress), true);
+
+    // 2. Assisted correct on initial recall is NOT exam-ready (pending recheck)
+    const [q2Progress] = deriveRevisionProgress(['q2'], [
+      revisionItem('q2', 'initial', 'correct', 1, ['hint'])
+    ]);
+    assert.equal(q2Progress.examReady, false);
+    assert.equal(q2Progress.pendingRecheck, true);
+    assert.equal(isQuestionExamReady(q2Progress), false);
+
+    // 3. Incorrect initial recall is NOT exam-ready
+    const [q3Progress] = deriveRevisionProgress(['q3'], [
+      revisionItem('q3', 'initial', 'incorrect', 1, [])
+    ]);
+    assert.equal(q3Progress.examReady, false);
+    assert.equal(q3Progress.pendingRecheck, true);
+    assert.equal(isQuestionExamReady(q3Progress), false);
+
+    // 4. Immediate correction aids encoding but strictly requires lagged recheck
+    const [q3AfterCorrection] = deriveRevisionProgress(['q3'], [
+      revisionItem('q3', 'initial', 'incorrect', 1, []),
+      revisionItem('q3', 'correction', 'correct', 2, ['answer-revealed'])
+    ]);
+    assert.equal(q3AfterCorrection.examReady, false);
+    assert.equal(q3AfterCorrection.pendingRecheck, true);
+    assert.equal(isQuestionExamReady(q3AfterCorrection), false);
+
+    // 5. After 2 other questions (gapCount >= 2), unaided recheck makes it exam-ready
+    const progressWithRecheck = deriveRevisionProgress(['q3', 'q4', 'q5'], [
+      revisionItem('q3', 'initial', 'incorrect', 1, []),
+      revisionItem('q3', 'correction', 'correct', 2, ['answer-revealed']),
+      revisionItem('q4', 'initial', 'correct', 3, []),
+      revisionItem('q5', 'initial', 'correct', 4, []),
+      revisionItem('q3', 'recheck', 'correct', 5, [])
+    ]);
+    const q3Resolved = progressWithRecheck.find(p => p.questionId === 'q3')!;
+    assert.equal(q3Resolved.successfulRecheck, true);
+    assert.equal(q3Resolved.pendingRecheck, false);
+    assert.equal(q3Resolved.examReady, true);
+    assert.equal(isQuestionExamReady(q3Resolved), true);
+
+    // 6. Portion exam-readiness requires all questions to be exam-ready
+    assert.equal(isPortionExamReady(progressWithRecheck), true);
+    assert.equal(isPortionExamReady([q1Progress, q2Progress]), false);
+  });
+
+  test('Immediate correction on another question does NOT increment gapCount for pending rechecks', () => {
+    // q0 is pending recheck (gapCount 0)
+    // q1 is attempted (initial incorrect) -> q0 gapCount becomes 1
+    // q1 is immediately corrected (correction correct) -> q0 gapCount must REMAIN 1, NOT 2
+    // q2 is attempted (initial correct) -> q0 gapCount becomes 2
+    const progressAfterCorrection = deriveRevisionProgress(['q0', 'q1', 'q2'], [
+      revisionItem('q0', 'initial', 'incorrect', 1, []),
+      revisionItem('q1', 'initial', 'incorrect', 2, []),
+      revisionItem('q1', 'correction', 'correct', 3, ['answer-revealed'])
+    ]);
+    const q0Mid = progressAfterCorrection.find(p => p.questionId === 'q0')!;
+    assert.equal(q0Mid.gapCount, 1, 'q0 gapCount should be 1 after q1 initial; q1 correction must not count as another intervening question');
+    assert.equal(canScheduleRevisionRecheck('q0', ['q0', 'q1', 'q2'], [
+      revisionItem('q0', 'initial', 'incorrect', 1, []),
+      revisionItem('q1', 'initial', 'incorrect', 2, []),
+      revisionItem('q1', 'correction', 'correct', 3, ['answer-revealed'])
+    ], 'batch-1'), false, 'q0 cannot be rechecked yet because only 1 intervening question occurred');
+
+    // After q2 is attempted, 2 distinct other questions have intervened
+    const progressAfterQ2 = deriveRevisionProgress(['q0', 'q1', 'q2'], [
+      revisionItem('q0', 'initial', 'incorrect', 1, []),
+      revisionItem('q1', 'initial', 'incorrect', 2, []),
+      revisionItem('q1', 'correction', 'correct', 3, ['answer-revealed']),
+      revisionItem('q2', 'initial', 'correct', 4, [])
+    ]);
+    const q0Final = progressAfterQ2.find(p => p.questionId === 'q0')!;
+    assert.equal(q0Final.gapCount, 2, 'q0 gapCount reaches 2 only after q2 initial');
+    assert.equal(canScheduleRevisionRecheck('q0', ['q0', 'q1', 'q2'], [
+      revisionItem('q0', 'initial', 'incorrect', 1, []),
+      revisionItem('q1', 'initial', 'incorrect', 2, []),
+      revisionItem('q1', 'correction', 'correct', 3, ['answer-revealed']),
+      revisionItem('q2', 'initial', 'correct', 4, [])
+    ], 'batch-1'), true, 'q0 is now ready for recheck after 2 intervening questions');
+  });
+
+  test('Multiple attempts on the same intervening question do NOT increment gapCount beyond 1', () => {
+    // q0 is pending recheck
+    // q1 is attempted (initial incorrect) -> q0 gapCount becomes 1
+    // q1 is rechecked later (recheck incorrect) -> q0 gapCount must remain 1 because only 1 distinct question intervened
+    const progressWithRepeatQ1 = deriveRevisionProgress(['q0', 'q1', 'q2'], [
+      revisionItem('q0', 'initial', 'incorrect', 1, []),
+      revisionItem('q1', 'initial', 'incorrect', 2, []),
+      revisionItem('q1', 'recheck', 'incorrect', 3, [])
+    ]);
+    const q0Item = progressWithRepeatQ1.find(p => p.questionId === 'q0')!;
+    assert.equal(q0Item.gapCount, 1, 'q0 gapCount must remain 1 when only q1 was attempted multiple times');
+    assert.equal(canScheduleRevisionRecheck('q0', ['q0', 'q1', 'q2'], [
+      revisionItem('q0', 'initial', 'incorrect', 1, []),
+      revisionItem('q1', 'initial', 'incorrect', 2, []),
+      revisionItem('q1', 'recheck', 'incorrect', 3, [])
+    ], 'batch-1'), false, 'q0 strictly requires 2 distinct intervening questions');
+  });
+
+  test('Interleaved batches: All Portions mixes categories round-robin; single portion keeps sequential order', () => {
+    const categoryMap: Record<string, string> = {
+      'math-1': 'maths',
+      'math-2': 'maths',
+      'math-3': 'maths',
+      'sci-1': 'science',
+      'sci-2': 'science',
+      'evs-1': 'evs',
+      'evs-2': 'evs'
+    };
+    const allQuestions = ['math-1', 'math-2', 'math-3', 'sci-1', 'sci-2', 'evs-1', 'evs-2'];
+
+    // Interleave items test
+    const interleaved = interleaveItems(allQuestions, id => categoryMap[id]);
+    assert.deepEqual(interleaved, [
+      'math-1', 'sci-1', 'evs-1',
+      'math-2', 'sci-2', 'evs-2',
+      'math-3'
+    ]);
+
+    // Edge cases: empty array and single item
+    assert.deepEqual(interleaveItems([], () => 'default'), []);
+    assert.deepEqual(interleaveItems(['only-one'], () => 'default'), ['only-one']);
+
+    // Edge case: unbalanced categories (1 item in A, 4 in B) preserves stability
+    const unbalanced = ['a-1', 'b-1', 'b-2', 'b-3', 'b-4'];
+    const unbalancedCat: Record<string, string> = { 'a-1': 'A', 'b-1': 'B', 'b-2': 'B', 'b-3': 'B', 'b-4': 'B' };
+    assert.deepEqual(
+      interleaveItems(unbalanced, id => unbalancedCat[id]),
+      ['a-1', 'b-1', 'b-2', 'b-3', 'b-4']
+    );
+
+    // selectRevisionBatch with batchSize larger than question count
+    const batchOversized = selectRevisionBatch(allQuestions, [], 'batch-1', 50, allQuestions, {
+      interleave: true,
+      categoryByQuestionId: id => categoryMap[id]
+    });
+    assert.deepEqual(batchOversized.map(s => s.questionId), interleaved);
+
+    // selectRevisionBatch with batchSize 0 (all remaining)
+    const batchZero = selectRevisionBatch(allQuestions, [], 'batch-1', 0, allQuestions, {
+      interleave: true,
+      categoryByQuestionId: id => categoryMap[id]
+    });
+    assert.deepEqual(batchZero.map(s => s.questionId), interleaved);
+
+    // selectRevisionBatch with interleave: true
+    const batchAll = selectRevisionBatch(allQuestions, [], 'batch-1', 4, allQuestions, {
+      interleave: true,
+      categoryByQuestionId: id => categoryMap[id]
+    });
+    assert.deepEqual(batchAll.map(s => s.questionId), ['math-1', 'sci-1', 'evs-1', 'math-2']);
+
+    // Single portion selection keeps sequential order
+    const singlePortion = ['math-1', 'math-2', 'math-3'];
+    const batchSingle = selectRevisionBatch(singlePortion, [], 'batch-1', 2, allQuestions, {
+      interleave: false,
+      categoryByQuestionId: id => categoryMap[id]
+    });
+    assert.deepEqual(batchSingle.map(s => s.questionId), ['math-1', 'math-2']);
+  });
+
+  test('All 5 subjects provide subtopics/categories for revision interleaving', () => {
+    const subjects = ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi'] as const;
+    for (const subjectId of subjects) {
+      const studentId = subjectId === 'hindi' ? 'shiza' : 'fazia';
+      const revision = buildSubjectRevision(subjectId, studentId, '');
+      assert.ok(revision.questions.length > 0, `${subjectId} has questions`);
+      const sections = new Set(revision.questions.map(q => q.section));
+      assert.ok(sections.size >= 2, `${subjectId} provides multiple subtopics/categories for interleaving (found ${sections.size})`);
+      for (const q of revision.questions) {
+        assert.ok(q.prompt, `${subjectId} question ${q.id} has prompt`);
+        assert.ok(q.explanation || q.answer, `${subjectId} question ${q.id} has feedback explanation or answer`);
+      }
+    }
   });
 });
