@@ -141,8 +141,8 @@ const biologyCards: BiologyCard[] = [
     section: 'cell',
     title: 'Cell Wall vs Cell Membrane',
     prompt: 'How do the cell wall and cell membrane differ?',
-    answer: 'Cell Wall: rigid, non-living outer cellulose layer found only in plants, bacteria, fungi; freely permeable; gives shape and protection. Cell Membrane: delicate, living, flexible boundary in all cells; phospholipid bilayer with proteins; selectively permeable regulating entry and exit.',
-    memoryTip: 'Wall = non-living, rigid, plant-only, freely permeable. Membrane = living, flexible, all cells, selectively permeable.',
+    answer: 'Cell Wall: rigid, non-living outer layer found in plants, fungi, and bacteria (composed primarily of cellulose in plants); freely permeable; gives shape and protection. Cell Membrane: delicate, living, flexible boundary in all cells; phospholipid bilayer with proteins; selectively permeable regulating entry and exit.',
+    memoryTip: 'Wall = non-living, rigid, found in plants, fungi, and bacteria, and freely permeable. Membrane = living, flexible, all cells, selectively permeable.',
     examples: 'Plant cell wall prevents osmotic bursting.'
   },
   {
@@ -554,9 +554,9 @@ export const SHIZA_BIOLOGY_LESSON: BiologyLesson = {
       'g6-bio-ch3-qa-6',
       'cell',
       'Differentiate between Cell Wall and Cell Membrane.',
-      'Cell Wall: Outermost rigid, non-living protective layer. Found only in plant cells, bacteria, and fungi. Composed primarily of cellulose in plants. Freely permeable to water and dissolved solutes. Cell Membrane (Plasma Membrane): Delicate, living, flexible boundary enclosing protoplasm. Found in all living cells (both plant and animal cells). Composed of a phospholipid bilayer with embedded proteins. Selectively permeable, strictly regulating solute traffic.',
-      'Contrasts non-living/rigid vs living/flexible, plant/fungi only vs all living cells, cellulose composition vs phospholipid bilayer with proteins, and freely permeable vs selectively permeable.',
-      'Cell wall: rigid, non-living, cellulose, plant-only, freely permeable. Cell membrane: living, flexible, phospholipid bilayer, all cells, selectively permeable.'
+      'Cell Wall: Outermost rigid, non-living protective layer. Found in plant cells, bacteria, and fungi. Composed primarily of cellulose in plants. Freely permeable to water and dissolved solutes. Cell Membrane (Plasma Membrane): Delicate, living, flexible boundary enclosing protoplasm. Found in all living cells (both plant and animal cells). Composed of a phospholipid bilayer with embedded proteins. Selectively permeable, strictly regulating solute traffic.',
+      'Contrasts non-living/rigid vs living/flexible, found in plants/fungi/bacteria vs all living cells, cellulose composition vs phospholipid bilayer with proteins, and freely permeable vs selectively permeable.',
+      'Cell wall: rigid, non-living, found in plants, fungi, and bacteria, and freely permeable. Cell membrane: living, flexible, phospholipid bilayer, all cells, selectively permeable.'
     ),
     written(
       'g6-bio-ch3-qa-7',

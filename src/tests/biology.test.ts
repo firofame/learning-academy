@@ -89,6 +89,20 @@ describe('Shiza Grade 6 Biology curriculum & study guide coverage', () => {
     assert.equal(getBiologyLessonForGrade(1), undefined);
   });
 
+  test('cell wall curriculum accurately states occurrence across plants, fungi, and bacteria without plant-only claims', () => {
+    const card = SHIZA_BIOLOGY_LESSON.cards.find(c => c.id === 'g6-bio-card-cell-wall-membrane')!;
+    assert.ok(card);
+    assert.doesNotMatch(card.memoryTip, /plant-only/i);
+    assert.match(card.memoryTip, /found in plants, fungi, and bacteria/i);
+    assert.match(card.answer, /found in plants, fungi, and bacteria/i);
+
+    const qa = SHIZA_BIOLOGY_LESSON.questions.find(q => q.id === 'g6-bio-ch3-qa-6')!;
+    assert.ok(qa);
+    assert.doesNotMatch(qa.explanation, /plant-only/i);
+    assert.match(qa.explanation, /found in plants, fungi, and bacteria/i);
+    assert.match(qa.answer, /plant cells, bacteria, and fungi/i);
+  });
+
   test('normalizes answers and accepts valid aliases', () => {
     assert.equal(normalizeBiologyAnswer('  Nerium oleander.  '), 'nerium oleander');
     assert.equal(normalizeBiologyAnswer('Pitcher plant & Venus flytrap!'), 'pitcher plant and venus flytrap');
