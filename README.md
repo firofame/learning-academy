@@ -177,13 +177,15 @@ https://learning-academy-grading.firofame.workers.dev/grade
 5. In the GitHub repository, configure the required Actions secrets and variables
    under **Settings > Secrets and variables > Actions**:
    - **`CLOUDFLARE_API_TOKEN`** (repository Actions secret): Create a Cloudflare
-     API token with least-privilege permissions. Grant the **Workers Scripts**
-     edit permission (`Workers Scripts Edit`), scoped to your account and, where
-     supported, restricted to the specific `learning-academy-grading` Worker
-     rather than all Workers in the account. No additional permissions (such as
-     KV, R2, or zone routes) are required. See
-     [Cloudflare's GitHub Actions setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
-     for token creation and scoping.
+     API token using Cloudflare's role-based permissions. Grant the
+     **Workers Editor** role, scoped to your account and, where supported,
+     restricted to the individual `learning-academy-grading` Worker rather than
+     all Workers in the account. No additional permissions (such as KV, R2, DNS,
+     or zone routes) are required. See Cloudflare's guidance on
+     [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/)
+     and
+     [GitHub Actions setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
+     for token creation and resource scoping.
    - **`CLOUDFLARE_ACCOUNT_ID`** (repository Actions variable): Your Cloudflare
      account ID.
    - **`VITE_GRADING_API_URL`** (repository Actions variable): The full public
