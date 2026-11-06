@@ -28,6 +28,7 @@ const { buildSubjectRevision } = await import('../learning/subjectRevision');
 const { loadRoboticsProgress } = await import('../utils/roboticsStorage');
 const { loadMathsProgress } = await import('../utils/mathsStorage');
 const { loadMalayalamProgress } = await import('../utils/malayalamStorage');
+const { loadEvsProgress } = await import('../utils/evsStorage');
 const { getAllProgress, getStudentStorageKey, getWordProgress } = await import('../utils/storage');
 const { audioService } = await import('../utils/audio');
 const { getDefaultLearningRepository } = await import('../learning/persistence');
@@ -583,4 +584,38 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(view.getByText('The essential idea is present.'));
     assert.equal(checks, 2);
   });
+
+  test('Fazia Grade 2 EVS section revision supports recall, feedback, and saves progress', async () => {
+    const view = render(React.createElement(SubjectRevisionView, {
+      activeStudent: 'fazia',
+      subjectId: 'evs',
+      settings: { ...settings, sessionSize: 2 },
+      onSessionSizeChange: () => {}
+    }));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.ok(view.getByRole('option', { name: /Lesson 2 · Our Food/ }));
+    assert.ok(view.getByRole('option', { name: /Lesson 3 · Our Clothes/ }));
+    assert.ok(view.getByRole('option', { name: /Lesson 4 · Our Houses/ }));
+    assert.ok(view.getByRole('option', { name: /Lesson 5 · Our Transport/ }));
+    assert.ok(view.getByRole('option', { name: /Lesson 6 · Our Festivals/ }));
+
+    // Select Lesson 2: Our Food
+    fireEvent.change(view.getByRole('combobox', { name: 'Choose a portion' }), {
+      target: { value: 'our-food' }
+    });
+
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    const input = await view.findByRole('textbox', { name: 'Your answer' });
+
+    // Active retrieval: answer is not revealed before submitting
+    assert.equal(view.queryByText('energy'), null);
+
+    // Answer the first question correctly
+    fireEvent.change(input, { target: { value: 'energy' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+
+    await view.findByText('Correct. Keep going.');
+  });
 });
+

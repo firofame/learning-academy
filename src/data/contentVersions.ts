@@ -6,7 +6,8 @@ export const CONTENT_VERSIONS: Record<LearningSubjectId, string> = {
   robotics: 'robotics-v1',
   maths: 'maths-v1',
   malayalam: 'malayalam-v2',
-  hindi: 'hindi-v1'
+  hindi: 'hindi-v1',
+  evs: 'evs-v1'
 };
 
 export const RUBRIC_VERSIONS: Record<LearningSubjectId, string> = {
@@ -14,5 +15,6 @@ export const RUBRIC_VERSIONS: Record<LearningSubjectId, string> = {
   robotics: 'robotics-rubric-v1',
   maths: 'maths-rubric-v1',
   malayalam: 'malayalam-rubric-v2',
-  hindi: 'hindi-rubric-v1'
+  hindi: 'hindi-rubric-v1',
+  evs: 'evs-rubric-v1'
 };

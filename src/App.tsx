@@ -22,6 +22,7 @@ const RoboticsView = lazy(() => import('./components/RoboticsView').then(module 
 const MathsView = lazy(() => import('./components/MathsView').then(module => ({ default: module.MathsView })));
 const MalayalamView = lazy(() => import('./components/MalayalamView').then(module => ({ default: module.MalayalamView })));
 const HindiView = lazy(() => import('./components/HindiView').then(module => ({ default: module.HindiView })));
+const EvsView = lazy(() => import('./components/EvsView').then(module => ({ default: module.EvsView })));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
@@ -184,6 +185,15 @@ export default function App() {
         {currentView === 'hindi' && (
           <HindiView
             key={`hindi-${activeStudent}-${refreshKey}`}
+            activeStudent={activeStudent}
+            settings={settings}
+            onSessionSizeChange={handleSessionSizeChange}
+          />
+        )}
+
+        {currentView === 'evs' && (
+          <EvsView
+            key={`evs-${activeStudent}-${refreshKey}`}
             activeStudent={activeStudent}
             settings={settings}
             onSessionSizeChange={handleSessionSizeChange}

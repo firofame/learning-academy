@@ -1,7 +1,7 @@
 # Learning Academy
 
 - Design for children revising on the day before an exam (exam-eve revision).
-- Consistent evidence-based learning framework across all 5 subjects (Spell Bee, Robotics, Maths, Malayalam, Hindi):
+- Consistent evidence-based learning framework across all subjects (Spell Bee, Robotics, Maths, Malayalam, Hindi, EVS):
   - Active retrieval practice: memory prompt first, no answers revealed.
   - Immediate feedback with specific explanations (why, tricky spot, marking criteria).
   - Immediate correction: "Try once more now" aids initial encoding after feedback.

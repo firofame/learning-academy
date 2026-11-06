@@ -85,7 +85,8 @@ export const SUBJECT_REVIEW_POLICIES = {
   robotics: 'full-exam-correct-only',
   maths: 'practice-or-exam-correct',
   malayalam: 'practice-correct-and-full-exam-refresh',
-  hindi: 'practice-correct-and-full-exam-refresh'
+  hindi: 'practice-correct-and-full-exam-refresh',
+  evs: 'practice-or-exam-correct'
 } as const satisfies Record<string, ReviewClearingPolicy>;
 
 export function shouldClearMissedQuestion(

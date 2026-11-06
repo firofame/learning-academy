@@ -1,7 +1,7 @@
 # Learning Academy
 
 A grade-aware app for calm exam-eve revision in **Spell Bee**, **Robotics**, **Maths**,
-**Malayalam**, and **Hindi**.
+**Malayalam**, **Hindi**, and **EVS**.
 
 ## Shared Learning Flow
 
@@ -23,16 +23,17 @@ A grade-aware app for calm exam-eve revision in **Spell Bee**, **Robotics**, **M
 
 - The app opens on a subject home screen for the active student and their grade.
 - Spell Bee, Robotics, and Maths are available for both **Grade 2** (Maths: notebook revision) and **Grade 6** (Maths: Chapter 14 Basic Geometry).
+- EVS revision is available for **Grade 2** (Fazia) and covers all **71 exercises from Lessons 2–6** (Our Food, Our Clothes, Our Houses, Our Transport, and Our Festivals) in the supplied primary notebook revision workbook, including fill in the blanks, true/false, match the following, and written short answers.
 - Malayalam revision is available for **Grade 2** and **Grade 6**. Fazia's Grade 2 lesson covers her first-semester portions; Shiza's Grade 6 lesson covers all **176 exercises from Lessons 1–5** (വാത്സല്യപൂരം, സർക്കസ്സ്, പ്രാചീനകവിത്രയം, ധനമോഹം, and വെനീസിലെ വ്യാപാരി) in the supplied study-notes PDF, including meanings, multiple meanings (നാനാർഥം), synonyms, opposites, gender pairs, split and joined words, vigraha, sentence usage, and written answers.
   - Lesson 2's sentence prompt uses **അപ്രതീക്ഷിതം**, as supplied, not പ്രതീക്ഷ.
   - The PDF marks Lessons 1–2 plus the first eight poem lines as first mid-semester portions; all five supplied lessons are available for revision. The poem lines are absent and are not invented. Lesson 4 supplies only written questions 4–5; missing questions 1–3 are not guessed. Lesson 3's ആദ്യകൃതി wording/answer is retained from the notes and flagged for teacher confirmation.
   - Existing question IDs and learner storage keys are retained. Earlier 69-question exams and the old sentence answer remain readable as historical results; new exams require all 176 questions. Content/rubric versions are incremented so pre-update drafts are not resumed against changed questions; their stored records remain available in backups.
 - Hindi revision is available for **Grade 6** and covers Shiza's supplied notebook portions with vocabulary, translations, synonyms, the trees poem and questions, Sreedharan questions, and a paragraph prompt. The incomplete `वचन बदलो` list and one unclear vocabulary entry are not guessed.
 - Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
-- EVS, English, Hindi, and the other spelling groupings are **word categories within Spell Bee**.
-  Malayalam and Hindi are also available as standalone exam-preparation subjects, distinct from
+- English, Hindi, and the other spelling groupings are also word categories within Spell Bee.
+  EVS, Malayalam, and Hindi are also available as standalone exam-preparation subjects, distinct from
   their optional Spell Bee word categories and the standalone **Maths** curriculum subject.
-  Malayalam serves both grades; Hindi is Grade 6 only.
+  Malayalam serves both grades; EVS is Grade 2 only; Hindi is Grade 6 only.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
   the same across subjects. Home cards, navigation, and related dashboard links

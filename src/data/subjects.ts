@@ -40,6 +40,14 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     availableGrades: [6],
     startView: 'hindi',
     views: ['hindi']
+  },
+  {
+    id: 'evs',
+    name: 'EVS',
+    description: 'Revise school Environmental Studies lessons with recall, feedback, and same-day rechecks.',
+    availableGrades: [2],
+    startView: 'evs',
+    views: ['evs']
   }
 ];
 
