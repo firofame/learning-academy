@@ -201,7 +201,8 @@ const SUBJECT_KEYS: ReadonlyArray<{ pattern: RegExp; subjectId: LearningSubjectI
   { pattern: /^academy_maths_(fazia|shiza)_v1$/, subjectId: 'maths' },
   { pattern: /^academy_malayalam_(fazia|shiza)_v1$/, subjectId: 'malayalam' },
   { pattern: /^academy_hindi_(fazia|shiza)_v1$/, subjectId: 'hindi' },
-  { pattern: /^academy_evs_(fazia|shiza)_v1$/, subjectId: 'evs' }
+  { pattern: /^academy_evs_(fazia|shiza)_v1$/, subjectId: 'evs' },
+  { pattern: /^academy_biology_(fazia|shiza)_v1$/, subjectId: 'biology' }
 ];
 
 function classifyLegacyKey(key: string): Omit<LegacyEntry, 'value'> | undefined {

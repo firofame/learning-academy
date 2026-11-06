@@ -2,6 +2,7 @@ import { ROBOTICS_LESSONS } from '../src/data/robotics';
 import { FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON } from '../src/data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../src/data/hindi';
 import { FAZIA_EVS_LESSON } from '../src/data/evs';
+import { SHIZA_BIOLOGY_LESSON } from '../src/data/biology';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/roboticsGrading';
@@ -57,7 +58,7 @@ async function generateGrade(
   context: object,
   recheck: boolean,
   fetcher: typeof fetch,
-  subject: 'robotics' | 'malayalam' | 'hindi' | 'evs',
+  subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology',
   gradeLevel?: number
 ): Promise<{ verdict: string; feedback: string }> {
   let response: Response;
@@ -70,7 +71,11 @@ async function generateGrade(
         signal: AbortSignal.timeout(20_000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
-            (subject === 'evs'
+            (subject === 'biology'
+              ? 'You mark Grade 6 Biology written answers against the supplied trusted marking criteria. ' +
+                'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid phrasing or scientific terminology. ' +
+                'Require every essential idea in the criteria; reject contradictions and incorrect facts. '
+              : subject === 'evs'
               ? 'You mark Grade 2 Environmental Studies (EVS) elementary-school written answers against the supplied trusted marking criteria. ' +
                 'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid phrasing or examples. ' +
                 'Require every essential idea in the criteria; reject contradictions and irrelevant answers. '
@@ -185,7 +190,10 @@ export async function handleGradingRequest(
     const evsQuestion = body.lessonId === FAZIA_EVS_LESSON.id
       ? FAZIA_EVS_LESSON.questions.find(question => question.id === body.questionId)
       : undefined;
-    let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs';
+    const biologyQuestion = body.lessonId === SHIZA_BIOLOGY_LESSON.id
+      ? SHIZA_BIOLOGY_LESSON.questions.find(question => question.id === body.questionId)
+      : undefined;
+    let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology';
     let context: object;
     let gradeLevel: number | undefined;
     if (roboticsLesson && roboticsQuestion?.kind === 'short') {
@@ -221,6 +229,14 @@ export async function handleGradingRequest(
         grade: FAZIA_EVS_LESSON.grade, question: evsQuestion.prompt,
         referenceAnswer: evsQuestion.answer,
         markingCriteria: evsQuestion.markingCriteria, studentAnswer: body.answer.trim()
+      };
+    } else if (biologyQuestion && biologyQuestion.markingCriteria) {
+      subject = 'biology';
+      gradeLevel = SHIZA_BIOLOGY_LESSON.grade;
+      context = {
+        grade: SHIZA_BIOLOGY_LESSON.grade, question: biologyQuestion.prompt,
+        referenceAnswer: biologyQuestion.answer,
+        markingCriteria: biologyQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };
     } else {
       throw new GradingError(400, 'This question does not support written-answer checking.');

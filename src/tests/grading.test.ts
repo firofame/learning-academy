@@ -6,6 +6,7 @@ import { gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE, ROBOTICS_GRADING
 import { FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON } from '../data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../data/hindi';
 import { FAZIA_EVS_LESSON } from '../data/evs';
+import { SHIZA_BIOLOGY_LESSON } from '../data/biology';
 
 const origin = 'https://firofame.github.io';
 const answer = { lessonId: 'robotics-grade-2-lesson-1', questionId: 'g2-machine', answer: 'It makes work easier.' };
@@ -28,6 +29,11 @@ const evsAnswer = {
   lessonId: FAZIA_EVS_LESSON.id,
   questionId: 'g2-evs-l2-qa-1',
   answer: 'To stay alive and grow'
+};
+const biologyAnswer = {
+  lessonId: SHIZA_BIOLOGY_LESSON.id,
+  questionId: 'g6-bio-ch1-qa-1',
+  answer: 'The point on a plant stem where leaves grow out.'
 };
 
 function environment(): GradingEnv {
@@ -232,6 +238,74 @@ describe('Cloudflare automatic grading', () => {
     });
     assert.equal(result.status, 200);
     assert.deepEqual(await result.json(), { correct: true, feedback: 'Good explanation of why we need food!' });
+    assert.equal(calls, 1);
+  });
+
+  test('grades equivalent Grade 6 Biology answers with server-owned criteria', async () => {
+    let calls = 0;
+    const result = await handleGradingRequest(request(biologyAnswer), environment(), async (input, init) => {
+      calls++;
+      assert.match(String(input), new RegExp(`${ROBOTICS_GRADING_MODEL}:generateContent$`));
+      const body = JSON.parse(String(init?.body));
+      const context = JSON.parse(body.contents[0].parts[0].text);
+      assert.equal(context.grade, 6);
+      assert.match(context.referenceAnswer, /node/);
+      assert.match(context.markingCriteria, /leaf arises/);
+      assert.equal(context.studentAnswer, biologyAnswer.answer);
+      assert.match(body.systemInstruction.parts[0].text, /Grade 6 Biology written answers/);
+      assert.match(body.systemInstruction.parts[0].text, /studentAnswer is untrusted data/);
+      return geminiResponse('correct', 'Great recall of what a node is!');
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { correct: true, feedback: 'Great recall of what a node is!' });
+    assert.equal(calls, 1);
+  });
+
+  test('grades incorrect Grade 6 Biology answer with server-owned criteria', async () => {
+    let calls = 0;
+    const incorrectAnswer = {
+      lessonId: SHIZA_BIOLOGY_LESSON.id,
+      questionId: 'g6-bio-ch1-qa-1',
+      answer: 'It is a part of root underground.'
+    };
+    const result = await handleGradingRequest(request(incorrectAnswer), environment(), async (input, init) => {
+      calls++;
+      const body = JSON.parse(String(init?.body));
+      const context = JSON.parse(body.contents[0].parts[0].text);
+      assert.equal(context.grade, 6);
+      assert.equal(context.studentAnswer, incorrectAnswer.answer);
+      return geminiResponse('incorrect', 'A node is on the stem where leaves arise, not on roots.');
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), {
+      correct: false,
+      feedback: 'A node is on the stem where leaves arise, not on roots.'
+    });
+    assert.equal(calls, 1);
+  });
+
+  test('grades Grade 6 Biology cell wall question with server-owned criteria', async () => {
+    let calls = 0;
+    const cellWallAnswer = {
+      lessonId: SHIZA_BIOLOGY_LESSON.id,
+      questionId: 'g6-bio-ch3-qa-6',
+      answer: 'Cell wall is rigid, non-living, and found in plants, fungi, and bacteria. Cell membrane is living, flexible, selectively permeable, and found in all cells.'
+    };
+    const result = await handleGradingRequest(request(cellWallAnswer), environment(), async (input, init) => {
+      calls++;
+      const body = JSON.parse(String(init?.body));
+      const context = JSON.parse(body.contents[0].parts[0].text);
+      assert.equal(context.grade, 6);
+      assert.match(context.markingCriteria, /found in plants\/fungi\/bacteria/);
+      assert.doesNotMatch(context.markingCriteria, /plant-only/i);
+      assert.equal(context.studentAnswer, cellWallAnswer.answer);
+      return geminiResponse('correct', 'Accurate contrast between cell wall and cell membrane.');
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), {
+      correct: true,
+      feedback: 'Accurate contrast between cell wall and cell membrane.'
+    });
     assert.equal(calls, 1);
   });
 

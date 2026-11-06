@@ -17,6 +17,9 @@ import {
 import {
   checkEvsAnswer, getEvsLesson, EVS_SECTIONS, type EvsLesson, type EvsQuestion
 } from '../data/evs';
+import {
+  checkBiologyAnswer, getBiologyLesson, BIOLOGY_SECTIONS, type BiologyLesson, type BiologyQuestion
+} from '../data/biology';
 import { MathsDiagram } from '../components/MathsDiagram';
 import type {
   RevisionQuestion, RevisionResponse,
@@ -31,6 +34,7 @@ import { saveMathsResult } from '../utils/mathsStorage';
 import { saveMalayalamResult } from '../utils/malayalamStorage';
 import { saveHindiResult } from '../utils/hindiStorage';
 import { saveEvsResult } from '../utils/evsStorage';
+import { saveBiologyResult } from '../utils/biologyStorage';
 import { recordAttempt } from '../utils/storage';
 
 interface RevisionDefinition {
@@ -398,6 +402,57 @@ function evsQuestion(
   };
 }
 
+function biologyQuestion(
+  question: BiologyQuestion,
+  lesson: BiologyLesson,
+  gradingApiUrl: string
+): RevisionQuestion {
+  const section = BIOLOGY_SECTIONS.find(item => item.id === question.section);
+  const cards = lesson.cards.filter(card => card.section === question.section);
+  return {
+    id: question.id,
+    section: question.section,
+    sectionLabel: section?.label ?? question.section,
+    prompt: question.prompt,
+    answer: question.answer,
+    responseFormat: 'written',
+    explanation: question.explanation,
+    provenance: lesson.sourceName,
+    helpContent: (
+      <div className="space-y-3 text-sm text-slate-800">
+        {question.markingCriteria && (
+          <p><strong>What to include:</strong> {question.markingCriteria}</p>
+        )}
+        {cards.map(card => (
+          <article key={card.id} className="space-y-1">
+            <h3 className="font-bold">{card.title}</h3>
+            <p>{card.prompt}</p>
+            <p><strong>Summary:</strong> {card.answer}</p>
+            {card.examples && <p><strong>Examples:</strong> {card.examples}</p>}
+          </article>
+        ))}
+      </div>
+    ),
+    listenText: question.prompt,
+    language: 'en',
+    languageCode: 'en-US',
+    maxLength: MAX_WRITTEN_ANSWER_LENGTH,
+    grade: async (answer, signal) => {
+      if (answer.length > MAX_WRITTEN_ANSWER_LENGTH) {
+        throw new Error(`Keep your answer to ${MAX_WRITTEN_ANSWER_LENGTH} characters or fewer.`);
+      }
+      if (checkBiologyAnswer(question, answer)) {
+        return { correct: true, source: 'deterministic' };
+      }
+      if (!gradingApiUrl) {
+        throw new Error('Automatic written-answer checking is not configured. Your answer has not been marked; try again when checking is available.');
+      }
+      const grade = await gradeWrittenAnswer(gradingApiUrl, lesson.id, question.id, answer, signal);
+      return { correct: grade.correct, source: 'ai', feedback: grade.feedback };
+    }
+  };
+}
+
 function saveRoboticsSession(
   learnerId: StudentId,
   result: RevisionSessionResult
@@ -505,6 +560,29 @@ function saveEvsSession(
   }, { mirrorAttempts: false }) !== null;
 }
 
+function saveBiologySession(
+  learnerId: StudentId,
+  result: RevisionSessionResult
+): boolean {
+  const responses = finalResponses(result);
+  if (!canSave(responses)) return false;
+  return saveBiologyResult(learnerId, {
+    mode: result.mode,
+    completedAt: result.completedAt,
+    section: result.section,
+    answers: responses.map(response => ({
+      questionId: response.questionId,
+      answer: response.answer,
+      correct: response.outcome === 'correct',
+      ...(response.outcome === 'skipped' ? { skipped: true } : {}),
+      ...(response.assistance.length ? { assistance: response.assistance } : {}),
+      ...(response.aiChecked ? { aiChecked: true, aiFeedback: response.aiFeedback } : {}),
+      attemptId: response.attemptId,
+      attemptedAt: response.attemptedAt
+    }))
+  }, { mirrorAttempts: false }) !== null;
+}
+
 export function buildSubjectRevision(
   subjectId: LearningSubjectId,
   learnerId: StudentId,
@@ -573,6 +651,17 @@ export function buildSubjectRevision(
         questions: lesson.questions.map(question => evsQuestion(question, lesson, gradingApiUrl)),
         allowSectionAssessment: true,
         onComplete: result => saveEvsSession(learnerId, result)
+      };
+    }
+    case 'biology': {
+      const lesson = getBiologyLesson(learnerId);
+      return {
+        lessonId: lesson.id,
+        title: lesson.title,
+        description: `Exam-eve revision · Based on ${lesson.sourceName}.`,
+        questions: lesson.questions.map(question => biologyQuestion(question, lesson, gradingApiUrl)),
+        allowSectionAssessment: true,
+        onComplete: result => saveBiologySession(learnerId, result)
       };
     }
   }

@@ -1,7 +1,7 @@
 # Learning Academy
 
 A grade-aware app for calm exam-eve revision in **Spell Bee**, **Robotics**, **Maths**,
-**Malayalam**, **Hindi**, and **EVS**.
+**Malayalam**, **Hindi**, **EVS**, and **Biology**.
 
 ## Shared Learning Flow
 
@@ -29,11 +29,12 @@ A grade-aware app for calm exam-eve revision in **Spell Bee**, **Robotics**, **M
   - The PDF marks Lessons 1–2 plus the first eight poem lines as first mid-semester portions; all five supplied lessons are available for revision. The poem lines are absent and are not invented. Lesson 4 supplies only written questions 4–5; missing questions 1–3 are not guessed. Lesson 3's ആദ്യകൃതി wording/answer is retained from the notes and flagged for teacher confirmation.
   - Existing question IDs and learner storage keys are retained. Earlier 69-question exams and the old sentence answer remain readable as historical results; new exams require all 176 questions. Content/rubric versions are incremented so pre-update drafts are not resumed against changed questions; their stored records remain available in backups.
 - Hindi revision is available for **Grade 6** and covers Shiza's supplied notebook portions with vocabulary, translations, synonyms, the trees poem and questions, Sreedharan questions, and a paragraph prompt. The incomplete `वचन बदलो` list and one unclear vocabulary entry are not guessed.
+- Biology revision is available for **Grade 6** (Shiza) and covers all **46 questions from Chapters 1–4** (The Leaf, The Flower, The Cell, and The Digestive System) in the supplied Comprehensive Study Guide, with 12 revision summary cards, deterministic recall checking, and server-side Cloudflare Worker grading.
 - Revision cues ask for the word paired with the listed letter groups, and the signs questions use the mappings from the supplied portion sheet. The sheet's Devanagari-looking `्व` entry is rendered with Malayalam `്വ`.
 - English, Hindi, and the other spelling groupings are also word categories within Spell Bee.
-  EVS, Malayalam, and Hindi are also available as standalone exam-preparation subjects, distinct from
+  EVS, Malayalam, Hindi, and Biology are also available as standalone exam-preparation subjects, distinct from
   their optional Spell Bee word categories and the standalone **Maths** curriculum subject.
-  Malayalam serves both grades; EVS is Grade 2 only; Hindi is Grade 6 only.
+  Malayalam serves both grades; EVS is Grade 2 only; Hindi and Biology are Grade 6 only.
 - Each subject declares its own `availableGrades` in
   [`src/data/subjects.ts`](src/data/subjects.ts). Availability is not assumed to be
   the same across subjects. Home cards, navigation, and related dashboard links
