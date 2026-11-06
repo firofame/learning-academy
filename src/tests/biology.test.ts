@@ -270,6 +270,83 @@ describe('Biology Progress Storage & Isolation', () => {
     assert.ok(progress.reviewQuestionIds.includes(leafQuestions[0].id));
   });
 
+  test('full exams retain assisted correct misses, clear unaided correct answers, and add new misses', () => {
+    const questions = SHIZA_BIOLOGY_LESSON.questions;
+    assert.ok(questions.length >= 3);
+
+    // 1. Complete an initial full exam and answer at least two questions incorrectly.
+    const initialExam: BiologyResult = {
+      mode: 'exam',
+      completedAt: '2026-11-06T10:00:00Z',
+      answers: questions.map((q, idx) => ({
+        questionId: q.id,
+        answer: (idx === 0 || idx === 1) ? 'Wrong answer' : q.answer,
+        correct: idx !== 0 && idx !== 1
+      }))
+    };
+
+    const firstSaved = saveBiologyResult('shiza', initialExam);
+    assert.ok(firstSaved);
+
+    // 2. Confirm both questions appear in "reviewQuestionIds".
+    assert.deepEqual(firstSaved.reviewQuestionIds, [questions[0].id, questions[1].id]);
+    assert.deepEqual(loadBiologyProgress('shiza').reviewQuestionIds, [questions[0].id, questions[1].id]);
+
+    // 3. Complete another full exam:
+    //    - Answer one previously missed question correctly with "assistance: ['hint']".
+    //    - Answer another previously missed question correctly without assistance.
+    //    - Answer a previously unmissed question incorrectly.
+    const secondExam: BiologyResult = {
+      mode: 'exam',
+      completedAt: '2026-11-06T10:30:00Z',
+      answers: questions.map((q, idx) => {
+        if (idx === 0) {
+          return {
+            questionId: q.id,
+            answer: q.answer,
+            correct: true,
+            assistance: ['hint']
+          };
+        }
+        if (idx === 1) {
+          return {
+            questionId: q.id,
+            answer: q.answer,
+            correct: true
+          };
+        }
+        if (idx === 2) {
+          return {
+            questionId: q.id,
+            answer: 'Wrong answer',
+            correct: false
+          };
+        }
+        return {
+          questionId: q.id,
+          answer: q.answer,
+          correct: true
+        };
+      })
+    };
+
+    const secondSaved = saveBiologyResult('shiza', secondExam);
+    assert.ok(secondSaved);
+
+    // 4. Verify that:
+    //    - The assisted question remains in "reviewQuestionIds".
+    //    - The unaided correct question is removed.
+    //    - The newly incorrect question is added.
+    //    - The resulting review list contains exactly the expected question IDs.
+    assert.ok(secondSaved.reviewQuestionIds.includes(questions[0].id));
+    assert.ok(!secondSaved.reviewQuestionIds.includes(questions[1].id));
+    assert.ok(secondSaved.reviewQuestionIds.includes(questions[2].id));
+    assert.deepEqual(secondSaved.reviewQuestionIds, [questions[0].id, questions[2].id]);
+
+    const loaded = loadBiologyProgress('shiza');
+    assert.deepEqual(loaded.reviewQuestionIds, [questions[0].id, questions[2].id]);
+  });
+
   test('isolates progress by storage key', () => {
     assert.equal(getBiologyStorageKey('shiza'), 'academy_biology_shiza_v1');
     assert.equal(getBiologyStorageKey('fazia'), 'academy_biology_fazia_v1');

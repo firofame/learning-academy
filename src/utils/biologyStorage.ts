@@ -178,12 +178,10 @@ export function saveBiologyResult(
     ))
     .map(answer => answer.questionId));
   const newlyIncorrectIds = result.answers.filter(answer => !answer.correct).map(answer => answer.questionId);
-  const reviewQuestionIds = isFullExam
-    ? newlyIncorrectIds
-    : Array.from(new Set([
-        ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
-        ...newlyIncorrectIds
-      ]));
+  const reviewQuestionIds = Array.from(new Set([
+    ...previous.reviewQuestionIds.filter(id => !newlyCorrectIds.has(id)),
+    ...newlyIncorrectIds
+  ]));
   const next: BiologyProgress = {
     studentId,
     lessonId: lesson.id,
