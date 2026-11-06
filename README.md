@@ -180,6 +180,15 @@ https://learning-academy-grading.firofame.workers.dev/grade
    Run the GitHub Pages deployment workflow again. Only this public URL goes
    into the frontend build; the Gemini key does not belong in GitHub Pages.
 
+After the one-time CI setup, GitHub Actions automatically validates and deploys
+the grading Worker on every push to `main`, including pull request merges. The
+Worker deploy runs after the site tests, type check, and build pass. Add
+`CLOUDFLARE_API_TOKEN` as a repository Action secret and
+`CLOUDFLARE_ACCOUNT_ID` as a repository Action variable. Create a Cloudflare API
+token with the **Edit Cloudflare Workers** permission, scoped to this account.
+See [Cloudflare's GitHub Actions setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
+for token creation and account scoping.
+
 Children only enter their answer and select **Check answer** in practice or
 **Save answer and continue** in an exam. No access code or parent unlock is
 required, including after leaving Robotics or reloading.
