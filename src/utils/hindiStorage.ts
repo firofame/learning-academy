@@ -1,5 +1,6 @@
 import { StudentId } from '../types';
-import { checkHindiAnswer, getHindiLesson, HindiLesson } from '../data/hindi';
+import { checkHindiAnswer, getHindiLesson, getHindiLessonForGrade, HindiLesson } from '../data/hindi';
+import { getStudentProfile } from '../data/profiles';
 import { emitStorageError } from './appStorage';
 import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
 import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
@@ -90,7 +91,9 @@ function isValidResult(
 
 export function isValidHindiProgress(value: unknown, studentId: StudentId): value is HindiProgress {
   if (!isRecord(value) || value.studentId !== studentId) return false;
-  const lesson = getHindiLesson(studentId);
+  const profile = getStudentProfile(studentId);
+  const lesson = getHindiLessonForGrade(profile.grade);
+  if (!lesson) return false;
   return value.lessonId === lesson.id &&
     (value.practice === null || isValidResult(value.practice, 'practice', lesson)) &&
     (value.exam === null || isValidResult(value.exam, 'exam', lesson)) &&
@@ -120,7 +123,12 @@ export function saveHindiResult(
   result: HindiResult,
   options: { mirrorAttempts?: boolean } = {}
 ): HindiProgress | null {
-  const lesson = getHindiLesson(studentId);
+  const profile = getStudentProfile(studentId);
+  const lesson = getHindiLessonForGrade(profile.grade);
+  if (!lesson) {
+    emitStorageError(`Hindi exam revision is not available for ${profile.gradeLabel}.`);
+    return null;
+  }
   if (!isValidResult(result, result.mode, lesson)) {
     emitStorageError('Unable to save an invalid or incomplete Hindi result.');
     return null;

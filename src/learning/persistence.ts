@@ -6,6 +6,7 @@ import { isValidRoboticsProgress } from '../utils/roboticsStorage';
 import { isValidMathsProgress } from '../utils/mathsStorage';
 import { isValidMalayalamProgress } from '../utils/malayalamStorage';
 import { isValidHindiProgress } from '../utils/hindiStorage';
+import { isValidEvsProgress } from '../utils/evsStorage';
 
 export const LEARNING_DATABASE_NAME = 'learning-academy-progress';
 export const LEARNING_DATABASE_VERSION = 1;
@@ -168,7 +169,7 @@ function isLearningAttempt(value: unknown): value is LearningAttempt {
         ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(item))) ||
       !['deterministic', 'ai', 'parent', 'none'].includes(String(value.gradingSource)) ||
       !['correct', 'incorrect', 'skipped', 'ungraded'].includes(String(value.outcome))) return false;
-  if (!['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi'].includes(String(value.subjectId))) return false;
+  if (!['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs'].includes(String(value.subjectId))) return false;
   if (value.gradingVersion !== undefined && typeof value.gradingVersion !== 'string') return false;
   if (value.modelId !== undefined && typeof value.modelId !== 'string') return false;
   if (value.feedback !== undefined && typeof value.feedback !== 'string') return false;
@@ -199,7 +200,8 @@ const SUBJECT_KEYS: ReadonlyArray<{ pattern: RegExp; subjectId: LearningSubjectI
   { pattern: /^academy_robotics_(fazia|shiza)_v1$/, subjectId: 'robotics' },
   { pattern: /^academy_maths_(fazia|shiza)_v1$/, subjectId: 'maths' },
   { pattern: /^academy_malayalam_(fazia|shiza)_v1$/, subjectId: 'malayalam' },
-  { pattern: /^academy_hindi_(fazia|shiza)_v1$/, subjectId: 'hindi' }
+  { pattern: /^academy_hindi_(fazia|shiza)_v1$/, subjectId: 'hindi' },
+  { pattern: /^academy_evs_(fazia|shiza)_v1$/, subjectId: 'evs' }
 ];
 
 function classifyLegacyKey(key: string): Omit<LegacyEntry, 'value'> | undefined {
@@ -407,7 +409,7 @@ export async function deleteSessionDraft(
 function isRevisionRoundRecord(value: unknown): value is RevisionRoundRecord {
   return isPlainRecord(value) && typeof value.revisionRoundId === 'string' &&
     (value.learnerId === 'fazia' || value.learnerId === 'shiza') &&
-    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi'].includes(String(value.subjectId)) &&
+    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs'].includes(String(value.subjectId)) &&
     typeof value.lessonId === 'string' && typeof value.contentVersion === 'string' &&
     typeof value.startedAt === 'string' && Number.isFinite(Date.parse(value.startedAt)) &&
     Array.isArray(value.questionIds) && value.questionIds.length > 0 &&
@@ -540,6 +542,7 @@ function hasValidProgress(progress: Record<string, string>, learnerId: StudentId
       case 'maths': return isValidMathsProgress(parsed, learnerId);
       case 'malayalam': return isValidMalayalamProgress(parsed, learnerId);
       case 'hindi': return isValidHindiProgress(parsed, learnerId);
+      case 'evs': return isValidEvsProgress(parsed, learnerId);
       default: return false;
     }
   });
