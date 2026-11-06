@@ -177,11 +177,11 @@ https://learning-academy-grading.firofame.workers.dev/grade
 5. In the GitHub repository, configure the required Actions secrets and variables
    under **Settings > Secrets and variables > Actions**:
    - **`CLOUDFLARE_API_TOKEN`** (repository Actions secret): Create a Cloudflare
-     API token using Cloudflare's role-based permissions. Grant the
-     **Workers Editor** role, scoped to your account and, where supported,
-     restricted to the individual `learning-academy-grading` Worker rather than
-     all Workers in the account. No additional permissions (such as KV, R2, DNS,
-     or zone routes) are required. See Cloudflare's guidance on
+     API token with the Workers Editor role, scoped specifically to the
+     individual `learning-academy-grading` Worker. Avoid the Workers product-wide
+     scope unless deployment access to multiple Workers is required. No
+     additional permissions (such as KV, R2, DNS, or zone routes) are required.
+     See Cloudflare's guidance on
      [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/)
      and
      [GitHub Actions setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
