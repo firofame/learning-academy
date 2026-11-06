@@ -284,6 +284,31 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(calls, 1);
   });
 
+  test('grades Grade 6 Biology cell wall question with server-owned criteria', async () => {
+    let calls = 0;
+    const cellWallAnswer = {
+      lessonId: SHIZA_BIOLOGY_LESSON.id,
+      questionId: 'g6-bio-ch3-qa-6',
+      answer: 'Cell wall is rigid, non-living, and found in plants, fungi, and bacteria. Cell membrane is living, flexible, selectively permeable, and found in all cells.'
+    };
+    const result = await handleGradingRequest(request(cellWallAnswer), environment(), async (input, init) => {
+      calls++;
+      const body = JSON.parse(String(init?.body));
+      const context = JSON.parse(body.contents[0].parts[0].text);
+      assert.equal(context.grade, 6);
+      assert.match(context.markingCriteria, /found in plants\/fungi\/bacteria/);
+      assert.doesNotMatch(context.markingCriteria, /plant-only/i);
+      assert.equal(context.studentAnswer, cellWallAnswer.answer);
+      return geminiResponse('correct', 'Accurate contrast between cell wall and cell membrane.');
+    });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), {
+      correct: true,
+      feedback: 'Accurate contrast between cell wall and cell membrane.'
+    });
+    assert.equal(calls, 1);
+  });
+
   test('grades the added Malayalam lessons and corrected sentence using their server-owned keys', async () => {
     for (const [questionId, answer, expectedCriterion] of [
       ['g6-mal-l3-answer-3', 'നന്മ വളർത്താനും തിന്മ ഇല്ലാതാക്കാനും.', 'encouraging goodness'],

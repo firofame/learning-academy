@@ -100,6 +100,8 @@ describe('Shiza Grade 6 Biology curriculum & study guide coverage', () => {
     assert.ok(qa);
     assert.doesNotMatch(qa.explanation, /plant-only/i);
     assert.match(qa.explanation, /found in plants, fungi, and bacteria/i);
+    assert.doesNotMatch(qa.markingCriteria, /plant-only|plant\/fungi only/i);
+    assert.match(qa.markingCriteria, /found in plants\/fungi\/bacteria/i);
     assert.match(qa.answer, /plant cells, bacteria, and fungi/i);
   });
 
