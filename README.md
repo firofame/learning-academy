@@ -174,11 +174,36 @@ https://learning-academy-grading.firofame.workers.dev/grade
    ```bash
    npm run worker:deploy
    ```
-5. In the GitHub repository, open **Settings > Secrets and variables > Actions >
-   Variables** and create `VITE_GRADING_API_URL` with the full endpoint:
-   `https://learning-academy-grading.<your-subdomain>.workers.dev/grade`.
-   Run the GitHub Pages deployment workflow again. Only this public URL goes
-   into the frontend build; the Gemini key does not belong in GitHub Pages.
+5. In the GitHub repository, configure the required Actions secrets and variables
+   under **Settings > Secrets and variables > Actions**:
+   - **`CLOUDFLARE_API_TOKEN`** (repository Actions secret): Create a Cloudflare
+     API token with the Workers Editor role, scoped specifically to the
+     individual `learning-academy-grading` Worker. Avoid the Workers product-wide
+     scope unless deployment access to multiple Workers is required. No
+     additional permissions (such as KV, R2, DNS, or zone routes) are required.
+     See Cloudflare's guidance on
+     [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/)
+     and
+     [GitHub Actions setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
+     for token creation and resource scoping.
+   - **`CLOUDFLARE_ACCOUNT_ID`** (repository Actions variable): Your Cloudflare
+     account ID.
+   - **`VITE_GRADING_API_URL`** (repository Actions variable): The full public
+     Worker endpoint:
+     `https://learning-academy-grading.<your-subdomain>.workers.dev/grade`.
+     Only this public URL goes into the frontend build; the Gemini key does
+     not belong in GitHub Pages.
+6. Trigger the deployment workflow:
+   In the repository's Actions tab, run the
+   [deployment workflow](.github/workflows/deploy-pages.yml) manually using
+   **Run workflow** (`workflow_dispatch`) on `main` (or push a commit to
+   `main`). The workflow builds the frontend using `VITE_GRADING_API_URL`,
+   publishes to GitHub Pages, and runs the `deploy-worker` job. The Worker
+   deployment job requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`
+   to validate the bundle (`npm run worker:check`) and deploy the Worker
+   (`npm run worker:deploy`). After this setup, GitHub Actions automatically
+   validates and deploys both the site and grading Worker on every push to
+   `main`, including pull request merges.
 
 Children only enter their answer and select **Check answer** in practice or
 **Save answer and continue** in an exam. No access code or parent unlock is
