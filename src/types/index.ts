@@ -72,7 +72,7 @@ export interface WordProgress {
   }>;
 }
 
-export type ActiveAppView = 'home' | 'session' | 'parent' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology';
+export type ActiveAppView = 'home' | 'session' | 'parent' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'timetable';
 
 export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology';
 

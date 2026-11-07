@@ -1,8 +1,9 @@
 import React from 'react';
-import { ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna, Calendar } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import { getStudentProfile } from '../data/profiles';
-import { getAvailableSubjectsForGrade } from '../data/subjects';
+import { getAvailableSubjectsForGrade, LEARNING_SUBJECTS } from '../data/subjects';
+import { EXAM_GENERAL_INFO, getNextExam, getNextActualExam } from '../data/timetable';
 
 interface SubjectHomeProps {
   activeStudent: StudentId;
@@ -12,6 +13,13 @@ interface SubjectHomeProps {
 export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavigate }) => {
   const profile = getStudentProfile(activeStudent);
   const subjects = getAvailableSubjectsForGrade(profile.grade);
+  const nextExam = getNextExam(profile.grade);
+  const nextActualExam = getNextActualExam(profile.grade);
+
+  const targetEntry = nextExam?.isStudyLeave ? nextActualExam : nextExam;
+  const targetSubject = targetEntry?.subjectId && subjects.some(s => s.id === targetEntry.subjectId)
+    ? LEARNING_SUBJECTS.find(s => s.id === targetEntry.subjectId)
+    : undefined;
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12 space-y-8">
@@ -26,6 +34,62 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
           Choose a subject to get started. Only subjects available for {profile.gradeLabel} are shown.
         </p>
       </header>
+
+      {/* Exam Timetable Spotlight */}
+      <section aria-label="First Semester Exam Schedule" className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50/50 border border-amber-200/80 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
+            <Calendar className="w-4 h-4 text-amber-700" />
+            <span>{EXAM_GENERAL_INFO.examName} · {EXAM_GENERAL_INFO.schoolName}</span>
+          </div>
+          <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+            {nextExam ? (
+              nextExam.isStudyLeave ? (
+                <span>Study Leave ({nextExam.displayDate})</span>
+              ) : (
+                <span>Next Exam: {nextExam.subject} ({nextExam.displayDate})</span>
+              )
+            ) : (
+              <span>First Semester Exam Timetable</span>
+            )}
+          </h2>
+          <p className="text-xs sm:text-sm text-slate-600">
+            {nextExam?.isStudyLeave ? (
+              nextActualExam ? (
+                <span>Self revision day. Next exam is <strong className="text-slate-800 font-semibold">{nextActualExam.subject}</strong> on {nextActualExam.displayDate} ({nextActualExam.dayOfWeek}).</span>
+              ) : (
+                <span>Self revision day (no school attendance).</span>
+              )
+            ) : nextExam ? (
+              <span>{nextExam.notes ? `${nextExam.notes} · ` : ''}Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} (reach by {EXAM_GENERAL_INFO.reportingTime}).</span>
+            ) : (
+              <span>View full exam schedule, timings, and dispersal notes for {profile.name}.</span>
+            )}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {targetSubject && (
+            <button
+              onClick={() => onNavigate(targetSubject.startView)}
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            >
+              <span>Revise {targetSubject.name} Now</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => onNavigate('timetable')}
+            className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ${
+              targetSubject
+                ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                : 'bg-amber-600 hover:bg-amber-700 text-white'
+            }`}
+          >
+            <span>View Full Timetable</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </section>
 
       <section aria-label={`Subjects for ${profile.gradeLabel}`} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {subjects.map(subject => (

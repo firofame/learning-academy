@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import type { LearningSubjectId, StudentId } from '../types';
+import { Calendar, ArrowRight } from 'lucide-react';
+import type { ActiveAppView, LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from '../learning/contracts';
 import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade, LEARNING_SUBJECTS } from '../data/subjects';
+import { EXAM_GENERAL_INFO, getNextExam, getNextActualExam } from '../data/timetable';
 import { deriveRevisionProgress } from '../learning/revision';
 import {
   getDefaultLearningRepository, listLearningAttempts, loadRevisionRound,
@@ -14,6 +16,7 @@ import { resetStudentProgress } from '../utils/storage';
 interface ParentDashboardProps {
   activeStudent: StudentId;
   onResetComplete: () => void;
+  onNavigate?: (view: ActiveAppView) => void;
 }
 
 interface SubjectRevisionSummary {
@@ -34,8 +37,10 @@ function outcomeLabel(attempt: LearningAttempt): string {
   return attempt.outcome === 'correct' ? 'Correct' : 'Needs review';
 }
 
-export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent, onResetComplete }) => {
+export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent, onResetComplete, onNavigate }) => {
   const profile = getStudentProfile(activeStudent);
+  const nextExam = getNextExam(profile.grade);
+  const nextActualExam = getNextActualExam(profile.grade);
   const [attempts, setAttempts] = useState<LearningAttempt[]>([]);
   const [summaries, setSummaries] = useState<SubjectRevisionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,6 +144,43 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent,
       </header>
 
       {error && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">{error}</p>}
+
+      {/* First Semester Exam Schedule Banner */}
+      <section className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-amber-800">
+            <Calendar className="w-3.5 h-3.5" />
+            <span>{EXAM_GENERAL_INFO.examName} ({EXAM_GENERAL_INFO.academicYear})</span>
+          </div>
+          <p className="text-sm font-bold text-slate-900">
+            {nextExam ? (
+              nextExam.isStudyLeave ? (
+                `Study Leave · ${nextExam.displayDate} (${nextExam.dayOfWeek})`
+              ) : (
+                `Next: ${nextExam.subject} · ${nextExam.displayDate} (${nextExam.dayOfWeek})`
+              )
+            ) : 'First Semester Exam Timetable'}
+          </p>
+          <p className="text-xs text-slate-600">
+            {nextExam?.isStudyLeave ? (
+              nextActualExam ? (
+                `Self revision day · Next exam: ${nextActualExam.subject} on ${nextActualExam.displayDate} (${nextActualExam.dayOfWeek})`
+              ) : 'Self revision day (no school attendance)'
+            ) : (
+              `Assembly: ${EXAM_GENERAL_INFO.morningAssembly} · Reporting: ${EXAM_GENERAL_INFO.reportingTime} · Dispersal: 11:00 AM (Bus 10:50 AM from 31/10)`
+            )}
+          </p>
+        </div>
+        {onNavigate && (
+          <button
+            onClick={() => onNavigate('timetable')}
+            className="self-start sm:self-auto px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-700 text-white font-semibold text-xs inline-flex items-center gap-1.5 cursor-pointer transition-colors shrink-0"
+          >
+            <span>View Full Timetable</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </section>
 
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-label="Current revision coverage">
         <h2 className="text-lg font-bold text-slate-900">Current revision coverage</h2>

@@ -17,6 +17,7 @@ import { audioService } from './utils/audio';
 
 const ParentDashboard = lazy(() => import('./components/ParentDashboard').then(module => ({ default: module.ParentDashboard })));
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
+const ExamTimetableView = lazy(() => import('./components/ExamTimetableView').then(module => ({ default: module.ExamTimetableView })));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
@@ -131,6 +132,16 @@ export default function App() {
             key={activeStudent}
             activeStudent={activeStudent}
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
+            onNavigate={handleNavigate}
+          />
+        )}
+
+        {currentView === 'timetable' && (
+          <ExamTimetableView
+            key={activeStudent}
+            activeStudent={activeStudent}
+            onNavigate={handleNavigate}
+            onSwitchStudent={handleSwitchStudent}
           />
         )}
 

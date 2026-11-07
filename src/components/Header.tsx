@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna, Calendar } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { AppSettings } from '../utils/appStorage';
 import { getStudentProfile, STUDENT_PROFILES } from '../data/profiles';
@@ -102,6 +102,18 @@ export const Header: React.FC<HeaderProps> = ({
               {subject.name}
             </button>
           ))}
+          <button
+            onClick={() => onNavigate('timetable')}
+            aria-current={currentView === 'timetable' ? 'page' : undefined}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-1.5 ${
+              currentView === 'timetable'
+                ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            <Calendar className="w-4 h-4" />
+            Timetable
+          </button>
           <button
             onClick={() => onNavigate('parent')}
             aria-current={currentView === 'parent' ? 'page' : undefined}
