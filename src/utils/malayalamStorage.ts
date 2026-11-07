@@ -1,7 +1,7 @@
 import { StudentId } from '../types';
 import { checkMalayalamAnswer, getMalayalamLesson, MalayalamLesson } from '../data/malayalam';
 import { emitStorageError } from './appStorage';
-import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { getDefaultLearningRepository } from '../learning/persistence';
 import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
 import { CONTENT_VERSIONS } from '../data/contentVersions';
 import { createQuizAttempts } from '../learning/attemptRecords';
@@ -179,7 +179,6 @@ export function saveMalayalamResult(
     localStorage.setItem(getMalayalamStorageKey(studentId), serialized);
     if (typeof indexedDB !== 'undefined') {
       const repository = getDefaultLearningRepository();
-      void persistProgressSnapshot(repository, studentId, 'malayalam', serialized, CONTENT_VERSIONS.malayalam).catch(() => undefined);
       if (options.mirrorAttempts !== false) {
         void saveLearningAttempts(repository, createQuizAttempts({
           learnerId: studentId, subjectId: 'malayalam', lessonId: lesson.id, mode: result.mode,

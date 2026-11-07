@@ -11,7 +11,6 @@ import {
 } from '../learning/persistence';
 import { buildSubjectRevision } from '../learning/subjectRevision';
 import { resetStudentProgress } from '../utils/storage';
-import { ProgressBackupControls } from './ProgressBackupControls';
 
 interface ParentDashboardProps {
   activeStudent: StudentId;
@@ -134,7 +133,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent,
         <p className="text-sm font-bold uppercase tracking-wide text-slate-600">
           {profile.name} · {profile.gradeLabel}
         </p>
-        <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Progress &amp; backup</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">Progress</h1>
         <p className="text-sm leading-relaxed text-slate-700">
           See what has been checked in each current revision round. Same-day rechecks are revision evidence, not proof of long-term mastery.
         </p>
@@ -202,11 +201,6 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent,
         )}
       </section>
 
-      <ProgressBackupControls
-        learnerId={activeStudent}
-        learnerName={profile.name}
-        onRestored={() => setRefreshKey(value => value + 1)}
-      />
 
       <section className="rounded-xl border border-slate-200 bg-white p-4">
         <h2 className="font-semibold text-slate-900">Older Spell Bee word summary</h2>

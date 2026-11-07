@@ -1,8 +1,7 @@
 import { WordProgress, MasteryLevel, SubjectCategory, WordEntry, StudentId, StudyMode } from '../types';
 import { getWordsForStudent } from '../data/wordList';
 import { isRetentionCheckDue, localCalendarDate, readinessFromRecallEvidence } from '../learning/domain';
-import { deleteProgressSnapshot, getDefaultLearningRepository, persistProgressSnapshot } from '../learning/persistence';
-import { saveLearningAttempt } from '../learning/persistence';
+import { getDefaultLearningRepository, saveLearningAttempt } from '../learning/persistence';
 import { createSpellingAttempt } from '../learning/attemptRecords';
 import { getStudentProfile } from '../data/profiles';
 import { emitStorageError } from './appStorage';
@@ -12,48 +11,12 @@ export {
 } from './appStorage';
 export type { AppSettings } from './appStorage';
 
-export const LEGACY_STORAGE_KEY = 'spellbee_progress_v1';
-export const MIGRATION_DONE_KEY = 'spellbee_migration_done_v1';
-
 /**
  * Returns YYYY-MM-DD formatted date string in the learner's local calendar.
  */
 export function getLocalDateString(date: Date = new Date()): string {
   return localCalendarDate(date);
 }
-
-/**
- * Migration routine:
- * Safely migrate single-user progress into Fazia's profile key on first load,
- * tracking completion with an independent migration flag so future resets remain intact.
- */
-export function runStorageMigration(): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const isDone = localStorage.getItem(MIGRATION_DONE_KEY);
-    if (isDone === 'true') {
-      return;
-    }
-
-    const faziaKey = getStudentStorageKey('fazia');
-    const legacyData = localStorage.getItem(LEGACY_STORAGE_KEY);
-    const existingFazia = localStorage.getItem(faziaKey);
-
-    if (legacyData && !existingFazia) {
-      localStorage.setItem(faziaKey, legacyData);
-      if (localStorage.getItem(faziaKey) !== legacyData) {
-        throw new Error('The existing spelling progress could not be verified after copying.');
-      }
-    }
-    // Keep the source key. Mark completion only after any copied data is verified.
-    localStorage.setItem(MIGRATION_DONE_KEY, 'true');
-  } catch (error) {
-    emitStorageError(`Spelling progress migration did not finish. Original progress remains in browser storage. ${error instanceof Error ? error.message : ''}`.trim());
-  }
-}
-
-// Run migration immediately upon module import in browser
-runStorageMigration();
 
 export function getStudentStorageKey(studentId: StudentId): string {
   return `spellbee_progress_${studentId}_v1`;
@@ -285,7 +248,6 @@ export function recordAttempt(
       localStorage.setItem(getStudentStorageKey(studentId), JSON.stringify(all));
       if (typeof indexedDB !== 'undefined') {
         const repository = getDefaultLearningRepository();
-        void persistProgressSnapshot(repository, studentId, 'spell-bee', JSON.stringify(all), 'spell-bee-v1').catch(() => undefined);
         if (options.mirrorAttempts !== false) {
           const word = getWordsForStudent(studentId).find(item => item.id === wordId);
           const attempt = createSpellingAttempt({
@@ -415,11 +377,6 @@ export function resetStudentProgress(studentId: StudentId): boolean {
   if (typeof window === 'undefined') return true;
   try {
     localStorage.removeItem(getStudentStorageKey(studentId));
-    if (typeof indexedDB !== 'undefined') {
-      void deleteProgressSnapshot(getDefaultLearningRepository(), studentId, 'spell-bee').catch(() => {
-        emitStorageError('Spelling progress was reset in this browser, but the IndexedDB backup copy could not be cleared. Retry from Progress & backup.');
-      });
-    }
     return true;
   } catch {
     emitStorageError(`Unable to reset progress for ${studentId}.`);

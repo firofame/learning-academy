@@ -1,28 +1,18 @@
 import type { LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from './contracts';
 import { emitStorageError } from '../utils/appStorage';
-import { isValidSpellingProgress } from '../utils/storage';
-import { isValidRoboticsProgress } from '../utils/roboticsStorage';
-import { isValidMathsProgress } from '../utils/mathsStorage';
-import { isValidMalayalamProgress } from '../utils/malayalamStorage';
-import { isValidHindiProgress } from '../utils/hindiStorage';
-import { isValidEvsProgress } from '../utils/evsStorage';
 
 export const LEARNING_DATABASE_NAME = 'learning-academy-progress';
 export const LEARNING_DATABASE_VERSION = 1;
 export const LEARNING_RECORDS_STORE = 'records';
-const MIGRATION_RECORD_ID = 'migration:local-storage:v1';
-const BACKUP_FORMAT = 'learning-academy-backup';
-export const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
-export const MAX_BACKUP_RECORDS = 5000;
 
-export type LearningRecordKind = 'progress' | 'attempt' | 'draft' | 'revision-state' | 'result' | 'legacy-summary';
+export type LearningRecordKind = 'attempt' | 'draft' | 'revision-state';
 
 export interface LearningRecord<T = unknown> {
   id: string;
   schemaVersion: 1;
-  learnerId: StudentId | 'global';
-  subjectId: LearningSubjectId | 'app' | 'legacy';
+  learnerId: StudentId;
+  subjectId: LearningSubjectId;
   kind: LearningRecordKind;
   contentVersion: string;
   rubricVersion?: string;
@@ -34,7 +24,7 @@ export interface LearningRepository {
   get(id: string): Promise<LearningRecord | undefined>;
   put(record: LearningRecord): Promise<void>;
   putIfAbsent(record: LearningRecord): Promise<boolean>;
-  listForLearner(learnerId: StudentId | 'global'): Promise<LearningRecord[]>;
+  listForLearner(learnerId: StudentId): Promise<LearningRecord[]>;
   delete(id: string): Promise<void>;
 }
 
@@ -118,7 +108,7 @@ export class IndexedDbLearningRepository implements LearningRepository {
     return true;
   }
 
-  async listForLearner(learnerId: StudentId | 'global'): Promise<LearningRecord[]> {
+  async listForLearner(learnerId: StudentId): Promise<LearningRecord[]> {
     const db = await this.open();
     const index = db.transaction(LEARNING_RECORDS_STORE).objectStore(LEARNING_RECORDS_STORE).index('learnerId');
     const values = await requestValue<unknown[]>(index.getAll(learnerId));
@@ -150,9 +140,9 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
 
 function isLearningRecord(value: unknown): value is LearningRecord {
   return isPlainRecord(value) && typeof value.id === 'string' && value.schemaVersion === 1 &&
-    (value.learnerId === 'fazia' || value.learnerId === 'shiza' || value.learnerId === 'global') &&
+    (value.learnerId === 'fazia' || value.learnerId === 'shiza') &&
     typeof value.subjectId === 'string' && typeof value.kind === 'string' &&
-    ['progress', 'attempt', 'draft', 'revision-state', 'result', 'legacy-summary'].includes(value.kind) &&
+    ['attempt', 'draft', 'revision-state'].includes(value.kind) &&
     typeof value.contentVersion === 'string' && typeof value.updatedAt === 'string' &&
     Number.isFinite(Date.parse(value.updatedAt)) && 'data' in value;
 }
@@ -188,122 +178,7 @@ function isLearningAttempt(value: unknown): value is LearningAttempt {
   return value.learnerId === 'fazia' || value.learnerId === 'shiza';
 }
 
-interface LegacyEntry {
-  key: string;
-  value: string;
-  learnerId: StudentId | 'global';
-  subjectId: LearningSubjectId | 'app';
-}
-
-const SUBJECT_KEYS: ReadonlyArray<{ pattern: RegExp; subjectId: LearningSubjectId }> = [
-  { pattern: /^spellbee_progress_(fazia|shiza)_v1$/, subjectId: 'spell-bee' },
-  { pattern: /^academy_robotics_(fazia|shiza)_v1$/, subjectId: 'robotics' },
-  { pattern: /^academy_maths_(fazia|shiza)_v1$/, subjectId: 'maths' },
-  { pattern: /^academy_malayalam_(fazia|shiza)_v1$/, subjectId: 'malayalam' },
-  { pattern: /^academy_hindi_(fazia|shiza)_v1$/, subjectId: 'hindi' },
-  { pattern: /^academy_evs_(fazia|shiza)_v1$/, subjectId: 'evs' },
-  { pattern: /^academy_biology_(fazia|shiza)_v1$/, subjectId: 'biology' }
-];
-
-function classifyLegacyKey(key: string): Omit<LegacyEntry, 'value'> | undefined {
-  if (key === 'spellbee_active_profile_v1' || key === 'spellbee_settings_v1') {
-    return { key, learnerId: 'global', subjectId: 'app' };
-  }
-  if (key === 'spellbee_progress_v1') return { key, learnerId: 'fazia', subjectId: 'spell-bee' };
-  for (const { pattern, subjectId } of SUBJECT_KEYS) {
-    const match = key.match(pattern);
-    if (match) return { key, learnerId: match[1] as StudentId, subjectId };
-  }
-  return undefined;
-}
-
-function readLegacyEntries(storage: Storage): LegacyEntry[] {
-  const entries: LegacyEntry[] = [];
-  for (let index = 0; index < storage.length; index++) {
-    const key = storage.key(index);
-    if (!key) continue;
-    const classified = classifyLegacyKey(key);
-    if (!classified) continue;
-    const value = storage.getItem(key);
-    if (value !== null) entries.push({ ...classified, value });
-  }
-  return entries;
-}
-
-function snapshotRecord(entry: LegacyEntry): LearningRecord<{ sourceKey: string; rawValue: string }> {
-  return {
-    id: `legacy:${entry.learnerId}:${entry.key}`,
-    schemaVersion: 1,
-    learnerId: entry.learnerId,
-    subjectId: entry.subjectId,
-    kind: 'legacy-summary',
-    contentVersion: 'unknown-legacy',
-    updatedAt: new Date().toISOString(),
-    data: { sourceKey: entry.key, rawValue: entry.value }
-  };
-}
-
-/** Idempotently copies the old browser records; source keys are retained for rollback and recovery. */
-export async function migrateLegacyProgress(repository: LearningRepository, storage: Storage): Promise<{ migrated: number; alreadyDone: boolean }> {
-  const marker = await repository.get(MIGRATION_RECORD_ID);
-  if (marker?.kind === 'result') return { migrated: 0, alreadyDone: true };
-
-  const entries = readLegacyEntries(storage);
-  const records = entries.map(snapshotRecord);
-  for (const record of records) await repository.put(record);
-
-  const verified = await Promise.all(records.map(record => repository.get(record.id)));
-  if (verified.some((record, index) => !record || !isPlainRecord(record.data) ||
-      record.data.rawValue !== entries[index].value)) {
-    throw new Error('Legacy progress could not be verified in IndexedDB. The original browser records were kept.');
-  }
-
-  const completion: LearningRecord<{ importedKeys: string[] }> = {
-    id: MIGRATION_RECORD_ID,
-    schemaVersion: 1,
-    learnerId: 'global',
-    subjectId: 'app',
-    kind: 'result',
-    contentVersion: 'legacy-import-v1',
-    updatedAt: new Date().toISOString(),
-    data: { importedKeys: entries.map(entry => entry.key) }
-  };
-  await repository.put(completion);
-  const verifiedMarker = await repository.get(MIGRATION_RECORD_ID);
-  if (!verifiedMarker || !isLearningRecord(verifiedMarker)) {
-    throw new Error('Legacy progress migration could not be confirmed. The original browser records were kept.');
-  }
-  return { migrated: records.length, alreadyDone: false };
-}
-
 const pendingWrites = new Map<string, LearningRecord>();
-
-export async function persistProgressSnapshot(
-  repository: LearningRepository,
-  learnerId: StudentId,
-  subjectId: LearningSubjectId,
-  rawValue: string,
-  contentVersion = 'legacy-current'
-): Promise<void> {
-  const record: LearningRecord<{ rawValue: string }> = {
-    id: `progress:${learnerId}:${subjectId}`,
-    schemaVersion: 1,
-    learnerId,
-    subjectId,
-    kind: 'progress',
-    contentVersion,
-    updatedAt: new Date().toISOString(),
-    data: { rawValue }
-  };
-  pendingWrites.set(record.id, record);
-  try {
-    await repository.put(record);
-    pendingWrites.delete(record.id);
-  } catch (error) {
-    emitStorageError('Your browser copy was saved, but the IndexedDB progress backup did not finish. Retry the backup from Progress & backup.');
-    throw error;
-  }
-}
 
 export async function retryPendingProgressWrites(repository: LearningRepository): Promise<number> {
   let saved = 0;
@@ -333,7 +208,7 @@ export async function saveLearningAttempt(repository: LearningRepository, attemp
     await repository.put(record);
     pendingWrites.delete(record.id);
   } catch (error) {
-    emitStorageError('The browser result was saved, but its IndexedDB attempt history did not finish. Retry the save from Progress & backup.');
+    emitStorageError('The browser result was saved, but its IndexedDB attempt history did not finish. Retry the save if needed.');
     throw error;
   }
 }
@@ -347,14 +222,6 @@ export async function listLearningAttempts(repository: LearningRepository, learn
     .filter(record => record.kind === 'attempt' && isLearningAttempt(record.data))
     .map(record => record.data as LearningAttempt)
     .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
-}
-
-export async function deleteProgressSnapshot(
-  repository: LearningRepository,
-  learnerId: StudentId,
-  subjectId: LearningSubjectId
-): Promise<void> {
-  await repository.delete(`progress:${learnerId}:${subjectId}`);
 }
 
 export async function saveSessionDraft<T>(
@@ -461,135 +328,11 @@ export function getDefaultLearningRepository(): LearningRepository {
 
 const defaultRepository = new IndexedDbLearningRepository();
 
-export async function initializeLearningPersistence(): Promise<boolean> {
-  if (typeof window === 'undefined') return true;
-  try {
-    await migrateLegacyProgress(defaultRepository, window.localStorage);
-    return true;
-  } catch (error) {
-    emitStorageError(`Local IndexedDB setup did not finish. Your existing browser progress remains available. ${error instanceof Error ? error.message : ''}`.trim());
-    return false;
-  }
-}
-
 export async function retryLearningPersistence(): Promise<boolean> {
-  const migrated = await initializeLearningPersistence();
-  if (!migrated) return false;
   try {
     await retryPendingProgressWrites(defaultRepository);
     return true;
   } catch {
     return false;
   }
-}
-
-export interface LearnerBackup {
-  format: typeof BACKUP_FORMAT;
-  schemaVersion: 1;
-  learnerId: StudentId;
-  exportedAt: string;
-  progress: Record<string, string>;
-  records: LearningRecord[];
-}
-
-export async function exportLearnerBackup(
-  learnerId: StudentId,
-  repository: LearningRepository = defaultRepository,
-  storage: Storage = window.localStorage
-): Promise<LearnerBackup> {
-  const progress: Record<string, string> = {};
-  for (const entry of readLegacyEntries(storage)) {
-    if (entry.learnerId === learnerId) progress[entry.key] = entry.value;
-  }
-  const records = (await repository.listForLearner(learnerId)).filter(record => record.kind !== 'legacy-summary');
-  const backup: LearnerBackup = {
-    format: BACKUP_FORMAT,
-    schemaVersion: 1,
-    learnerId,
-    exportedAt: new Date().toISOString(),
-    progress,
-    records
-  };
-  const formattedJson = JSON.stringify(backup, null, 2);
-  if (!validateBackup(backup, learnerId) || !hasValidProgress(backup.progress, learnerId)) {
-    throw new Error('This learner history cannot be exported as a restorable backup. No backup file was created.');
-  }
-  if (new TextEncoder().encode(formattedJson).byteLength > MAX_BACKUP_BYTES) {
-    throw new Error('This backup would exceed the 5 MB restore limit. No backup file was created.');
-  }
-  return backup;
-}
-
-function isSupportedBackupProgressKey(key: string, learnerId: StudentId): boolean {
-  const classified = classifyLegacyKey(key);
-  return classified?.learnerId === learnerId;
-}
-
-function hasValidProgress(progress: Record<string, string>, learnerId: StudentId): boolean {
-  return Object.entries(progress).every(([key, raw]) => {
-    const source = classifyLegacyKey(key);
-    if (!source || source.learnerId !== learnerId) return false;
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return false;
-    }
-
-    switch (source.subjectId) {
-      case 'spell-bee': return isValidSpellingProgress(parsed, learnerId);
-      case 'robotics': return isValidRoboticsProgress(parsed, learnerId);
-      case 'maths': return isValidMathsProgress(parsed, learnerId);
-      case 'malayalam': return isValidMalayalamProgress(parsed, learnerId);
-      case 'hindi': return isValidHindiProgress(parsed, learnerId);
-      case 'evs': return isValidEvsProgress(parsed, learnerId);
-      default: return false;
-    }
-  });
-}
-
-function validateBackup(value: unknown, requestedLearner: StudentId): value is LearnerBackup {
-  if (!isPlainRecord(value) || value.format !== BACKUP_FORMAT || value.schemaVersion !== 1 ||
-      value.learnerId !== requestedLearner || typeof value.exportedAt !== 'string' ||
-      !Number.isFinite(Date.parse(value.exportedAt)) || !isPlainRecord(value.progress) || !Array.isArray(value.records)) return false;
-  if (Object.entries(value.progress).some(([key, raw]) => typeof raw !== 'string' || raw.length > 2_000_000 ||
-      !isSupportedBackupProgressKey(key, requestedLearner))) return false;
-  return value.records.length <= MAX_BACKUP_RECORDS && value.records.every(record => isLearningRecord(record) && record.learnerId === requestedLearner);
-}
-
-export async function importLearnerBackup(
-  value: unknown,
-  learnerId: StudentId,
-  repository: LearningRepository = defaultRepository,
-  storage: Storage = window.localStorage
-): Promise<{ imported: number; skippedExisting: number }> {
-  const encoded = JSON.stringify(value);
-  if (typeof encoded !== 'string' || new TextEncoder().encode(encoded).byteLength > MAX_BACKUP_BYTES || !validateBackup(value, learnerId)) {
-    throw new Error('This backup is invalid, too large, or belongs to another learner. No progress was changed.');
-  }
-
-  // Preserve local progress and fill only empty keys. This makes restore safe to retry.
-  const additions: Array<[string, string, LearningSubjectId]> = [];
-  let skippedExisting = 0;
-  for (const [key, raw] of Object.entries(value.progress)) {
-    if (storage.getItem(key) !== null) {
-      skippedExisting++;
-      continue;
-    }
-    try { JSON.parse(raw); } catch { throw new Error(`Backup entry ${key} is unreadable. No progress was changed.`); }
-    const source = classifyLegacyKey(key);
-    if (!source || source.learnerId !== learnerId || source.subjectId === 'app') {
-      throw new Error(`Backup entry ${key} does not belong to this learner.`);
-    }
-    additions.push([key, raw, source.subjectId]);
-  }
-
-  for (const record of value.records) await repository.putIfAbsent(record);
-  for (const [key, raw, subjectId] of additions) {
-    storage.setItem(key, raw);
-    if (storage.getItem(key) !== raw) throw new Error(`Backup entry ${key} could not be verified after restore.`);
-    await persistProgressSnapshot(repository, learnerId, subjectId, raw);
-  }
-  return { imported: additions.length, skippedExisting };
 }

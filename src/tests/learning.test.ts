@@ -15,8 +15,6 @@ import { getRoboticsLesson } from '../data/robotics';
 import { getMalayalamLesson } from '../data/malayalam';
 import { CONTENT_VERSIONS } from '../data/contentVersions';
 import {
-  exportLearnerBackup, importLearnerBackup, migrateLegacyProgress,
-  MAX_BACKUP_BYTES, MAX_BACKUP_RECORDS,
   type LearningRepository, type LearningRecord as PersistedRecord, type RevisionRoundRecord,
   loadRevisionRound, loadSessionDraft, saveRevisionRound, saveSessionDraft
 } from '../learning/persistence';
@@ -49,18 +47,10 @@ class MemoryRepository implements LearningRepository {
     this.records.set(record.id, structuredClone(record));
     return true;
   }
-  async listForLearner(learnerId: 'fazia' | 'shiza' | 'global') {
+  async listForLearner(learnerId: 'fazia' | 'shiza') {
     return [...this.records.values()].filter(record => record.learnerId === learnerId);
   }
   async delete(id: string) { this.records.delete(id); }
-}
-
-function backupRecord(id: string, data: unknown = { answer: 'A saved response.' }): PersistedRecord {
-  return {
-    id, schemaVersion: 1, learnerId: 'fazia', subjectId: 'robotics', kind: 'result',
-    contentVersion: 'robotics-v1', rubricVersion: 'robotics-rubric-v1',
-    updatedAt: '2026-11-04T10:00:00Z', data
-  };
 }
 
 describe('Shared learning domain', () => {
@@ -305,109 +295,6 @@ describe('Session controller', () => {
 });
 
 describe('Shared IndexedDB persistence contracts', () => {
-  test('legacy import is learner-separated, verified, idempotent, and leaves browser data intact', async () => {
-    const storage = new MemoryStorage();
-    const repository = new MemoryRepository();
-    storage.setItem('spellbee_progress_v1', '{"g2-evs-1":{"legacySummary":true}}');
-    storage.setItem('academy_maths_shiza_v1', '{"exam":{"parentChecked":true}}');
-    storage.setItem('spellbee_settings_v1', '{"slowSpeech":true}');
-    const first = await migrateLegacyProgress(repository, storage);
-    assert.equal(first.migrated, 3);
-    assert.equal(storage.getItem('spellbee_progress_v1') !== null, true);
-    assert.equal(storage.getItem('academy_maths_shiza_v1') !== null, true);
-    assert.equal((await repository.listForLearner('fazia')).length, 1);
-    assert.equal((await repository.listForLearner('shiza')).length, 1);
-    assert.equal((await repository.listForLearner('global')).length, 2);
-    assert.deepEqual(await migrateLegacyProgress(repository, storage), { migrated: 0, alreadyDone: true });
-  });
-
-  test('backup export and restore round trip while preserving progress already on the device', async () => {
-    const sourceStorage = new MemoryStorage();
-    const sourceRepository = new MemoryRepository();
-    sourceStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({
-      'word-1': {
-        wordId: 'word-1', studentId: 'fazia', attempts: 2, unaidedCorrectCount: 0,
-        consecutiveUnaidedCorrect: 0, unaidedCorrectDates: [], lastAttemptDate: null,
-        lastUnaidedCorrectDate: null, level: 'learning', needsRevisit: false, history: []
-      }
-    }));
-    sourceStorage.setItem('academy_robotics_fazia_v1', JSON.stringify({
-      studentId: 'fazia', lessonId: getRoboticsLesson('fazia').id,
-      practice: null, exam: null, reviewQuestionIds: []
-    }));
-    sourceStorage.setItem('academy_maths_shiza_v1', '{"exam":null}');
-    await sourceRepository.put({
-      id: 'result:fazia:robotics:1', schemaVersion: 1, learnerId: 'fazia', subjectId: 'robotics',
-      kind: 'result', contentVersion: 'robotics-v1', rubricVersion: 'robotics-rubric-v1',
-      updatedAt: '2026-11-04T10:00:00Z', data: { historicalAnswer: 'Saved as graded at the time.' }
-    });
-
-    const backup = await exportLearnerBackup('fazia', sourceRepository, sourceStorage);
-    assert.equal(Object.keys(backup.progress).length, 2);
-    assert.equal(backup.progress['academy_maths_shiza_v1'], undefined);
-    assert.equal(backup.records.length, 1);
-
-    const targetStorage = new MemoryStorage();
-    const targetRepository = new MemoryRepository();
-    targetStorage.setItem('spellbee_progress_fazia_v1', '{"word-1":{"attempts":9}}');
-    const restored = await importLearnerBackup(backup, 'fazia', targetRepository, targetStorage);
-    assert.equal(restored.imported, 1);
-    assert.equal(restored.skippedExisting, 1);
-    assert.equal(targetStorage.getItem('spellbee_progress_fazia_v1'), '{"word-1":{"attempts":9}}');
-    assert.equal(targetStorage.getItem('academy_robotics_fazia_v1'), backup.progress['academy_robotics_fazia_v1']);
-    assert.equal((await targetRepository.get('result:fazia:robotics:1'))?.contentVersion, 'robotics-v1');
-  });
-
-  test('backup export rejects histories beyond the restore record limit', async () => {
-    const storage = new MemoryStorage();
-    const repository = new MemoryRepository();
-    for (let index = 0; index <= MAX_BACKUP_RECORDS; index++) {
-      const record = backupRecord(`result:fazia:robotics:${index}`);
-      repository.records.set(record.id, record);
-    }
-
-    await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
-  });
-
-  test('backup export enforces the formatted download UTF-8 byte limit', async () => {
-    const storage = new MemoryStorage();
-    const repository = new MemoryRepository();
-    const unicodeContent = '📚'.repeat(Math.ceil(MAX_BACKUP_BYTES / 4));
-    const record = backupRecord('result:fazia:robotics:unicode', { response: unicodeContent });
-    repository.records.set(record.id, record);
-
-    await assert.rejects(exportLearnerBackup('fazia', repository, storage), /5 MB restore limit/);
-  });
-
-  test('backup export rejects malformed legacy progress JSON', async () => {
-    const storage = new MemoryStorage();
-    const repository = new MemoryRepository();
-    storage.setItem('academy_maths_fazia_v1', '{malformed progress');
-
-    await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
-  });
-
-  test('backup export rejects syntactically valid progress with an invalid subject schema', async () => {
-    const storage = new MemoryStorage();
-    const repository = new MemoryRepository();
-    for (const raw of ['[]', 'null', '"invalid"', '{}']) {
-      storage.clear();
-      storage.setItem('academy_maths_fazia_v1', raw);
-      await assert.rejects(exportLearnerBackup('fazia', repository, storage), /restorable backup/);
-    }
-  });
-
-  test('malformed, oversized-shape, or cross-learner backups are rejected before writes', async () => {
-    const storage = new MemoryStorage();
-    const repository = new MemoryRepository();
-    const backup = {
-      format: 'learning-academy-backup', schemaVersion: 1, learnerId: 'fazia',
-      exportedAt: '2026-11-04T10:00:00Z', progress: { academy_maths_shiza_v1: '{"exam":null}' }, records: []
-    };
-    await assert.rejects(importLearnerBackup(backup, 'fazia', repository, storage), /invalid, too large, or belongs/);
-    await assert.rejects(importLearnerBackup(backup, 'shiza', repository, storage), /invalid, too large, or belongs/);
-    assert.equal(storage.length, 0);
-  });
 
   test('session drafts only resume for the same learner, lesson, and content version', async () => {
     const repository = new MemoryRepository();
@@ -457,7 +344,7 @@ describe('Shared IndexedDB persistence contracts', () => {
     }
   });
 
-  test('pre-expansion Malayalam drafts remain recoverable in backups but do not resume with changed content', async () => {
+  test('pre-expansion Malayalam drafts do not resume with changed content', async () => {
     const repository = new MemoryRepository();
     const draft = {
       sessionId: 'malayalam-before-expansion', learnerId: 'shiza', subjectId: 'malayalam',
@@ -470,19 +357,12 @@ describe('Shared IndexedDB persistence contracts', () => {
     assert.equal(await loadSessionDraft(
       repository, 'shiza', 'malayalam', draft.lessonId, CONTENT_VERSIONS.malayalam
     ), null);
-    const backup = await exportLearnerBackup('shiza', repository, new MemoryStorage());
-    assert.equal(backup.records.length, 1);
-    const restored = new MemoryRepository();
-    await importLearnerBackup(backup, 'shiza', restored, new MemoryStorage());
     const previous = await loadSessionDraft<typeof draft.state>(
-      restored, 'shiza', 'malayalam', draft.lessonId, 'malayalam-v1'
+      repository, 'shiza', 'malayalam', draft.lessonId, 'malayalam-v1'
     );
     assert.deepEqual(previous?.state, draft.state);
     assert.equal(await loadSessionDraft(
-      restored, 'shiza', 'malayalam', draft.lessonId, CONTENT_VERSIONS.malayalam
-    ), null);
-    assert.equal(await loadSessionDraft(
-      restored, 'fazia', 'malayalam', draft.lessonId, 'malayalam-v1'
+      repository, 'fazia', 'malayalam', draft.lessonId, 'malayalam-v1'
     ), null);
   });
 });

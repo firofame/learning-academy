@@ -111,7 +111,7 @@ export const Header: React.FC<HeaderProps> = ({
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
             }`}
           >
-            Progress &amp; backup
+            Progress
           </button>
         </nav>
 

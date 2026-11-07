@@ -37,15 +37,12 @@ import {
   getAllProgress, 
   getWordProgress, 
   resetStudentProgress, 
-  runStorageMigration,
   loadSettings,
   saveSettings,
   isWordDueForReview,
   getLocalDateString,
   subscribeStorageError,
   DEFAULT_SETTINGS,
-  LEGACY_STORAGE_KEY,
-  MIGRATION_DONE_KEY,
   SETTINGS_KEY
 } from '../utils/storage';
 
@@ -480,11 +477,20 @@ describe('Spelling Learning Companion - Regression Test Suite', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 8. Reset remaining effective after migration and reload
+  // 8. Reset remaining effective across reloads and legacy data is not imported
   // -------------------------------------------------------------------------
-  test('8. Reset remains effective across reloads and migration does not restore data', () => {
-    // 1. Initial state with legacy storage
-    const legacyPayload = {
+  test('8. Reset remains effective across reloads and legacy data is not imported', () => {
+    // 1. Initial state with recorded progress
+    recordAttempt('g2-evs-1', 'fazia', true, 'test');
+    assert.ok(getAllProgress('fazia')['g2-evs-1']);
+
+    // 2. Fazia resets her progress
+    resetStudentProgress('fazia');
+    const afterReset = getAllProgress('fazia');
+    assert.deepEqual(afterReset, {}, 'Fazia progress is now empty');
+
+    // 3. Legacy storage key is not read or imported
+    mockStorage.setItem('spellbee_progress_v1', JSON.stringify({
       'g2-evs-1': {
         wordId: 'g2-evs-1',
         studentId: 'fazia',
@@ -497,24 +503,9 @@ describe('Spelling Learning Companion - Regression Test Suite', () => {
         needsRevisit: false,
         history: []
       }
-    };
-    mockStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(legacyPayload));
-
-    // First run migration
-    runStorageMigration();
-    assert.equal(mockStorage.getItem(MIGRATION_DONE_KEY), 'true', 'Migration flag set');
-    const migratedProgress = getAllProgress('fazia');
-    assert.equal(migratedProgress['g2-evs-1']?.attempts, 5, 'Legacy data was migrated to Fazia');
-
-    // 2. Fazia resets her progress
-    resetStudentProgress('fazia');
-    const afterReset = getAllProgress('fazia');
-    assert.deepEqual(afterReset, {}, 'Fazia progress is now empty');
-
-    // 3. Simulate browser reload (runStorageMigration() called again)
-    runStorageMigration();
+    }));
     const afterReload = getAllProgress('fazia');
-    assert.deepEqual(afterReload, {}, 'Reset remains effective; legacy data was NOT re-imported!');
+    assert.deepEqual(afterReload, {}, 'Reset remains effective; legacy data is NOT imported');
   });
 
   // -------------------------------------------------------------------------
