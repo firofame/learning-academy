@@ -258,6 +258,7 @@ export const GRADE_6_TIMETABLE: TimetableEntry[] = [
     displayDate: '09/11/26',
     dayOfWeek: 'Monday',
     subject: 'Chemistry',
+    subjectId: 'chemistry',
     sessionTime: '8:30 AM – 10:45 AM'
   },
   {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna, Calendar } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Calendar } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { AppSettings } from '../utils/appStorage';
 import { getStudentProfile, STUDENT_PROFILES } from '../data/profiles';
@@ -96,6 +96,8 @@ export const Header: React.FC<HeaderProps> = ({
                 <Leaf className="w-4 h-4 text-emerald-700" />
               ) : subject.id === 'biology' ? (
                 <Dna className="w-4 h-4 text-emerald-700" />
+              ) : subject.id === 'chemistry' ? (
+                <FlaskConical className="w-4 h-4 text-purple-700" />
               ) : (
                 <BookOpen className="w-4 h-4" />
               )}
