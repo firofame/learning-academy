@@ -7,11 +7,9 @@ import {
   getDefaultLearningRepository, listLearningAttempts, loadRevisionRound, saveRevisionRound,
   type RevisionRoundRecord
 } from '../learning/persistence';
-import { usePersistentDraft } from '../learning/usePersistentDraft';
-import { CONTENT_VERSIONS } from '../data/contentVersions';
 import { getStudentProfile } from '../data/profiles';
 import { isPortionExamReady, localCalendarDate } from '../learning/domain';
-import { createSessionId } from '../learning/sessionController';
+import { createSessionId } from '../learning/revision';
 import { emitStorageError } from '../utils/appStorage';
 import { audioService } from '../utils/audio';
 import type { LearningSubjectId, StudentId } from '../types';
@@ -116,24 +114,6 @@ function isRevisionResponse(value: unknown): value is RevisionResponse {
     (item.skipped === undefined || typeof item.skipped === 'boolean');
 }
 
-function isRevisionDraft(value: unknown): value is RevisionDraft {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const item = value as Record<string, unknown>;
-  return typeof item.revisionRoundId === 'string' && typeof item.batchId === 'string' &&
-    (item.mode === 'practice' || item.mode === 'exam') && typeof item.section === 'string' &&
-    Array.isArray(item.steps) && item.steps.every(step =>
-      typeof step === 'object' && step !== null &&
-      typeof (step as Record<string, unknown>).questionId === 'string' &&
-      ['initial', 'correction', 'recheck', 'exam'].includes(String((step as Record<string, unknown>).attemptKind))) &&
-    Number.isInteger(item.index) && typeof item.answer === 'string' &&
-    Array.isArray(item.assistance) && item.assistance.every(isAssistance) &&
-    Array.isArray(item.answers) && item.answers.every(isRevisionResponse) &&
-    ['answering', 'feedback'].includes(String(item.phase)) &&
-    (item.feedback === null || isRevisionResponse(item.feedback)) &&
-    (item.activeAttemptId === null || typeof item.activeAttemptId === 'string') &&
-    Array.isArray(item.scheduledRechecks) && item.scheduledRechecks.every(id => typeof id === 'string');
-}
-
 export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   learnerId, subjectId, lessonId, title, description, questions, sessionSize, onSessionSizeChange,
   allowSectionAssessment = false, speechAudio, onComplete
@@ -153,8 +133,6 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const [storageMessage, setStorageMessage] = useState('');
   const abortController = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLHeadingElement>(null);
-  const { restoredDraft, loadingDraft, saveDraft, discardDraft, forgetRestoredDraft } =
-    usePersistentDraft<RevisionDraft>({ learnerId, subjectId, lessonId });
 
   const questionById = useMemo(() => new Map(questions.map(question => [question.id, question])), [questions]);
   const questionIdsKey = questions.map(question => question.id).join('\u001f');
@@ -199,22 +177,18 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
   useEffect(() => {
     let active = true;
-    if (typeof indexedDB === 'undefined') {
-      setLoaded(true);
-      setStorageMessage('This browser cannot save revision history between visits.');
-      return;
-    }
     const repository = getDefaultLearningRepository();
     void Promise.all([
-      loadRevisionRound(repository, learnerId, subjectId, lessonId, CONTENT_VERSIONS[subjectId]),
+      loadRevisionRound(repository, learnerId, subjectId, lessonId),
       listLearningAttempts(repository, learnerId)
     ]).then(([savedRound, savedAttempts]) => {
       if (!active) return;
       if (savedRound && (savedRound.questionIds.length !== questions.length ||
           savedRound.questionIds.some((id, index) => id !== questions[index]?.id))) {
-        throw new Error('The saved revision progress belongs to a different question set. Your old records have been kept.');
+        setRound(null);
+      } else {
+        setRound(savedRound);
       }
-      setRound(savedRound);
       const currentAttempts = savedAttempts.filter(attempt =>
         attempt.subjectId === subjectId && attempt.lessonId === lessonId
       );
@@ -237,31 +211,24 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
   useEffect(() => () => abortController.current?.abort(), []);
 
-  useEffect(() => {
-    if (!session || screen !== 'session') return;
-    saveDraft(session.batchId, session);
-  }, [session, screen, saveDraft]);
-
   const persistRound = async (revisionRoundId: string): Promise<RevisionRoundRecord> => {
     const next: RevisionRoundRecord = {
       revisionRoundId,
       learnerId,
       subjectId,
       lessonId,
-      contentVersion: CONTENT_VERSIONS[subjectId],
+      contentVersion: 'v1',
       startedAt: new Date().toISOString(),
       questionIds: questions.map(question => question.id)
     };
     setRound(next);
-    if (typeof indexedDB !== 'undefined') {
-      try {
-        await saveRevisionRound(getDefaultLearningRepository(), next);
-        setStorageMessage('');
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : 'Unable to save this revision round.';
-        setStorageMessage(`${message} Keep this page open and retry if needed.`);
-        emitStorageError(message);
-      }
+    try {
+      await saveRevisionRound(getDefaultLearningRepository(), next);
+      setStorageMessage('');
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : 'Unable to save this revision round.';
+      setStorageMessage(`${message} Keep this page open and retry if needed.`);
+      emitStorageError(message);
     }
     return next;
   };
@@ -337,26 +304,6 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       void persistRound(revisionRoundId);
     }
     makeSession(revisionRoundId, 'exam', section);
-  };
-
-  const resumeDraft = () => {
-    if (!restoredDraft || !isRevisionDraft(restoredDraft.state)) {
-      setError('This unfinished session belongs to an older learning flow.');
-      return;
-    }
-    const saved = restoredDraft.state;
-    if (saved.steps.some(step => !questionById.has(step.questionId)) ||
-        saved.index < 0 || saved.index >= saved.steps.length ||
-        saved.revisionRoundId !== round?.revisionRoundId) {
-      setError('This saved session does not match the current revision. Its data has been kept.');
-      return;
-    }
-    setSession(saved);
-    setSelectedSection(saved.section);
-    setShowHelp(false);
-    setError('');
-    setScreen('session');
-    forgetRestoredDraft();
   };
 
   const recordResponse = async (
@@ -534,11 +481,6 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       setStorageMessage(message);
       emitStorageError(message);
     }
-    void discardDraft(completedSession.batchId).catch(cause => {
-      const message = cause instanceof Error ? cause.message : 'Unable to remove the completed session draft.';
-      setStorageMessage(message);
-      emitStorageError(message);
-    });
   };
 
   function moveToNext(latestResponse?: RevisionResponse) {
@@ -650,7 +592,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
   const canStartNewRound = Boolean(round && remainingCount === 0 && pendingCount === 0);
 
-  if (!loaded || loadingDraft) {
+  if (!loaded) {
     return <p className="mx-auto max-w-4xl p-6 text-sm text-slate-600" role="status">Loading your saved revision…</p>;
   }
 
@@ -675,15 +617,6 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
               <button type="button" className={buttonPrimary} onClick={() => setScreen('session')}>
                 Resume current session
               </button>
-            </section>
-          )}
-          {restoredDraft && (
-            <section className="space-y-3 rounded-xl border border-sky-200 bg-sky-50 p-4" aria-label="Saved revision session">
-              <p className="font-semibold text-sky-950">An unfinished revision session is saved on this device.</p>
-              <div className="flex flex-wrap gap-3">
-                <button type="button" className={buttonPrimary} onClick={resumeDraft}>Resume saved session</button>
-                <button type="button" className={buttonSecondary} onClick={() => void discardDraft(restoredDraft.sessionId)}>Discard saved session</button>
-              </div>
             </section>
           )}
 

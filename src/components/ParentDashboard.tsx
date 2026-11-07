@@ -3,7 +3,6 @@ import type { LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from '../learning/contracts';
 import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade, LEARNING_SUBJECTS } from '../data/subjects';
-import { CONTENT_VERSIONS } from '../data/contentVersions';
 import { deriveRevisionProgress } from '../learning/revision';
 import {
   getDefaultLearningRepository, listLearningAttempts, loadRevisionRound,
@@ -59,7 +58,7 @@ export const ParentDashboard: React.FC<ParentDashboardProps> = ({ activeStudent,
       Promise.all(definitions.map(async ({ subjectId, definition }): Promise<SubjectRevisionSummary> => {
         try {
           const round = await loadRevisionRound(
-            repository, activeStudent, subjectId, definition.lessonId, CONTENT_VERSIONS[subjectId]
+            repository, activeStudent, subjectId, definition.lessonId
           );
           return {
             subjectId,

@@ -14,16 +14,9 @@ import type { AppSettings } from './utils/appStorage';
 import { getStudentProfile } from './data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from './data/subjects';
 import { audioService } from './utils/audio';
-import { retryLearningPersistence } from './learning/persistence';
 
-const SessionView = lazy(() => import('./components/SessionView').then(module => ({ default: module.SessionView })));
 const ParentDashboard = lazy(() => import('./components/ParentDashboard').then(module => ({ default: module.ParentDashboard })));
-const RoboticsView = lazy(() => import('./components/RoboticsView').then(module => ({ default: module.RoboticsView })));
-const MathsView = lazy(() => import('./components/MathsView').then(module => ({ default: module.MathsView })));
-const MalayalamView = lazy(() => import('./components/MalayalamView').then(module => ({ default: module.MalayalamView })));
-const HindiView = lazy(() => import('./components/HindiView').then(module => ({ default: module.HindiView })));
-const EvsView = lazy(() => import('./components/EvsView').then(module => ({ default: module.EvsView })));
-const BiologyView = lazy(() => import('./components/BiologyView').then(module => ({ default: module.BiologyView })));
+const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
@@ -31,7 +24,6 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
-  const [retryingStorage, setRetryingStorage] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -55,6 +47,7 @@ export default function App() {
 
   const currentProfile = getStudentProfile(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
+  const currentSubject = getSubjectForView(currentView);
 
   const handleNavigate = (view: ActiveAppView) => {
     audioService.stopAll();
@@ -96,29 +89,13 @@ export default function App() {
             <span>⚠️</span>
             <span>{storageErrorMessage}</span>
           </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {storageErrorMessage.includes('IndexedDB') && (
-              <button
-                disabled={retryingStorage}
-                onClick={async () => {
-                  setRetryingStorage(true);
-                  const saved = await retryLearningPersistence();
-                  setRetryingStorage(false);
-                  if (saved) setStorageErrorMessage(null);
-                }}
-                className="underline underline-offset-2 disabled:opacity-60"
-              >
-                {retryingStorage ? 'Retrying…' : 'Retry'}
-              </button>
-            )}
-            <button
-              onClick={() => setStorageErrorMessage(null)}
-              aria-label="Dismiss storage warning"
-              className="text-rose-600 hover:text-rose-900 font-bold cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            onClick={() => setStorageErrorMessage(null)}
+            aria-label="Dismiss storage warning"
+            className="text-rose-600 hover:text-rose-900 font-bold cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -140,10 +117,11 @@ export default function App() {
         )}
 
         {currentView === 'session' && (
-          <SessionView
+          <SubjectRevisionView
             key={`spell-bee-${activeStudent}-${refreshKey}`}
-            settings={settings}
             activeStudent={activeStudent}
+            subjectId="spell-bee"
+            settings={settings}
             onSessionSizeChange={handleSessionSizeChange}
           />
         )}
@@ -156,55 +134,11 @@ export default function App() {
           />
         )}
 
-        {currentView === 'robotics' && (
-          <RoboticsView
-            key={`robotics-${activeStudent}-${refreshKey}`}
+        {currentView !== 'session' && currentSubject && (
+          <SubjectRevisionView
+            key={`${currentSubject.id}-${activeStudent}-${refreshKey}`}
             activeStudent={activeStudent}
-            settings={settings}
-            onSessionSizeChange={handleSessionSizeChange}
-          />
-        )}
-
-        {currentView === 'maths' && (
-          <MathsView
-            key={`maths-${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
-            settings={settings}
-            onSessionSizeChange={handleSessionSizeChange}
-          />
-        )}
-
-        {currentView === 'malayalam' && (
-          <MalayalamView
-            key={`malayalam-${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
-            settings={settings}
-            onSessionSizeChange={handleSessionSizeChange}
-          />
-        )}
-
-        {currentView === 'hindi' && (
-          <HindiView
-            key={`hindi-${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
-            settings={settings}
-            onSessionSizeChange={handleSessionSizeChange}
-          />
-        )}
-
-        {currentView === 'evs' && (
-          <EvsView
-            key={`evs-${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
-            settings={settings}
-            onSessionSizeChange={handleSessionSizeChange}
-          />
-        )}
-
-        {currentView === 'biology' && (
-          <BiologyView
-            key={`biology-${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
+            subjectId={currentSubject.id}
             settings={settings}
             onSessionSizeChange={handleSessionSizeChange}
           />

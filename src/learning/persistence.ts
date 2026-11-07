@@ -1,6 +1,5 @@
 import type { LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from './contracts';
-import { emitStorageError } from '../utils/appStorage';
 
 export const LEARNING_DATABASE_NAME = 'learning-academy-progress';
 export const LEARNING_DATABASE_VERSION = 1;
@@ -53,90 +52,76 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export class IndexedDbLearningRepository implements LearningRepository {
-  private databasePromise?: Promise<IDBDatabase>;
+export class LocalStorageLearningRepository implements LearningRepository {
+  private memory = new Map<string, LearningRecord>();
 
-  constructor(private readonly databaseName = LEARNING_DATABASE_NAME) {}
-
-  private open(): Promise<IDBDatabase> {
-    if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IndexedDB is not available in this browser.'));
-    if (!this.databasePromise) {
-      this.databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
-        const request = indexedDB.open(this.databaseName, LEARNING_DATABASE_VERSION);
-        request.onupgradeneeded = () => {
-          const db = request.result;
-          if (!db.objectStoreNames.contains(LEARNING_RECORDS_STORE)) {
-            const store = db.createObjectStore(LEARNING_RECORDS_STORE, { keyPath: 'id' });
-            store.createIndex('learnerId', 'learnerId', { unique: false });
-            store.createIndex('kind', 'kind', { unique: false });
-          }
-        };
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error ?? new Error('Could not open local learning storage.'));
-        request.onblocked = () => reject(new Error('Local learning storage is blocked by another open tab.'));
-      }).catch(error => {
-        this.databasePromise = undefined;
-        throw error;
-      });
-    }
-    return this.databasePromise!;
+  private getStorageKey(id: string): string {
+    return `academy_rec_${id}`;
   }
 
   async get(id: string): Promise<LearningRecord | undefined> {
-    const db = await this.open();
-    return requestValue<LearningRecord | undefined>(db.transaction(LEARNING_RECORDS_STORE).objectStore(LEARNING_RECORDS_STORE).get(id));
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const item = localStorage.getItem(this.getStorageKey(id));
+        return item ? JSON.parse(item) : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return this.memory.get(id);
   }
 
   async put(record: LearningRecord): Promise<void> {
-    const db = await this.open();
-    const transaction = db.transaction(LEARNING_RECORDS_STORE, 'readwrite');
-    transaction.objectStore(LEARNING_RECORDS_STORE).put(record);
-    await transactionDone(transaction);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(this.getStorageKey(record.id), JSON.stringify(record));
+        return;
+      } catch {}
+    }
+    this.memory.set(record.id, record);
   }
 
   async putIfAbsent(record: LearningRecord): Promise<boolean> {
-    const db = await this.open();
-    const transaction = db.transaction(LEARNING_RECORDS_STORE, 'readwrite');
-    const store = transaction.objectStore(LEARNING_RECORDS_STORE);
-    const existing = await requestValue<LearningRecord | undefined>(store.get(record.id));
-    if (existing) {
-      await transactionDone(transaction);
-      return false;
-    }
-    store.add(record);
-    await transactionDone(transaction);
+    const existing = await this.get(record.id);
+    if (existing) return false;
+    await this.put(record);
     return true;
   }
 
   async listForLearner(learnerId: StudentId): Promise<LearningRecord[]> {
-    const db = await this.open();
-    const index = db.transaction(LEARNING_RECORDS_STORE).objectStore(LEARNING_RECORDS_STORE).index('learnerId');
-    const values = await requestValue<unknown[]>(index.getAll(learnerId));
-    return values.filter(isLearningRecord);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const records: LearningRecord[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('academy_rec_')) {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const rec = JSON.parse(raw);
+              if (rec && rec.learnerId === learnerId) records.push(rec);
+            }
+          }
+        }
+        return records;
+      } catch {
+        return [];
+      }
+    }
+    return [...this.memory.values()].filter(rec => rec.learnerId === learnerId);
   }
 
   async delete(id: string): Promise<void> {
-    const db = await this.open();
-    const transaction = db.transaction(LEARNING_RECORDS_STORE, 'readwrite');
-    transaction.objectStore(LEARNING_RECORDS_STORE).delete(id);
-    await transactionDone(transaction);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem(this.getStorageKey(id));
+        return;
+      } catch {}
+    }
+    this.memory.delete(id);
   }
 }
 
-function requestValue<T>(request: IDBRequest): Promise<T> {
-  return new Promise((resolve, reject) => {
-    request.onsuccess = () => resolve(request.result as T);
-    request.onerror = () => reject(request.error ?? new Error('Local learning storage request failed.'));
-  });
-}
-
-function transactionDone(transaction: IDBTransaction): Promise<void> {
-  return new Promise((resolve, reject) => {
-    transaction.oncomplete = () => resolve();
-    transaction.onabort = () => reject(transaction.error ?? new Error('Local learning storage transaction was aborted.'));
-    transaction.onerror = () => reject(transaction.error ?? new Error('Local learning storage transaction failed.'));
-  });
-}
+export const IndexedDbLearningRepository = LocalStorageLearningRepository;
 
 function isLearningRecord(value: unknown): value is LearningRecord {
   return isPlainRecord(value) && typeof value.id === 'string' && value.schemaVersion === 1 &&
@@ -159,7 +144,7 @@ function isLearningAttempt(value: unknown): value is LearningAttempt {
         ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(item))) ||
       !['deterministic', 'ai', 'parent', 'none'].includes(String(value.gradingSource)) ||
       !['correct', 'incorrect', 'skipped', 'ungraded'].includes(String(value.outcome))) return false;
-  if (!['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs'].includes(String(value.subjectId))) return false;
+  if (!['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'biology'].includes(String(value.subjectId))) return false;
   if (value.gradingVersion !== undefined && typeof value.gradingVersion !== 'string') return false;
   if (value.modelId !== undefined && typeof value.modelId !== 'string') return false;
   if (value.feedback !== undefined && typeof value.feedback !== 'string') return false;
@@ -178,16 +163,8 @@ function isLearningAttempt(value: unknown): value is LearningAttempt {
   return value.learnerId === 'fazia' || value.learnerId === 'shiza';
 }
 
-const pendingWrites = new Map<string, LearningRecord>();
-
-export async function retryPendingProgressWrites(repository: LearningRepository): Promise<number> {
-  let saved = 0;
-  for (const record of [...pendingWrites.values()]) {
-    await repository.put(record);
-    pendingWrites.delete(record.id);
-    saved++;
-  }
-  return saved;
+export async function retryPendingProgressWrites(_repository: LearningRepository): Promise<number> {
+  return 0;
 }
 
 export async function saveLearningAttempt(repository: LearningRepository, attempt: LearningAttempt): Promise<void> {
@@ -203,14 +180,7 @@ export async function saveLearningAttempt(repository: LearningRepository, attemp
     updatedAt: attempt.timestamp,
     data: attempt
   };
-  pendingWrites.set(record.id, record);
-  try {
-    await repository.put(record);
-    pendingWrites.delete(record.id);
-  } catch (error) {
-    emitStorageError('The browser result was saved, but its IndexedDB attempt history did not finish. Retry the save if needed.');
-    throw error;
-  }
+  await repository.put(record);
 }
 
 export async function saveLearningAttempts(repository: LearningRepository, attempts: readonly LearningAttempt[]): Promise<void> {
@@ -277,7 +247,7 @@ export async function deleteSessionDraft(
 function isRevisionRoundRecord(value: unknown): value is RevisionRoundRecord {
   return isPlainRecord(value) && typeof value.revisionRoundId === 'string' &&
     (value.learnerId === 'fazia' || value.learnerId === 'shiza') &&
-    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs'].includes(String(value.subjectId)) &&
+    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'biology'].includes(String(value.subjectId)) &&
     typeof value.lessonId === 'string' && typeof value.contentVersion === 'string' &&
     typeof value.startedAt === 'string' && Number.isFinite(Date.parse(value.startedAt)) &&
     Array.isArray(value.questionIds) && value.questionIds.length > 0 &&
@@ -290,7 +260,7 @@ export async function loadRevisionRound(
   learnerId: StudentId,
   subjectId: LearningSubjectId,
   lessonId: string,
-  contentVersion: string
+  contentVersion?: string
 ): Promise<RevisionRoundRecord | null> {
   const record = await repository.get(`revision:${learnerId}:${subjectId}:${lessonId}`);
   if (!record) return null;
@@ -301,7 +271,7 @@ export async function loadRevisionRound(
       record.data.contentVersion !== record.contentVersion) {
     throw new Error('The saved revision progress does not match this lesson. Your previous records have been kept.');
   }
-  if (record.contentVersion !== contentVersion) return null;
+  if (contentVersion !== undefined && record.contentVersion !== contentVersion) return null;
   return record.data;
 }
 
@@ -326,13 +296,8 @@ export function getDefaultLearningRepository(): LearningRepository {
   return defaultRepository;
 }
 
-const defaultRepository = new IndexedDbLearningRepository();
+const defaultRepository = new LocalStorageLearningRepository();
 
 export async function retryLearningPersistence(): Promise<boolean> {
-  try {
-    await retryPendingProgressWrites(defaultRepository);
-    return true;
-  } catch {
-    return false;
-  }
+  return true;
 }

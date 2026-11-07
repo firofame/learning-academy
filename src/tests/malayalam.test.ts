@@ -15,7 +15,6 @@ import {
   MalayalamResult,
   saveMalayalamResult
 } from '../utils/malayalamStorage';
-import { CONTENT_VERSIONS, RUBRIC_VERSIONS } from '../data/contentVersions';
 
 class MockLocalStorage {
   private store = new Map<string, string>();
@@ -209,8 +208,6 @@ describe('Shiza Grade 6 Malayalam exam portions', () => {
       assert.equal(checkMalayalamAnswer(question, ''), false);
       assert.equal(/[\u0000\uFFFD]/u.test(question.prompt + question.answer), false);
     }
-    assert.equal(CONTENT_VERSIONS.malayalam, 'malayalam-v2');
-    assert.equal(RUBRIC_VERSIONS.malayalam, 'malayalam-rubric-v2');
   });
 
   test('preserves supplied answers and flags source gaps rather than inventing exercises', () => {
@@ -296,7 +293,7 @@ describe('Shiza Grade 6 Malayalam exam portions', () => {
     const saved = saveMalayalamResult('shiza', exam);
     assert.ok(saved);
     assert.equal(saved.exam?.answers.length, 176);
-    assert.equal(saved.exam?.contentVersion, CONTENT_VERSIONS.malayalam);
+    assert.equal(saved.exam?.contentVersion, 'malayalam-v2');
     assert.deepEqual(saved.reviewQuestionIds, []);
     assert.equal(getMalayalamStorageKey('shiza'), 'academy_malayalam_shiza_v1');
     assert.equal(loadMalayalamProgress('fazia').exam, null);
@@ -335,7 +332,7 @@ describe('Shiza Grade 6 Malayalam exam portions', () => {
       answers: [{ questionId: corrected.id, answer: corrected.answer, correct: true }]
     });
     assert.ok(saved);
-    assert.equal(saved.practice?.contentVersion, CONTENT_VERSIONS.malayalam);
+    assert.equal(saved.practice?.contentVersion, 'malayalam-v2');
     assert.deepEqual(saved.exam, oldExam);
     assert.deepEqual(loadMalayalamProgress('shiza').exam, oldExam);
     assert.equal(loadMalayalamProgress('shiza').practice?.answers[0].answer, corrected.answer);
@@ -347,7 +344,7 @@ describe('Shiza Grade 6 Malayalam exam portions', () => {
     }, 'shiza'), true);
     for (const exam of [
       { ...oldExam, answers: oldAnswers.slice(1) },
-      { ...oldExam, contentVersion: CONTENT_VERSIONS.malayalam },
+      { ...oldExam, contentVersion: 'malayalam-v2' },
       { ...oldExam, contentVersion: 'unknown-version' }
     ]) {
       assert.equal(isValidMalayalamProgress({ ...previous, exam }, 'shiza'), false);

@@ -1,9 +1,6 @@
 import { WordProgress, MasteryLevel, SubjectCategory, WordEntry, StudentId, StudyMode } from '../types';
 import { getWordsForStudent } from '../data/wordList';
 import { isRetentionCheckDue, localCalendarDate, readinessFromRecallEvidence } from '../learning/domain';
-import { getDefaultLearningRepository, saveLearningAttempt } from '../learning/persistence';
-import { createSpellingAttempt } from '../learning/attemptRecords';
-import { getStudentProfile } from '../data/profiles';
 import { emitStorageError } from './appStorage';
 export {
   ACTIVE_PROFILE_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, emitStorageError,
@@ -246,27 +243,6 @@ export function recordAttempt(
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(getStudentStorageKey(studentId), JSON.stringify(all));
-      if (typeof indexedDB !== 'undefined') {
-        const repository = getDefaultLearningRepository();
-        if (options.mirrorAttempts !== false) {
-          const word = getWordsForStudent(studentId).find(item => item.id === wordId);
-          const attempt = createSpellingAttempt({
-            attemptId: options.attemptId ?? `${studentId}:${wordId}:${now}:${Math.random().toString(36).slice(2, 8)}`,
-            learnerId: studentId,
-            grade: getStudentProfile(studentId).grade,
-            questionId: wordId,
-            timestamp: now,
-            sessionMode: mode === 'paper' ? 'paper' : mode === 'test' ? 'exam' : 'practice',
-            submittedAnswer: mistakeInput ?? null,
-            questionPrompt: word?.hiddenSentence,
-            referenceAnswer: word?.canonicalSpelling,
-            explanation: word?.meaning,
-            assisted: !isUnaided,
-            outcome: wasCorrect ? 'correct' : 'incorrect'
-          });
-          void saveLearningAttempt(repository, attempt).catch(() => undefined);
-        }
-      }
     } catch {
       saveFailed = true;
       updatedProgress.saveFailed = true;

@@ -5,7 +5,6 @@ import {
   deriveReadiness, isQuestionExamReady, isPortionExamReady, isRetentionCheckDue, isReviewDue,
   nextIndependentReviewDate, readinessFromRecallEvidence, shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES
 } from '../learning/domain';
-import { sessionReducer, startSession } from '../learning/sessionController';
 import { createQuizAttempts } from '../learning/attemptRecords';
 import {
   canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch
@@ -13,7 +12,6 @@ import {
 import { buildSubjectRevision } from '../learning/subjectRevision';
 import { getRoboticsLesson } from '../data/robotics';
 import { getMalayalamLesson } from '../data/malayalam';
-import { CONTENT_VERSIONS } from '../data/contentVersions';
 import {
   type LearningRepository, type LearningRecord as PersistedRecord, type RevisionRoundRecord,
   loadRevisionRound, loadSessionDraft, saveRevisionRound, saveSessionDraft
@@ -247,52 +245,7 @@ describe('Same-day revision rechecks', () => {
   });
 });
 
-describe('Session controller', () => {
-  const freshSession = (mode: SessionMode = 'practice') => startSession({
-    sessionId: 'session-1', learnerId: 'fazia', subjectId: 'robotics', lessonId: 'lesson-1',
-    contentVersion: 'robotics-v1', rubricVersion: 'robotics-rubric-v1', mode, questionIds: ['q1', 'q2']
-  });
 
-  test('prevents duplicate checks, ignores stale results, and keeps failed answers for retry', () => {
-    let state = sessionReducer(freshSession(), { type: 'edit-answer', answer: 'It helps.' });
-    state = sessionReducer(state, { type: 'begin-check', submissionId: 'submit-1' });
-    const duplicate = sessionReducer(state, { type: 'begin-check', submissionId: 'submit-2' });
-    assert.equal(duplicate.submissionId, 'submit-1');
-    assert.equal(sessionReducer(state, { type: 'check-resolved', submissionId: 'stale', outcome: 'incorrect' }), state);
-    state = sessionReducer(state, { type: 'check-failed', submissionId: 'submit-1' });
-    assert.equal(state.phase, 'answering');
-    assert.equal(state.draftAnswer, 'It helps.');
-    state = sessionReducer(state, { type: 'begin-check', submissionId: 'retry-1' });
-    state = sessionReducer(state, { type: 'check-resolved', submissionId: 'retry-1', outcome: 'ungraded' });
-    assert.equal(state.phase, 'answering');
-    assert.equal(state.draftAnswer, 'It helps.');
-    assert.equal(state.answers.length, 0);
-  });
-
-  test('practice shows feedback immediately; exam hides it until completion', () => {
-    let practice = freshSession();
-    practice = sessionReducer(practice, { type: 'edit-answer', answer: 'response' });
-    practice = sessionReducer(practice, { type: 'begin-check', submissionId: 'p1' });
-    practice = sessionReducer(practice, { type: 'check-resolved', submissionId: 'p1', outcome: 'correct', feedback: 'Good.' });
-    assert.equal(practice.phase, 'feedback');
-    assert.equal(practice.feedbackVisible, true);
-
-    let exam = freshSession('exam');
-    exam = sessionReducer(exam, { type: 'edit-answer', answer: 'response' });
-    exam = sessionReducer(exam, { type: 'begin-check', submissionId: 'e1' });
-    exam = sessionReducer(exam, { type: 'check-resolved', submissionId: 'e1', outcome: 'correct', feedback: 'Hidden.' });
-    assert.equal(exam.phase, 'answering');
-    assert.equal(exam.questionIndex, 1);
-    assert.equal(exam.feedbackVisible, false);
-    exam = sessionReducer(exam, { type: 'edit-answer', answer: 'second' });
-    exam = sessionReducer(exam, { type: 'begin-check', submissionId: 'e2' });
-    exam = sessionReducer(exam, { type: 'check-resolved', submissionId: 'e2', outcome: 'incorrect', feedback: 'Hidden too.' });
-    assert.equal(exam.phase, 'complete');
-    assert.equal(exam.feedbackVisible, false);
-    exam = sessionReducer(exam, { type: 'show-results' });
-    assert.equal(exam.feedbackVisible, true);
-  });
-});
 
 describe('Shared IndexedDB persistence contracts', () => {
 
@@ -355,7 +308,7 @@ describe('Shared IndexedDB persistence contracts', () => {
     } as const;
     await saveSessionDraft(repository, draft);
     assert.equal(await loadSessionDraft(
-      repository, 'shiza', 'malayalam', draft.lessonId, CONTENT_VERSIONS.malayalam
+      repository, 'shiza', 'malayalam', draft.lessonId, 'malayalam-v2'
     ), null);
     const previous = await loadSessionDraft<typeof draft.state>(
       repository, 'shiza', 'malayalam', draft.lessonId, 'malayalam-v1'

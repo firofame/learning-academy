@@ -3,7 +3,6 @@ import type {
   AssistanceKind, AttemptGradingSource, AttemptOutcome, LearningAttempt,
   RevisionAttemptKind, RevisionResponseFormat, SessionMode
 } from './contracts';
-import { CONTENT_VERSIONS, RUBRIC_VERSIONS } from '../data/contentVersions';
 import { GRADING_MODEL } from '../utils/roboticsGrading';
 import { localCalendarDate } from './domain';
 import { getDefaultLearningRepository, saveLearningAttempt } from './persistence';
@@ -41,8 +40,8 @@ export function createQuizAttempts(input: {
   answers: readonly QuizAnswerForAttempt[];
 }): LearningAttempt[] {
   const timestamp = Number.isFinite(Date.parse(input.completedAt)) ? input.completedAt : new Date().toISOString();
-  const contentVersion = CONTENT_VERSIONS[input.subjectId];
-  const rubricVersion = RUBRIC_VERSIONS[input.subjectId];
+  const contentVersion = 'v1';
+  const rubricVersion = 'rubric-v1';
   return input.answers.map(answer => {
     const attemptTimestamp = answer.attemptedAt && Number.isFinite(Date.parse(answer.attemptedAt))
       ? answer.attemptedAt
@@ -91,7 +90,6 @@ export async function recordQuizAnswerAttempt(input: {
   mode: SessionMode;
   answer: QuizAnswerForAttempt;
 }): Promise<void> {
-  if (typeof indexedDB === 'undefined') return;
   const attemptedAt = input.answer.attemptedAt ?? new Date().toISOString();
   const [attempt] = createQuizAttempts({
     learnerId: input.learnerId,
@@ -125,8 +123,8 @@ export function createSpellingAttempt(input: {
     subjectId: 'spell-bee',
     lessonId: `spelling-grade-${input.grade}`,
     questionId: input.questionId,
-    contentVersion: CONTENT_VERSIONS['spell-bee'],
-    rubricVersion: RUBRIC_VERSIONS['spell-bee'],
+    contentVersion: 'spell-bee-v1',
+    rubricVersion: 'spelling-rubric-v1',
     timestamp: input.timestamp,
     learnerLocalDate: localCalendarDate(new Date(input.timestamp)),
     sessionMode: input.sessionMode,
@@ -137,7 +135,7 @@ export function createSpellingAttempt(input: {
     provenance: input.provenance,
     assistance: input.assisted ? ['answer-revealed'] : [],
     gradingSource: 'deterministic',
-    gradingVersion: RUBRIC_VERSIONS['spell-bee'],
+    gradingVersion: 'spelling-rubric-v1',
     outcome: input.outcome
   };
 }
