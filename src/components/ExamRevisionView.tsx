@@ -259,7 +259,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
         setStorageMessage('');
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : 'Unable to save this revision round.';
-        setStorageMessage(`${message} Keep this page open and retry the backup if needed.`);
+        setStorageMessage(`${message} Keep this page open and retry if needed.`);
         emitStorageError(message);
       }
     }
@@ -341,7 +341,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
   const resumeDraft = () => {
     if (!restoredDraft || !isRevisionDraft(restoredDraft.state)) {
-      setError('This unfinished session belongs to an older learning flow. Its saved data is still available in your backup.');
+      setError('This unfinished session belongs to an older learning flow.');
       return;
     }
     const saved = restoredDraft.state;

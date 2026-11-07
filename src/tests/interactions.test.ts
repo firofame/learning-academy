@@ -536,7 +536,7 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(answers.every(answer => getWordProgress(answer.questionId, 'fazia').attempts === 1));
   });
 
-  test('Spell Bee completion mirrors its summary but does not duplicate per-answer history', async t => {
+  test('Spell Bee completion saves progress but does not duplicate per-answer history', async t => {
     const records: LearningRecord[] = [];
     t.mock.method(getDefaultLearningRepository(), 'put', async (record: LearningRecord) => { records.push(record); });
     const definition = buildSubjectRevision('spell-bee', 'fazia', '');
@@ -551,8 +551,8 @@ describe('Shared exam-eve revision interactions', () => {
           assistance: [], attemptId: 'already-recorded', attemptedAt: '2026-11-04T10:00:00.000Z'
         }]
       }), true);
-      await waitFor(() => assert.equal(records.length, 1));
-      assert.equal(records[0].kind, 'progress');
+      assert.equal(getWordProgress(item.id, 'fazia').attempts, 1);
+      assert.equal(records.length, 0);
     } finally {
       Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true });
     }

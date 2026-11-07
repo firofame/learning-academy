@@ -2,9 +2,8 @@ import { StudentId } from '../types';
 import { checkBiologyAnswer, getBiologyLessonForGrade, BiologyLesson, BIOLOGY_SECTIONS } from '../data/biology';
 import { getStudentProfile } from '../data/profiles';
 import { emitStorageError } from './appStorage';
-import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { getDefaultLearningRepository } from '../learning/persistence';
 import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
-import { CONTENT_VERSIONS } from '../data/contentVersions';
 import { createQuizAttempts } from '../learning/attemptRecords';
 import { saveLearningAttempts } from '../learning/persistence';
 import type { AssistanceKind } from '../learning/contracts';
@@ -196,7 +195,6 @@ export function saveBiologyResult(
     localStorage.setItem(getBiologyStorageKey(studentId), serialized);
     if (typeof indexedDB !== 'undefined') {
       const repository = getDefaultLearningRepository();
-      void persistProgressSnapshot(repository, studentId, 'biology', serialized, CONTENT_VERSIONS.biology).catch(() => undefined);
       if (options.mirrorAttempts !== false) {
         void saveLearningAttempts(repository, createQuizAttempts({
           learnerId: studentId, subjectId: 'biology', lessonId: lesson.id, mode: result.mode,

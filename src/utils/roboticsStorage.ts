@@ -2,9 +2,8 @@ import { StudentId } from '../types';
 import { checkRoboticsAnswer, getRoboticsLesson, RoboticsLesson } from '../data/robotics';
 import { emitStorageError } from './appStorage';
 import { isWrittenGrade } from './roboticsGrading';
-import { persistProgressSnapshot, getDefaultLearningRepository } from '../learning/persistence';
+import { getDefaultLearningRepository } from '../learning/persistence';
 import { shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES } from '../learning/domain';
-import { CONTENT_VERSIONS } from '../data/contentVersions';
 import { createQuizAttempts } from '../learning/attemptRecords';
 import { saveLearningAttempts } from '../learning/persistence';
 
@@ -128,7 +127,6 @@ export function saveRoboticsResult(
     localStorage.setItem(getRoboticsStorageKey(studentId), serialized);
     if (typeof indexedDB !== 'undefined') {
       const repository = getDefaultLearningRepository();
-      void persistProgressSnapshot(repository, studentId, 'robotics', serialized, CONTENT_VERSIONS.robotics).catch(() => undefined);
       if (options.mirrorAttempts !== false) {
         void saveLearningAttempts(repository, createQuizAttempts({
           learnerId: studentId, subjectId: 'robotics', lessonId: lesson.id, mode: result.mode,

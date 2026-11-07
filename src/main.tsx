@@ -1,7 +1,6 @@
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
-import { initializeLearningPersistence } from './learning/persistence';
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -12,4 +11,4 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 }
 
 const root = createRoot(document.getElementById('root')!);
-void initializeLearningPersistence().finally(() => root.render(<App />));
+root.render(<App />);
