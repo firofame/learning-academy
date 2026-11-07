@@ -1,5 +1,9 @@
 import type { AttemptOutcome, AssistanceKind, RevisionAttemptKind } from './contracts';
 
+export function createSessionId(now = Date.now(), random = Math.random): string {
+  return `session-${now.toString(36)}-${random().toString(36).slice(2)}`;
+}
+
 export interface RevisionAttemptEvidence {
   questionId: string;
   outcome: AttemptOutcome;
