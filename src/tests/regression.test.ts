@@ -12,6 +12,7 @@ import {
 import { getHindiLesson, getHindiLessonForGrade, SHIZA_HINDI_LESSON } from '../data/hindi';
 import { getEvsLesson, getEvsLessonForGrade, FAZIA_EVS_LESSON } from '../data/evs';
 import { getBiologyLesson, getBiologyLessonForGrade, SHIZA_BIOLOGY_LESSON } from '../data/biology';
+import { getChemistryLesson, getChemistryLessonForGrade, SHIZA_CHEMISTRY_LESSON } from '../data/chemistry';
 import { LEARNING_SUBJECTS, getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 import {
   getRoboticsStorageKey, loadRoboticsProgress, RoboticsResult, saveRoboticsResult
@@ -78,7 +79,7 @@ const mockStorage = new MockLocalStorage();
 
 describe('Learning Academy subject catalog', () => {
   test('subjects are grade-scoped peers with content for each offered grade', () => {
-    assert.deepEqual(LEARNING_SUBJECTS.map(subject => subject.name), ['Spell Bee', 'Robotics', 'Maths', 'Malayalam', 'Hindi', 'EVS', 'Biology']);
+    assert.deepEqual(LEARNING_SUBJECTS.map(subject => subject.name), ['Spell Bee', 'Robotics', 'Maths', 'Malayalam', 'Hindi', 'EVS', 'Biology', 'Chemistry']);
     const views = LEARNING_SUBJECTS.flatMap(subject => subject.views);
     assert.equal(new Set(views).size, views.length);
     assert.equal(getSubjectForView('home'), undefined);
@@ -111,13 +112,17 @@ describe('Learning Academy subject catalog', () => {
           assert.equal(grade, 6);
           assert.equal(getBiologyLessonForGrade(grade), SHIZA_BIOLOGY_LESSON);
           assert.equal(SHIZA_BIOLOGY_LESSON.questions.length, 46);
+        } else if (subject.id === 'chemistry') {
+          assert.equal(grade, 6);
+          assert.equal(getChemistryLessonForGrade(grade), SHIZA_CHEMISTRY_LESSON);
+          assert.equal(SHIZA_CHEMISTRY_LESSON.questions.length, 50);
         }
       }
     }
     for (const profile of STUDENT_PROFILES) {
       const expectedSubjectIds = profile.grade === 2
         ? ['spell-bee', 'robotics', 'maths', 'malayalam', 'evs']
-        : ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'biology'];
+        : ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'biology', 'chemistry'];
       assert.deepEqual(getAvailableSubjectsForGrade(profile.grade).map(subject => subject.id), expectedSubjectIds);
       assert.ok(getWordsForStudent(profile.id).every(word => word.studentGrade === profile.grade));
       assert.equal(getRoboticsLesson(profile.id).grade, profile.grade);
@@ -127,10 +132,12 @@ describe('Learning Academy subject catalog', () => {
         assert.equal(getEvsLesson(profile.id).grade, profile.grade);
         assert.throws(() => getHindiLesson(profile.id), /not available/);
         assert.throws(() => getBiologyLesson(profile.id), /not available/);
+        assert.throws(() => getChemistryLesson(profile.id), /not available/);
       } else {
         assert.throws(() => getEvsLesson(profile.id), /not available/);
         assert.equal(getHindiLesson(profile.id).grade, profile.grade);
         assert.equal(getBiologyLesson(profile.id).grade, profile.grade);
+        assert.equal(getChemistryLesson(profile.id).grade, profile.grade);
       }
     }
   });
@@ -144,6 +151,7 @@ describe('Learning Academy subject catalog', () => {
     assert.equal(getHindiLessonForGrade(3), undefined);
     assert.equal(getEvsLessonForGrade(3), undefined);
     assert.equal(getBiologyLessonForGrade(3), undefined);
+    assert.equal(getChemistryLessonForGrade(3), undefined);
   });
 
   test('curriculum follows a profile’s grade rather than its student identity', () => {
