@@ -103,13 +103,17 @@ describe('Shiza Grade 6 Chemistry curriculum & revision notes coverage', () => {
     assert.equal(checkChemistryAnswer(mercuryQ, 'Mercury (Hg)'), true);
     assert.equal(checkChemistryAnswer(mercuryQ, 'Iron'), false);
 
-    // Soft alkali metals
+    // Soft alkali metals (including order permutations and symbol combinations)
     const softMetalsQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-6')!;
     assert.equal(checkChemistryAnswer(softMetalsQ, 'Sodium (Na) and Potassium (K)'), true);
     assert.equal(checkChemistryAnswer(softMetalsQ, 'Sodium and Potassium'), true);
     assert.equal(checkChemistryAnswer(softMetalsQ, 'Potassium and Sodium'), true);
+    assert.equal(checkChemistryAnswer(softMetalsQ, 'Potassium, Sodium'), true);
+    assert.equal(checkChemistryAnswer(softMetalsQ, 'Potassium, sodium'), true);
     assert.equal(checkChemistryAnswer(softMetalsQ, 'Na and K'), true);
     assert.equal(checkChemistryAnswer(softMetalsQ, 'Na, K'), true);
+    assert.equal(checkChemistryAnswer(softMetalsQ, 'K, Na'), true);
+    assert.equal(checkChemistryAnswer(softMetalsQ, 'K and Na'), true);
 
     // Bromine liquid non-metal
     const bromineQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-10')!;
@@ -117,12 +121,49 @@ describe('Shiza Grade 6 Chemistry curriculum & revision notes coverage', () => {
     assert.equal(checkChemistryAnswer(bromineQ, 'Bromine (Br)'), true);
     assert.equal(checkChemistryAnswer(bromineQ, 'Br'), true);
 
-    // Brass alloy constituents
+    // Brass alloy constituents (order independent)
     const brassQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-11')!;
     assert.equal(checkChemistryAnswer(brassQ, 'Copper and Zinc'), true);
     assert.equal(checkChemistryAnswer(brassQ, 'Copper (Cu) and Zinc (Zn)'), true);
     assert.equal(checkChemistryAnswer(brassQ, 'Cu and Zn'), true);
     assert.equal(checkChemistryAnswer(brassQ, 'Zinc and Copper'), true);
+    assert.equal(checkChemistryAnswer(brassQ, 'Zinc, Copper'), true);
+    assert.equal(checkChemistryAnswer(brassQ, 'Zn, Cu'), true);
+    assert.equal(checkChemistryAnswer(brassQ, 'Zn and Cu'), true);
+
+    // Carbon allotropes order independence
+    const carbonFormsQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-12')!;
+    assert.equal(checkChemistryAnswer(carbonFormsQ, 'Charcoal, Coal, Diamond, and Graphite'), true);
+    assert.equal(checkChemistryAnswer(carbonFormsQ, 'Coal, charcoal, diamond, graphite'), true);
+    assert.equal(checkChemistryAnswer(carbonFormsQ, 'Diamond, graphite, coal, charcoal'), true);
+
+    // Branches of science order independence
+    const scienceQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch1-qa-1')!;
+    assert.equal(checkChemistryAnswer(scienceQ, 'Physics, Chemistry, and Biology'), true);
+    assert.equal(checkChemistryAnswer(scienceQ, 'Physics, Biology, Chemistry'), true);
+    assert.equal(checkChemistryAnswer(scienceQ, 'Biology, Physics, Chemistry'), true);
+
+    // Classifications & hyphen variants
+    const metalsClassQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-13')!;
+    assert.equal(checkChemistryAnswer(metalsClassQ, 'Metals'), true);
+    assert.equal(checkChemistryAnswer(metalsClassQ, 'All metals'), true);
+    assert.equal(checkChemistryAnswer(metalsClassQ, 'All are metals'), true);
+    assert.equal(checkChemistryAnswer(metalsClassQ, 'They are metals'), true);
+
+    const nonMetalsClassQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-14')!;
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'Non-Metals'), true);
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'non metals'), true);
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'non metal'), true);
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'nonmetals'), true);
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'All non-metals'), true);
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'All non metals'), true);
+    assert.equal(checkChemistryAnswer(nonMetalsClassQ, 'They are non-metals'), true);
+
+    const metalloidsClassQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-15')!;
+    assert.equal(checkChemistryAnswer(metalloidsClassQ, 'Metalloids'), true);
+    assert.equal(checkChemistryAnswer(metalloidsClassQ, 'All metalloids'), true);
+    assert.equal(checkChemistryAnswer(metalloidsClassQ, 'All are metalloids'), true);
+    assert.equal(checkChemistryAnswer(metalloidsClassQ, 'They are metalloids'), true);
 
     // Water mass ratio
     const ratioQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-26')!;
@@ -130,6 +171,11 @@ describe('Shiza Grade 6 Chemistry curriculum & revision notes coverage', () => {
     assert.equal(checkChemistryAnswer(ratioQ, '1 to 8'), true);
     assert.equal(checkChemistryAnswer(ratioQ, '1 : 8'), true);
     assert.equal(checkChemistryAnswer(ratioQ, '1:8 by mass'), true);
+    assert.equal(checkChemistryAnswer(ratioQ, '1:8 ratio'), true);
+    assert.equal(checkChemistryAnswer(ratioQ, 'ratio of 1:8'), true);
+    assert.equal(checkChemistryAnswer(ratioQ, '1 is to 8'), true);
+    assert.equal(checkChemistryAnswer(ratioQ, '1/8'), true);
+    assert.equal(checkChemistryAnswer(ratioQ, '8:1'), false); // Ratio order matters!
 
     // Pesticide malathion
     const pesticideQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch1-qa-4')!;
@@ -139,6 +185,7 @@ describe('Shiza Grade 6 Chemistry curriculum & revision notes coverage', () => {
     const preservativeQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch1-qa-5')!;
     assert.equal(checkChemistryAnswer(preservativeQ, 'Benzoic acid and Sodium bisulphite'), true);
     assert.equal(checkChemistryAnswer(preservativeQ, 'Benzoic acid, Sodium bisulphite'), true);
+    assert.equal(checkChemistryAnswer(preservativeQ, 'Sodium bisulphite and Benzoic acid'), true);
 
     // Noble gases give reasons
     const lampQ = SHIZA_CHEMISTRY_LESSON.questions.find(q => q.id === 'g6-chem-ch3-qa-21')!;

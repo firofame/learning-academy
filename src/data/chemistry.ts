@@ -700,7 +700,11 @@ export const SHIZA_CHEMISTRY_LESSON: ChemistryLesson = {
         'They are all metals',
         'They are all Metals',
         'Metal',
-        'metals'
+        'metals',
+        'All metals',
+        'All are metals',
+        'They are metals',
+        'All of them are metals'
       ]
     ),
     written(
@@ -716,7 +720,20 @@ export const SHIZA_CHEMISTRY_LESSON: ChemistryLesson = {
         'Nonmetals',
         'They are all non-metals',
         'They are all Non-Metals',
-        'non-metals'
+        'non-metals',
+        'Non metals',
+        'Non metal',
+        'Nonmetal',
+        'non metals',
+        'non metal',
+        'nonmetals',
+        'All non-metals',
+        'All non metals',
+        'All are non-metals',
+        'All are non metals',
+        'They are non-metals',
+        'They are non metals',
+        'They are all non metals'
       ]
     ),
     written(
@@ -731,7 +748,11 @@ export const SHIZA_CHEMISTRY_LESSON: ChemistryLesson = {
         'They are all metalloids',
         'They are all Metalloids',
         'Metalloid',
-        'metalloids'
+        'metalloids',
+        'All metalloids',
+        'All are metalloids',
+        'They are metalloids',
+        'All of them are metalloids'
       ]
     ),
     written(
@@ -875,9 +896,15 @@ export const SHIZA_CHEMISTRY_LESSON: ChemistryLesson = {
         '1:8',
         '1 to 8',
         '1 : 8',
+        '1:8 ratio',
+        '1 : 8 ratio',
+        'ratio of 1:8',
+        '1 is to 8',
+        '1/8',
         'Constant mass ratio of 1:8',
         'Hydrogen and Oxygen combine in a constant mass ratio of 1:8',
-        '1:8 by mass'
+        '1:8 by mass',
+        '1 to 8 by mass'
       ]
     ),
     written(
@@ -947,6 +974,22 @@ export function normalizeChemistryAnswer(answer: string): string {
     .replace(/\s+/g, ' ');
 }
 
+function matchesListSet(target: string, input: string): boolean {
+  const splitItems = (str: string) =>
+    str
+      .split(/,|\band\b/)
+      .map(s => s.trim().replace(/^[.,;:]+|[.,;:]+$/g, ''))
+      .filter(Boolean);
+  const targetItems = splitItems(target);
+  const inputItems = splitItems(input);
+  if (targetItems.length < 2 || targetItems.length !== inputItems.length) return false;
+  if (!targetItems.every(item => item.split(/\s+/).length <= 4)) return false;
+  if (!inputItems.every(item => item.split(/\s+/).length <= 4)) return false;
+  const sortedTarget = [...targetItems].sort().join('|');
+  const sortedInput = [...inputItems].sort().join('|');
+  return sortedTarget === sortedInput;
+}
+
 export function checkChemistryAnswer(question: ChemistryQuestion, answer: string): boolean {
   const normalized = normalizeChemistryAnswer(answer);
   if (!normalized) return false;
@@ -958,6 +1001,21 @@ export function checkChemistryAnswer(question: ChemistryQuestion, answer: string
     if (strippedTarget === strippedInput) return true;
     const withoutParensTarget = target.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
     const withoutParensInput = normalized.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
-    return withoutParensTarget === withoutParensInput;
+    if (withoutParensTarget === withoutParensInput) return true;
+
+    // Hyphen variations (e.g. non-metals vs non metals vs nonmetals)
+    const withoutHyphensTarget = target.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const withoutHyphensInput = normalized.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+    if (withoutHyphensTarget === withoutHyphensInput) return true;
+    const collapsedHyphensTarget = target.replace(/-/g, '').replace(/\s+/g, ' ').trim();
+    const collapsedHyphensInput = normalized.replace(/-/g, '').replace(/\s+/g, ' ').trim();
+    if (collapsedHyphensTarget === collapsedHyphensInput) return true;
+
+    // Order-independent list matching (e.g., "Potassium, Sodium" or "Zinc, Copper")
+    if (matchesListSet(target, normalized)) return true;
+    if (matchesListSet(withoutParensTarget, withoutParensInput)) return true;
+    if (matchesListSet(withoutHyphensTarget, withoutHyphensInput)) return true;
+
+    return false;
   });
 }
