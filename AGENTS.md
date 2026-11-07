@@ -1,17 +1,9 @@
-# Learning Academy
+# Project Instructions
 
-- Design for school children revising on the day before an exam.
-- Consistent evidence-based learning framework across all subjects:
-  - Active retrieval practice: memory prompt first, no answers revealed.
-  - Immediate feedback with specific explanations.
-  - Immediate correction: "Try once more now" aids initial encoding after feedback.
-  - Lagged error recheck: questions answered incorrectly or with assistance strictly require a recheck after 2+ other questions.
-  - Interleaved batches: "All Portions" revision interleaves questions across subtopics/categories; single-portion revision stays sequential.
-  - "Exam-Ready for Tomorrow": a question or portion is Exam-Ready once answered correctly unaided OR successfully rechecked after a 2+ question lag in the revision session.
-- Follow each grade's supplied curriculum and marking rubric. Flag gaps; never invent lesson content or answers.
-- Build for phones and laptops.
-- Keep pronunciation/read-aloud answer-safe.
-- Check exact answers locally. Use server-side `gemini-3.5-flash-lite` only for meaning-based grading.
-- Keep API keys server-side; send only grading essentials, never learner names or unrelated history.
-- Failed or offline grading stays visibly ungraded and retryable; never penalize the learner or double-count retries.
-- Reuse existing helpers, remove obsolete code, and avoid unnecessary dependencies or abstractions.
+- This is a simple, single-family exam-revision app, not a general-purpose LMS. Prefer simplicity over unnecessary abstraction or generalization.
+- Exam content and learner progress are disposable between exam cycles. Do not introduce historical data preservation or migration requirements unless explicitly requested.
+- Follow supplied school curricula and marking rubrics. Never invent missing lesson content or answers.
+- Preserve Malayalam and Hindi scripts.
+- Keep API keys server-side. Send only essential grading information to external services.
+- Keep answers safe from accidental revelation. Failed or unavailable AI grading must not penalize learners.
+- Reuse existing patterns and avoid unnecessary dependencies.
