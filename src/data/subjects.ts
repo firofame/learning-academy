@@ -76,5 +76,6 @@ export function isSubjectAvailableForGrade(subjectId: LearningSubjectId, grade: 
 }
 
 export function getSubjectForView(view: ActiveAppView): LearningSubject | undefined {
-  return LEARNING_SUBJECTS.find(subject => subject.views.includes(view));
+  const normalizedView = (view as string) === 'session' ? 'spell-bee' : view;
+  return LEARNING_SUBJECTS.find(subject => subject.views.includes(normalizedView));
 }

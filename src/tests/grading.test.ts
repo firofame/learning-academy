@@ -6,6 +6,7 @@ import {
   gradeWrittenAnswer, gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE,
   ROBOTICS_GRADING_MODEL, GRADING_MODEL
 } from '../utils/writtenGrading';
+import * as legacyRoboticsGrading from '../utils/roboticsGrading';
 import { FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON } from '../data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../data/hindi';
 import { FAZIA_EVS_LESSON } from '../data/evs';
@@ -83,6 +84,10 @@ describe('Cloudflare automatic grading', () => {
   test('written grading exports harmonize with robotics grading aliases', () => {
     assert.equal(gradeWrittenAnswer, gradeRoboticsAnswer);
     assert.equal(GRADING_MODEL, ROBOTICS_GRADING_MODEL);
+    assert.equal(legacyRoboticsGrading.gradeRoboticsAnswer, gradeWrittenAnswer);
+    assert.equal(legacyRoboticsGrading.gradeWrittenAnswer, gradeWrittenAnswer);
+    assert.equal(legacyRoboticsGrading.ROBOTICS_GRADING_MODEL, GRADING_MODEL);
+    assert.equal(legacyRoboticsGrading.GRADING_MODEL, GRADING_MODEL);
   });
 
   test('allows only configured origins, paths, methods, and preflights', async () => {
