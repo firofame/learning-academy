@@ -153,7 +153,8 @@ export async function handleGradingRequest(
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
   const headers = new Headers({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Vary: 'Origin' });
   const reply = (status: number, body: object) => new Response(JSON.stringify(body), { status, headers });
-  if (!origin || !allowed.includes(origin)) return reply(403, { error: 'Origin not allowed.' });
+  const isSameOrigin = Boolean(origin && origin === new URL(request.url).origin);
+  if (!origin || (!isSameOrigin && !allowed.includes(origin))) return reply(403, { error: 'Origin not allowed.' });
   headers.set('Access-Control-Allow-Origin', origin);
   if (new URL(request.url).pathname !== '/grade') return reply(404, { error: 'Not found.' });
   if (request.method === 'OPTIONS') {
