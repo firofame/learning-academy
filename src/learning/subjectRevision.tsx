@@ -664,7 +664,7 @@ function saveChemistrySession(
 export function buildSubjectRevision(
   subjectId: LearningSubjectId,
   learnerId: StudentId,
-  gradingApiUrl = import.meta.env?.VITE_GRADING_API_URL || ''
+  gradingApiUrl = import.meta.env?.VITE_GRADING_API_URL || (typeof window !== 'undefined' ? `${window.location.origin}/grade` : '')
 ): RevisionDefinition {
   const profile = getStudentProfile(learnerId);
   switch (subjectId) {

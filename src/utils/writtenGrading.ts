@@ -39,7 +39,7 @@ export async function gradeWrittenAnswer(
     });
   } catch (error) {
     if (signal.aborted) throw error;
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (typeof navigator !== 'undefined' && 'onLine' in navigator && (navigator as any).onLine === false) {
       throw new Error('Automatic checking needs an internet connection. Your answer has not been marked. Reconnect and retry.');
     }
     throw new Error('Could not reach automatic checking. Your answer is unchanged. Please retry.');
