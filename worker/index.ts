@@ -6,7 +6,7 @@ import { SHIZA_BIOLOGY_LESSON } from '../src/data/biology';
 import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
-} from '../src/utils/roboticsGrading';
+} from '../src/utils/writtenGrading';
 
 export interface GradingEnv {
   GEMINI_API_KEY: string;

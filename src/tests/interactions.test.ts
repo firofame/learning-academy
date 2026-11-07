@@ -134,6 +134,28 @@ describe('Shared exam-eve revision interactions', () => {
     assert.equal(view.queryByRole('button', { name: /Worksheets/ }), null);
   });
 
+  test('the header routes to Progress and renders ProgressDashboard', async () => {
+    const view = render(React.createElement(App));
+    const progressNavButton = view.getByRole('button', { name: 'Progress' });
+    fireEvent.click(progressNavButton);
+
+    const heading = await view.findByRole('heading', { name: 'Progress' });
+    assert.ok(heading);
+    assert.ok(await view.findByRole('region', { name: 'Current revision coverage' }));
+  });
+
+  test('AudioEngine properties synchronize speechAudio and slowSpeech with legacy aliases', () => {
+    audioService.speechAudio = false;
+    assert.equal(audioService.speechEnabled, false);
+    audioService.speechEnabled = true;
+    assert.equal(audioService.speechAudio, true);
+
+    audioService.slowSpeech = true;
+    assert.equal(audioService.slowMode, true);
+    audioService.slowMode = false;
+    assert.equal(audioService.slowSpeech, false);
+  });
+
   test('added Malayalam portions stay recall-first and exact multiple meanings need no online grading', async t => {
     const fetcher = t.mock.method(globalThis, 'fetch', async () => {
       throw new Error('Exact multiple meanings must be checked locally.');

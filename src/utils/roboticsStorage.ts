@@ -1,14 +1,15 @@
 import { StudentId } from '../types';
 import { getRoboticsLesson, checkRoboticsAnswer, RoboticsLesson } from '../data/robotics';
 import { emitStorageError } from './appStorage';
-import { isWrittenGrade } from './roboticsGrading';
+import { isWrittenGrade } from './writtenGrading';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isPlainRecord
 } from './subjectStorage';
 
-export type RoboticsQuizMode = SubjectQuizMode;
+export type RoboticsRevisionMode = SubjectRevisionMode;
+export type RoboticsQuizMode = RoboticsRevisionMode;
 export type RoboticsAnswer = SubjectAnswer;
 export type RoboticsResult = SubjectResult;
 export type RoboticsProgress = SubjectProgress;
@@ -42,7 +43,7 @@ function isValidRoboticsAnswer(value: unknown, lesson: RoboticsLesson): value is
   return true;
 }
 
-function isValidRoboticsResult(value: unknown, mode: RoboticsQuizMode, lesson: RoboticsLesson): value is RoboticsResult {
+function isValidRoboticsResult(value: unknown, mode: RoboticsRevisionMode, lesson: RoboticsLesson): value is RoboticsResult {
   if (!isPlainRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
@@ -98,6 +99,6 @@ export function saveRoboticsResult(studentId: StudentId, result: RoboticsResult,
 export const updateRoboticsReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly RoboticsAnswer[],
-  mode: RoboticsQuizMode,
+  mode: RoboticsRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'full-exam-correct-only', isFullExam);

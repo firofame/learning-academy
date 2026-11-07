@@ -8,7 +8,7 @@ export const STUDENT_PROFILES: StudentProfile[] = [
     grade: 2,
     gradeLabel: 'Grade 2',
     avatarEmoji: '🌸',
-    description: 'Foundational spelling bee vocabulary across 6 word categories'
+    description: 'Grade 2 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, and EVS'
   },
   {
     id: 'shiza',
@@ -16,7 +16,7 @@ export const STUDENT_PROFILES: StudentProfile[] = [
     grade: 6,
     gradeLabel: 'Grade 6',
     avatarEmoji: '⭐',
-    description: 'Advanced academic vocabulary across 9 word categories'
+    description: 'Grade 6 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, Biology, and Chemistry'
   }
 ];
 

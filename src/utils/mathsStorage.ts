@@ -2,12 +2,13 @@ import { StudentId } from '../types';
 import { getMathsLesson, MathsLesson, MATHS_TOPICS, checkMathsAnswer } from '../data/maths';
 import { emitStorageError } from './appStorage';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isPlainRecord
 } from './subjectStorage';
 
-export type MathsQuizMode = SubjectQuizMode;
+export type MathsRevisionMode = SubjectRevisionMode;
+export type MathsQuizMode = MathsRevisionMode;
 export type MathsAnswer = SubjectAnswer;
 export interface MathsResult extends SubjectResult {
   topic?: string;
@@ -28,7 +29,7 @@ function isValidMathsAnswer(value: unknown, lesson: MathsLesson): value is Maths
   return value.correct === checkMathsAnswer(question, value.answer);
 }
 
-function isValidMathsResult(value: unknown, mode: MathsQuizMode, lesson: MathsLesson): value is MathsResult {
+function isValidMathsResult(value: unknown, mode: MathsRevisionMode, lesson: MathsLesson): value is MathsResult {
   if (!isPlainRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
@@ -101,6 +102,6 @@ export function saveMathsResult(studentId: StudentId, result: MathsResult, _opti
 export const updateMathsReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly MathsAnswer[],
-  mode: MathsQuizMode,
+  mode: MathsRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'practice-or-exam-correct', isFullExam);

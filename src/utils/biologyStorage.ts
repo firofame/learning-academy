@@ -2,12 +2,13 @@ import { StudentId } from '../types';
 import { getBiologyLessonForGrade, BIOLOGY_SECTIONS } from '../data/biology';
 import { getStudentProfile } from '../data/profiles';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isValidSubjectAnswer, isPlainRecord
 } from './subjectStorage';
 
-export type BiologyQuizMode = SubjectQuizMode;
+export type BiologyRevisionMode = SubjectRevisionMode;
+export type BiologyQuizMode = BiologyRevisionMode;
 export type BiologyAnswer = SubjectAnswer;
 export type BiologyResult = SubjectResult;
 export type BiologyProgress = SubjectProgress;
@@ -30,7 +31,7 @@ export function isValidBiologyProgress(value: unknown, studentId: StudentId): va
   return true;
 }
 
-function isValidBiologyResult(value: unknown, mode: BiologyQuizMode, lesson: ReturnType<typeof getLesson>): value is BiologyResult {
+function isValidBiologyResult(value: unknown, mode: BiologyRevisionMode, lesson: ReturnType<typeof getLesson>): value is BiologyResult {
   if (!isPlainRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
@@ -77,6 +78,6 @@ export function saveBiologyResult(studentId: StudentId, result: BiologyResult, _
 export const updateBiologyReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly BiologyAnswer[],
-  mode: BiologyQuizMode,
+  mode: BiologyRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'practice-or-exam-correct', isFullExam);

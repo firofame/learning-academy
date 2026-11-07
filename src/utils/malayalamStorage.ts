@@ -1,12 +1,13 @@
 import { StudentId } from '../types';
 import { checkMalayalamAnswer, getMalayalamLesson, MalayalamLesson } from '../data/malayalam';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isPlainRecord
 } from './subjectStorage';
 
-export type MalayalamQuizMode = SubjectQuizMode;
+export type MalayalamRevisionMode = SubjectRevisionMode;
+export type MalayalamQuizMode = MalayalamRevisionMode;
 export type MalayalamAnswer = SubjectAnswer;
 export type MalayalamResult = SubjectResult;
 export type MalayalamProgress = SubjectProgress;
@@ -26,7 +27,7 @@ function isValidMalayalamAnswer(value: unknown, lesson: MalayalamLesson, legacy 
 
 function isValidMalayalamResult(
   value: unknown,
-  mode: MalayalamQuizMode,
+  mode: MalayalamRevisionMode,
   lesson: MalayalamLesson,
   historical = false
 ): value is MalayalamResult {
@@ -85,6 +86,6 @@ export function saveMalayalamResult(studentId: StudentId, result: MalayalamResul
 export const updateMalayalamReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly MalayalamAnswer[],
-  mode: MalayalamQuizMode,
+  mode: MalayalamRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'practice-correct-and-full-exam-refresh', isFullExam);

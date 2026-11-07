@@ -2,7 +2,10 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import worker, { handleGradingRequest, type GradingEnv } from '../../worker/index';
-import { gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE, ROBOTICS_GRADING_MODEL } from '../utils/roboticsGrading';
+import {
+  gradeWrittenAnswer, gradeRoboticsAnswer, GEMINI_MODEL_UNAVAILABLE_MESSAGE,
+  ROBOTICS_GRADING_MODEL, GRADING_MODEL
+} from '../utils/writtenGrading';
 import { FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON } from '../data/malayalam';
 import { SHIZA_HINDI_LESSON } from '../data/hindi';
 import { FAZIA_EVS_LESSON } from '../data/evs';
@@ -75,6 +78,11 @@ describe('Cloudflare automatic grading', () => {
     assert.equal(limiter.namespace_id, '1001');
     assert.equal(limiter.simple.period, 60);
     assert.equal(limiter.simple.limit, 6);
+  });
+
+  test('written grading exports harmonize with robotics grading aliases', () => {
+    assert.equal(gradeWrittenAnswer, gradeRoboticsAnswer);
+    assert.equal(GRADING_MODEL, ROBOTICS_GRADING_MODEL);
   });
 
   test('allows only configured origins, paths, methods, and preflights', async () => {
@@ -476,6 +484,10 @@ describe('Browser grading client', () => {
       assert.deepEqual(JSON.parse(String(init.body)), answer);
       return Response.json({ correct: true, feedback: 'Good explanation.' });
     });
+    assert.deepEqual(await gradeWrittenAnswer(
+      'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
+    ), { correct: true, feedback: 'Good explanation.' });
+    // Backward-compatibility alias
     assert.deepEqual(await gradeRoboticsAnswer(
       'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), { correct: true, feedback: 'Good explanation.' });
@@ -488,19 +500,19 @@ describe('Browser grading client', () => {
       Response.json({ correct: true }), Response.json({ correct: 'yes', feedback: 'ok' })
     ]) {
       const mock = t.mock.method(globalThis, 'fetch', async () => response);
-      await assert.rejects(gradeRoboticsAnswer(
+      await assert.rejects(gradeWrittenAnswer(
         'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
       ));
       mock.mock.restore();
     }
     t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('network'); });
-    await assert.rejects(gradeRoboticsAnswer(
+    await assert.rejects(gradeWrittenAnswer(
       'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /Could not reach/);
-    await assert.rejects(gradeRoboticsAnswer(
+    await assert.rejects(gradeWrittenAnswer(
       'http://untrusted.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /secure grading/);
-    await assert.rejects(gradeRoboticsAnswer(
+    await assert.rejects(gradeWrittenAnswer(
       'not-a-url', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /invalid grading API URL/);
   });
@@ -513,7 +525,7 @@ describe('Browser grading client', () => {
       else Reflect.deleteProperty(globalThis, 'navigator');
     });
     t.mock.method(globalThis, 'fetch', async () => { throw new TypeError('network'); });
-    await assert.rejects(gradeRoboticsAnswer(
+    await assert.rejects(gradeWrittenAnswer(
       'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /needs an internet connection.*not been marked/);
   });
@@ -522,7 +534,7 @@ describe('Browser grading client', () => {
     t.mock.method(globalThis, 'fetch', async () =>
       Response.json({ error: GEMINI_MODEL_UNAVAILABLE_MESSAGE }, { status: 503 })
     );
-    await assert.rejects(gradeRoboticsAnswer(
+    await assert.rejects(gradeWrittenAnswer(
       'https://grading.example/grade', answer.lessonId, answer.questionId, answer.answer, new AbortController().signal
     ), /configured Gemini 3\.5 Flash-Lite model is unavailable.*not been marked/);
   });

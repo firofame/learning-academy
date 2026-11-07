@@ -1,7 +1,21 @@
 class AudioEngine {
   private synth: SpeechSynthesis | null = null;
-  public speechEnabled = true;
-  public slowMode = false;
+  public speechAudio = true;
+  public slowSpeech = false;
+
+  public get speechEnabled(): boolean {
+    return this.speechAudio;
+  }
+  public set speechEnabled(value: boolean) {
+    this.speechAudio = value;
+  }
+
+  public get slowMode(): boolean {
+    return this.slowSpeech;
+  }
+  public set slowMode(value: boolean) {
+    this.slowSpeech = value;
+  }
 
   constructor() {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -10,7 +24,7 @@ class AudioEngine {
   }
 
   public speak(text: string, lang: 'en-US' | 'hi-IN' | 'ml-IN' = 'en-US', onEnd?: () => void): boolean {
-    if (!this.speechEnabled || !this.synth) {
+    if (!this.speechAudio || !this.synth) {
       if (onEnd) setTimeout(onEnd, 300);
       return false;
     }
@@ -19,7 +33,7 @@ class AudioEngine {
       this.synth.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = lang;
-      utterance.rate = this.slowMode ? 0.72 : 0.9;
+      utterance.rate = this.slowSpeech ? 0.72 : 0.9;
       utterance.pitch = 1.05;
 
       const language = lang.split('-')[0];

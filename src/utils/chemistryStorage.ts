@@ -2,12 +2,13 @@ import { StudentId } from '../types';
 import { getChemistryLessonForGrade, CHEMISTRY_SECTIONS } from '../data/chemistry';
 import { getStudentProfile } from '../data/profiles';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isValidSubjectAnswer, isPlainRecord
 } from './subjectStorage';
 
-export type ChemistryQuizMode = SubjectQuizMode;
+export type ChemistryRevisionMode = SubjectRevisionMode;
+export type ChemistryQuizMode = ChemistryRevisionMode;
 export type ChemistryAnswer = SubjectAnswer;
 export type ChemistryResult = SubjectResult;
 export type ChemistryProgress = SubjectProgress;
@@ -30,7 +31,7 @@ export function isValidChemistryProgress(value: unknown, studentId: StudentId): 
   return true;
 }
 
-function isValidChemistryResult(value: unknown, mode: ChemistryQuizMode, lesson: ReturnType<typeof getLesson>): value is ChemistryResult {
+function isValidChemistryResult(value: unknown, mode: ChemistryRevisionMode, lesson: ReturnType<typeof getLesson>): value is ChemistryResult {
   if (!isPlainRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
@@ -77,6 +78,6 @@ export function saveChemistryResult(studentId: StudentId, result: ChemistryResul
 export const updateChemistryReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly ChemistryAnswer[],
-  mode: ChemistryQuizMode,
+  mode: ChemistryRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'practice-or-exam-correct', isFullExam);

@@ -6,8 +6,8 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     name: 'Spell Bee',
     description: 'Revise school spelling words with recall, feedback, and same-day rechecks.',
     availableGrades: [2, 6],
-    startView: 'session',
-    views: ['session']
+    startView: 'spell-bee',
+    views: ['spell-bee']
   },
   {
     id: 'robotics',

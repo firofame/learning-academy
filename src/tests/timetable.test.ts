@@ -184,6 +184,6 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
   test('timetable view does not collide with learning subjects', () => {
     assert.equal(getSubjectForView('timetable'), undefined);
     assert.equal(getSubjectForView('home'), undefined);
-    assert.equal(getSubjectForView('parent'), undefined);
+    assert.equal(getSubjectForView('progress'), undefined);
   });
 });
