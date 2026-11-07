@@ -1,22 +1,17 @@
 # Learning Academy
 
-- Design for children revising on the day before an exam (exam-eve revision).
-- Consistent evidence-based learning framework across all subjects (Spell Bee, Robotics, Maths, Malayalam, Hindi, EVS):
+- Design for school children revising on the day before an exam.
+- Consistent evidence-based learning framework across all subjects:
   - Active retrieval practice: memory prompt first, no answers revealed.
-  - Immediate feedback with specific explanations (why, tricky spot, marking criteria).
+  - Immediate feedback with specific explanations.
   - Immediate correction: "Try once more now" aids initial encoding after feedback.
-  - Lagged error recheck: questions answered incorrectly or with assistance strictly require a recheck after 2+ other questions (`gapCount >= 2`).
+  - Lagged error recheck: questions answered incorrectly or with assistance strictly require a recheck after 2+ other questions.
   - Interleaved batches: "All Portions" revision interleaves questions across subtopics/categories; single-portion revision stays sequential.
-  - Consistent Spell Bee: sentence clue, read-aloud audio button, typing recall, deterministic evaluation, and identical lagged recheck cycle.
   - "Exam-Ready for Tomorrow": a question or portion is Exam-Ready once answered correctly unaided OR successfully rechecked after a 2+ question lag in the revision session.
 - Follow each grade's supplied curriculum and marking rubric. Flag gaps; never invent lesson content or answers.
-- Build for phones and laptops, including 320px-wide screens, 48px touch targets, keyboard access, readable text, and visible focus.
-- Preserve Malayalam and Hindi scripts. Keep pronunciation/read-aloud learner-controlled and answer-safe.
-- Check exact answers locally. Use server-side Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) only for supported meaning-based grading.
+- Build for phones and laptops.
+- Keep pronunciation/read-aloud answer-safe.
+- Check exact answers locally. Use server-side `gemini-3.5-flash-lite` only for meaning-based grading.
 - Keep API keys server-side; send only grading essentials, never learner names or unrelated history.
 - Failed or offline grading stays visibly ungraded and retryable; never penalize the learner or double-count retries.
-- When simplifying, preserve learner-scoped history, stable curriculum IDs, backups, and recoverable unfinished work.
 - Reuse existing helpers, remove obsolete code, and avoid unnecessary dependencies or abstractions.
-- Test reveal/assistance behavior, rechecks, grading failures, learner isolation, recovery, and small-screen interactions.
-- For app changes run `npm test`, `npm run lint`, and `npm run build`; for Worker changes also run `npm run worker:check`.
-- See [README.md](README.md) for architecture, storage, grading, and development details.
