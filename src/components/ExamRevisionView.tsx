@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Volume2 } from 'lucide-react';
 import type { AssistanceKind, AttemptOutcome, LearningAttempt, RevisionAttemptKind, RevisionResponseFormat } from '../learning/contracts';
 import { canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch, type RevisionStep } from '../learning/revision';
-import { createQuizAttempts, recordQuizAnswerAttempt } from '../learning/attemptRecords';
+import { createRevisionAttempts, recordRevisionAnswerAttempt } from '../learning/attemptRecords';
 import {
   getDefaultLearningRepository, listLearningAttempts, loadRevisionRound, saveRevisionRound,
   type RevisionRoundRecord
@@ -334,7 +334,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     const revisionSequence = attemptsRef.current.filter(attempt =>
       attempt.revisionRoundId === session.revisionRoundId
     ).length;
-    const [learningAttempt] = createQuizAttempts({
+    const [learningAttempt] = createRevisionAttempts({
       learnerId,
       subjectId,
       lessonId,
@@ -380,7 +380,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     } : previous);
     if (typeof indexedDB !== 'undefined') {
       try {
-        await recordQuizAnswerAttempt({
+        await recordRevisionAnswerAttempt({
           learnerId, subjectId, lessonId, mode: session.mode,
           answer: {
             questionId: currentQuestion.id,

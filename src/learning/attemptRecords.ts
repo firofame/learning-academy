@@ -3,11 +3,11 @@ import type {
   AssistanceKind, AttemptGradingSource, AttemptOutcome, LearningAttempt,
   RevisionAttemptKind, RevisionResponseFormat, SessionMode
 } from './contracts';
-import { GRADING_MODEL } from '../utils/roboticsGrading';
+import { GRADING_MODEL } from '../utils/writtenGrading';
 import { localCalendarDate } from './domain';
 import { getDefaultLearningRepository, saveLearningAttempt } from './persistence';
 
-export interface QuizAnswerForAttempt {
+export interface RevisionAnswerForAttempt {
   questionId: string;
   answer: string;
   correct: boolean;
@@ -30,14 +30,16 @@ export interface QuizAnswerForAttempt {
   revisionSequence?: number;
 }
 
-export function createQuizAttempts(input: {
+export type QuizAnswerForAttempt = RevisionAnswerForAttempt;
+
+export function createRevisionAttempts(input: {
   learnerId: StudentId;
   subjectId: LearningSubjectId;
   lessonId: string;
   mode: SessionMode;
   completedAt: string;
   provenance?: string;
-  answers: readonly QuizAnswerForAttempt[];
+  answers: readonly RevisionAnswerForAttempt[];
 }): LearningAttempt[] {
   const timestamp = Number.isFinite(Date.parse(input.completedAt)) ? input.completedAt : new Date().toISOString();
   const contentVersion = 'v1';
@@ -83,15 +85,17 @@ export function createQuizAttempts(input: {
   });
 }
 
-export async function recordQuizAnswerAttempt(input: {
+export const createQuizAttempts = createRevisionAttempts;
+
+export async function recordRevisionAnswerAttempt(input: {
   learnerId: StudentId;
   subjectId: LearningSubjectId;
   lessonId: string;
   mode: SessionMode;
-  answer: QuizAnswerForAttempt;
+  answer: RevisionAnswerForAttempt;
 }): Promise<void> {
   const attemptedAt = input.answer.attemptedAt ?? new Date().toISOString();
-  const [attempt] = createQuizAttempts({
+  const [attempt] = createRevisionAttempts({
     learnerId: input.learnerId,
     subjectId: input.subjectId,
     lessonId: input.lessonId,
@@ -101,6 +105,8 @@ export async function recordQuizAnswerAttempt(input: {
   });
   await saveLearningAttempt(getDefaultLearningRepository(), attempt);
 }
+
+export const recordQuizAnswerAttempt = recordRevisionAnswerAttempt;
 
 export function createSpellingAttempt(input: {
   attemptId: string;

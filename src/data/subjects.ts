@@ -6,8 +6,8 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     name: 'Spell Bee',
     description: 'Revise school spelling words with recall, feedback, and same-day rechecks.',
     availableGrades: [2, 6],
-    startView: 'session',
-    views: ['session']
+    startView: 'spell-bee',
+    views: ['spell-bee']
   },
   {
     id: 'robotics',
@@ -76,5 +76,6 @@ export function isSubjectAvailableForGrade(subjectId: LearningSubjectId, grade: 
 }
 
 export function getSubjectForView(view: ActiveAppView): LearningSubject | undefined {
-  return LEARNING_SUBJECTS.find(subject => subject.views.includes(view));
+  const normalizedView = (view as string) === 'session' ? 'spell-bee' : view;
+  return LEARNING_SUBJECTS.find(subject => subject.views.includes(normalizedView));
 }

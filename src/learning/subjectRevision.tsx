@@ -30,8 +30,8 @@ import type {
 } from '../components/ExamRevisionView';
 import { evaluateSpelling } from '../utils/spellingCoach';
 import {
-  gradeRoboticsAnswer, gradeWrittenAnswer, MAX_WRITTEN_ANSWER_LENGTH
-} from '../utils/roboticsGrading';
+  gradeWrittenAnswer, MAX_WRITTEN_ANSWER_LENGTH
+} from '../utils/writtenGrading';
 import { saveRoboticsResult } from '../utils/roboticsStorage';
 import { saveMathsResult } from '../utils/mathsStorage';
 import { saveMalayalamResult } from '../utils/malayalamStorage';
@@ -174,7 +174,7 @@ function roboticsQuestion(
         if (!gradingApiUrl) {
           throw new Error('Automatic written-answer checking is not configured. Your answer has not been marked; try again when checking is available.');
         }
-        const grade = await gradeRoboticsAnswer(gradingApiUrl, lesson.id, question.id, answer, signal);
+        const grade = await gradeWrittenAnswer(gradingApiUrl, lesson.id, question.id, answer, signal);
         return { correct: grade.correct, source: 'ai', feedback: grade.feedback };
       }
       return { correct: checkRoboticsAnswer(question, answer), source: 'deterministic' };

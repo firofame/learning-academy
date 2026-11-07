@@ -5,7 +5,11 @@ import {
   deriveReadiness, isQuestionExamReady, isPortionExamReady, isRetentionCheckDue, isReviewDue,
   nextIndependentReviewDate, readinessFromRecallEvidence, shouldClearMissedQuestion, SUBJECT_REVIEW_POLICIES
 } from '../learning/domain';
-import { createQuizAttempts } from '../learning/attemptRecords';
+import {
+  createRevisionAttempts, createQuizAttempts,
+  recordRevisionAnswerAttempt, recordQuizAnswerAttempt,
+  type RevisionAnswerForAttempt, type QuizAnswerForAttempt
+} from '../learning/attemptRecords';
 import {
   canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch
 } from '../learning/revision';
@@ -94,8 +98,9 @@ describe('Shared learning domain', () => {
 });
 
 describe('Versioned answer attempts', () => {
-  test('keeps the answer timestamp, provenance, assistance, AI model, and skipped outcome', () => {
-    const [skipped, checked] = createQuizAttempts({
+  test('keeps the answer timestamp, provenance, assistance, AI model, and skipped outcome', async () => {
+    assert.equal(createQuizAttempts, createRevisionAttempts);
+    const [skipped, checked] = createRevisionAttempts({
       learnerId: 'shiza', subjectId: 'robotics', lessonId: 'robotics-grade-6-lesson-1',
       mode: 'exam', completedAt: '2026-11-04T12:00:00.000Z', provenance: 'school lesson PDF',
       answers: [
@@ -133,6 +138,22 @@ describe('Versioned answer attempts', () => {
     });
     assert.equal(unavailable.outcome, 'ungraded');
     assert.equal(unavailable.gradingSource, 'none');
+
+    assert.equal(recordQuizAnswerAttempt, recordRevisionAnswerAttempt);
+    const revisionAnswer: RevisionAnswerForAttempt = {
+      questionId: 'rev-q1',
+      answer: 'Correct concept',
+      correct: true,
+      prompt: 'State the concept',
+      referenceAnswer: 'Correct concept'
+    };
+    await recordRevisionAnswerAttempt({
+      learnerId: 'fazia',
+      subjectId: 'evs',
+      lessonId: 'fazia-evs',
+      mode: 'practice',
+      answer: revisionAnswer
+    });
   });
 });
 

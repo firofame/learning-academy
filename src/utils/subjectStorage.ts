@@ -2,7 +2,8 @@ import type { StudentId } from '../types';
 import type { AssistanceKind, ReviewClearingPolicy } from '../learning/contracts';
 import { emitStorageError } from './appStorage';
 
-export type SubjectQuizMode = 'practice' | 'exam';
+export type SubjectRevisionMode = 'practice' | 'exam';
+export type SubjectQuizMode = SubjectRevisionMode;
 
 export interface SubjectAnswer {
   questionId: string;
@@ -19,7 +20,7 @@ export interface SubjectAnswer {
 }
 
 export interface SubjectResult {
-  mode: SubjectQuizMode;
+  mode: SubjectRevisionMode;
   completedAt: string;
   section?: string;
   topic?: string;
@@ -52,7 +53,7 @@ export function emptySubjectProgress(studentId: StudentId, lessonId: string): Su
 export function updateSubjectReviewQuestionIds(
   currentReviewIds: readonly string[],
   answers: readonly SubjectAnswer[],
-  mode: SubjectQuizMode,
+  mode: SubjectRevisionMode,
   policy: ReviewClearingPolicy = 'practice-or-exam-correct',
   isFullExam = true
 ): string[] {
@@ -93,7 +94,7 @@ export function isValidSubjectAnswer(value: unknown): value is SubjectAnswer {
   return true;
 }
 
-export function isValidSubjectResult(value: unknown, mode?: SubjectQuizMode): value is SubjectResult {
+export function isValidSubjectResult(value: unknown, mode?: SubjectRevisionMode): value is SubjectResult {
   if (!isPlainRecord(value) || (mode && value.mode !== mode) ||
       (value.mode !== 'practice' && value.mode !== 'exam') ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||

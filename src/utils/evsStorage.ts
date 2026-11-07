@@ -2,12 +2,13 @@ import { StudentId } from '../types';
 import { getEvsLessonForGrade, EVS_SECTIONS } from '../data/evs';
 import { getStudentProfile } from '../data/profiles';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isValidSubjectAnswer, isPlainRecord
 } from './subjectStorage';
 
-export type EvsQuizMode = SubjectQuizMode;
+export type EvsRevisionMode = SubjectRevisionMode;
+export type EvsQuizMode = EvsRevisionMode;
 export type EvsAnswer = SubjectAnswer;
 export type EvsResult = SubjectResult;
 export type EvsProgress = SubjectProgress;
@@ -30,7 +31,7 @@ export function isValidEvsProgress(value: unknown, studentId: StudentId): value 
   return true;
 }
 
-function isValidEvsResult(value: unknown, mode: EvsQuizMode, lesson: ReturnType<typeof getLesson>): value is EvsResult {
+function isValidEvsResult(value: unknown, mode: EvsRevisionMode, lesson: ReturnType<typeof getLesson>): value is EvsResult {
   if (!isPlainRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
@@ -77,6 +78,6 @@ export function saveEvsResult(studentId: StudentId, result: EvsResult, _options?
 export const updateEvsReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly EvsAnswer[],
-  mode: EvsQuizMode,
+  mode: EvsRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'practice-or-exam-correct', isFullExam);

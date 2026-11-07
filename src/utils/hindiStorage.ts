@@ -2,12 +2,13 @@ import { StudentId } from '../types';
 import { getHindiLessonForGrade, HINDI_SECTIONS } from '../data/hindi';
 import { getStudentProfile } from '../data/profiles';
 import {
-  SubjectAnswer, SubjectResult, SubjectProgress, SubjectQuizMode,
+  SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
   getSubjectStorageKey, loadSubjectProgressBase, saveSubjectResultBase,
   updateSubjectReviewQuestionIds, isValidSubjectAnswer, isPlainRecord
 } from './subjectStorage';
 
-export type HindiQuizMode = SubjectQuizMode;
+export type HindiRevisionMode = SubjectRevisionMode;
+export type HindiQuizMode = HindiRevisionMode;
 export type HindiAnswer = SubjectAnswer;
 export type HindiResult = SubjectResult;
 export type HindiProgress = SubjectProgress;
@@ -30,7 +31,7 @@ export function isValidHindiProgress(value: unknown, studentId: StudentId): valu
   return true;
 }
 
-function isValidHindiResult(value: unknown, mode: HindiQuizMode, lesson: ReturnType<typeof getLesson>): value is HindiResult {
+function isValidHindiResult(value: unknown, mode: HindiRevisionMode, lesson: ReturnType<typeof getLesson>): value is HindiResult {
   if (!isPlainRecord(value) || value.mode !== mode ||
       typeof value.completedAt !== 'string' || !Number.isFinite(Date.parse(value.completedAt)) ||
       !Array.isArray(value.answers) || value.answers.length === 0) return false;
@@ -77,6 +78,6 @@ export function saveHindiResult(studentId: StudentId, result: HindiResult, _opti
 export const updateHindiReviewQuestionIds = (
   currentReviewIds: readonly string[],
   answers: readonly HindiAnswer[],
-  mode: HindiQuizMode,
+  mode: HindiRevisionMode,
   isFullExam = true
 ) => updateSubjectReviewQuestionIds(currentReviewIds, answers, mode, 'practice-correct-and-full-exam-refresh', isFullExam);

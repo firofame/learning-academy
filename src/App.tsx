@@ -15,7 +15,7 @@ import { getStudentProfile } from './data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from './data/subjects';
 import { audioService } from './utils/audio';
 
-const ParentDashboard = lazy(() => import('./components/ParentDashboard').then(module => ({ default: module.ParentDashboard })));
+const ProgressDashboard = lazy(() => import('./components/ProgressDashboard').then(module => ({ default: module.ProgressDashboard })));
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
 const ExamTimetableView = lazy(() => import('./components/ExamTimetableView').then(module => ({ default: module.ExamTimetableView })));
 
@@ -41,8 +41,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    audioService.speechEnabled = settings.speechAudio;
-    audioService.slowMode = settings.slowSpeech;
+    audioService.speechAudio = settings.speechAudio;
+    audioService.slowSpeech = settings.slowSpeech;
     if (!settings.speechAudio) audioService.stopAll();
   }, [settings.speechAudio, settings.slowSpeech]);
 
@@ -52,13 +52,14 @@ export default function App() {
 
   const handleNavigate = (view: ActiveAppView) => {
     audioService.stopAll();
-    const subject = getSubjectForView(view);
+    const normalizedView: ActiveAppView = (view as string) === 'session' ? 'spell-bee' : (view as string) === 'parent' ? 'progress' : view;
+    const subject = getSubjectForView(normalizedView);
     if (subject && !availableSubjects.some(available => available.id === subject.id)) {
       emitStorageError(`${subject.name} is not available for ${currentProfile.gradeLabel}. Please choose another subject.`);
       setCurrentView('home');
       return;
     }
-    setCurrentView(view);
+    setCurrentView(normalizedView);
   };
 
   const handleUpdateSettings = (newSettings: AppSettings) => {
@@ -117,18 +118,8 @@ export default function App() {
           <SubjectHome activeStudent={activeStudent} onNavigate={handleNavigate} />
         )}
 
-        {currentView === 'session' && (
-          <SubjectRevisionView
-            key={`spell-bee-${activeStudent}-${refreshKey}`}
-            activeStudent={activeStudent}
-            subjectId="spell-bee"
-            settings={settings}
-            onSessionSizeChange={handleSessionSizeChange}
-          />
-        )}
-
-        {currentView === 'parent' && (
-          <ParentDashboard
+        {currentView === 'progress' && (
+          <ProgressDashboard
             key={activeStudent}
             activeStudent={activeStudent}
             onResetComplete={() => setRefreshKey(prev => prev + 1)}
@@ -145,7 +136,7 @@ export default function App() {
           />
         )}
 
-        {currentView !== 'session' && currentSubject && (
+        {currentSubject && (
           <SubjectRevisionView
             key={`${currentSubject.id}-${activeStudent}-${refreshKey}`}
             activeStudent={activeStudent}
