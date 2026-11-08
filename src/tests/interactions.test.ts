@@ -182,6 +182,16 @@ describe('Shared exam-eve revision interactions', () => {
     const hideButton = view.getByRole('button', { name: 'Hide Timetable' });
     fireEvent.click(hideButton);
     assert.equal(view.queryByText('Reporting & Assembly'), null);
+
+    // Verify ExamTimetableView wrapper backwards compatibility and learner switching
+    let switchedStudent: string | null = null;
+    const wrapper = render(React.createElement(ExamTimetableView, {
+      activeStudent: 'fazia',
+      onSwitchStudent: id => { switchedStudent = id; }
+    }));
+    assert.ok(wrapper.getByRole('button', { name: /Shiza/ }));
+    fireEvent.click(wrapper.getByRole('button', { name: /Shiza/ }));
+    assert.equal(switchedStudent, 'shiza');
   });
 
   test('AudioEngine properties synchronize speechAudio and slowSpeech with legacy aliases', () => {
