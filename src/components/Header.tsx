@@ -127,17 +127,6 @@ export const Header: React.FC<HeaderProps> = ({
             <Calendar className="w-4 h-4" />
             Timetable
           </button>
-          <button
-            onClick={() => onNavigate('progress')}
-            aria-current={currentView === 'progress' ? 'page' : undefined}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              currentView === 'progress'
-                ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            Progress
-          </button>
         </nav>
 
         {/* Zone 3: Settings & Audio Controls */}
