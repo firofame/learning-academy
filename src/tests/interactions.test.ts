@@ -171,7 +171,7 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(await view.findByText('Reporting & Assembly'));
     assert.ok(view.getByText('Examination Timing'));
     assert.ok(view.getByText('Bus & Dispersal'));
-    assert.ok(view.getByRole('button', { name: 'Print Schedule' }));
+    assert.equal(view.queryByRole('button', { name: 'Print Schedule' }), null);
     assert.ok(view.getByText('General Exam Guidelines'));
 
     // Check that Malayalam and Hindi native scripts are rendered in the schedule

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna, FlaskConical,
-  Calendar, RotateCw, ChevronDown, ChevronUp, Printer, Clock, Bus, AlertCircle, Sparkles
+  Calendar, RotateCw, ChevronDown, ChevronUp, Clock, Bus, AlertCircle, Sparkles
 } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { LearningAttempt } from '../learning/contracts';
@@ -40,10 +40,6 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
       setShowTimetable(true);
     }
   }, [initialShowTimetable]);
-
-  const handlePrint = () => {
-    window.print();
-  };
 
   const {
     loading,
@@ -154,7 +150,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
         {/* Expanded Timetable Details */}
         {showTimetable && (
           <div className="border-t border-slate-200/80 p-5 sm:p-6 space-y-6 bg-slate-50/40">
-            {/* Header info bar with Print button */}
+            {/* Header info bar */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
@@ -165,22 +161,13 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                   {EXAM_GENERAL_INFO.academicYear}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handlePrint}
-                  className="no-print inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Print Schedule</span>
-                </button>
-                <button
-                  onClick={() => setShowTimetable(false)}
-                  className="no-print inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg cursor-pointer"
-                >
-                  <ChevronUp className="w-3.5 h-3.5" />
-                  <span>Close</span>
-                </button>
-              </div>
+              <button
+                onClick={() => setShowTimetable(false)}
+                className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800 px-2.5 py-1.5 rounded-lg cursor-pointer"
+              >
+                <ChevronUp className="w-3.5 h-3.5" />
+                <span>Close</span>
+              </button>
             </div>
 
             {/* General Instructions & Timings Cards (3 cards) */}
