@@ -89,7 +89,7 @@ export interface ExamRevisionViewProps {
   onSessionSizeChange: (size: number) => void;
   allowSectionAssessment?: boolean;
   speechAudio: boolean;
-  onComplete?: (result: RevisionSessionResult) => boolean;
+  onComplete?: (result: RevisionSessionResult) => boolean | Promise<boolean>;
 }
 
 const buttonPrimary = 'min-h-12 rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50';
@@ -489,16 +489,29 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     setShowHelp(false);
     setSavedResult(null);
     try {
-      setSavedResult(onComplete?.({
+      const outcome = onComplete?.({
         mode: completedSession.mode,
         section: completedSession.section,
         completedAt: new Date().toISOString(),
         answers: completedSession.answers
-      }) ?? null);
+      });
+      if (outcome instanceof Promise) {
+        outcome
+          .then(saved => setSavedResult(saved))
+          .catch(cause => {
+            const message = cause instanceof Error ? cause.message : 'Unable to save the revision result.';
+            setStorageMessage(message);
+            emitStorageError(message);
+            setSavedResult(false);
+          });
+      } else {
+        setSavedResult(outcome ?? null);
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Unable to save the revision result.';
       setStorageMessage(message);
       emitStorageError(message);
+      setSavedResult(false);
     }
   };
 
@@ -594,18 +607,32 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
   const retrySaveResult = () => {
     if (!session) return;
+    setSavedResult(null);
+    setStorageMessage('');
     try {
-      const saved = onComplete?.({
+      const outcome = onComplete?.({
         mode: session.mode,
         section: session.section,
         completedAt: new Date().toISOString(),
         answers: session.answers
       });
-      setSavedResult(saved ?? null);
+      if (outcome instanceof Promise) {
+        outcome
+          .then(saved => setSavedResult(saved))
+          .catch(cause => {
+            const message = cause instanceof Error ? cause.message : 'Unable to save the revision result.';
+            setStorageMessage(message);
+            emitStorageError(message);
+            setSavedResult(false);
+          });
+      } else {
+        setSavedResult(outcome ?? null);
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : 'Unable to save the revision result.';
       setStorageMessage(message);
       emitStorageError(message);
+      setSavedResult(false);
     }
   };
 

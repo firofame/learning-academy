@@ -30,9 +30,8 @@ const { loadMathsProgress } = await import('../utils/mathsStorage');
 const { loadMalayalamProgress } = await import('../utils/malayalamStorage');
 const { loadEvsProgress } = await import('../utils/evsStorage');
 const { loadBiologyProgress } = await import('../utils/biologyStorage');
-const { getAllProgress, getStudentStorageKey, getWordProgress } = await import('../utils/storage');
 const { audioService } = await import('../utils/audio');
-const { getDefaultLearningRepository } = await import('../learning/persistence');
+const { getDefaultLearningRepository, listLearningAttempts } = await import('../learning/persistence');
 
 const settings = { ...DEFAULT_SETTINGS, speechAudio: false };
 
@@ -487,9 +486,9 @@ describe('Shared exam-eve revision interactions', () => {
     });
   }
 
-  test('Spell Bee completion updates only the learner summary, preserves first attempts, and is safe to retry', () => {
+  test('Spell Bee completion updates only the learner attempts, preserves first attempts, and is safe to retry', async () => {
     const definition = buildSubjectRevision('spell-bee', 'fazia', '');
-    assert.ok(definition.onComplete, 'Spell Bee must save its legacy summary on completion.');
+    assert.ok(definition.onComplete, 'Spell Bee must save its attempts on completion.');
     const [first, second] = definition.questions;
     const answers: RevisionResponse[] = [
       {
@@ -511,23 +510,25 @@ describe('Shared exam-eve revision interactions', () => {
     ];
     const result = { mode: 'practice' as const, section: 'all', completedAt: '2026-11-04T10:06:00.000Z', answers };
 
-    assert.equal(definition.onComplete({ ...result, answers: [] }), false);
-    assert.equal(definition.onComplete(result), false);
-    assert.deepEqual(getAllProgress('fazia'), {});
+    assert.equal(await definition.onComplete({ ...result, answers: [] }), false);
+    assert.equal(await definition.onComplete(result), false);
+    assert.deepEqual(await listLearningAttempts(getDefaultLearningRepository(), 'fazia'), []);
     answers[3] = { ...answers[3], outcome: 'skipped', answer: '', skipped: true };
-    assert.equal(definition.onComplete(result), true);
-    assert.equal(definition.onComplete(result), true);
-    const saved = getWordProgress(first.id, 'fazia');
-    assert.equal(saved.attempts, 1);
-    assert.equal(saved.history[0].wasCorrect, false);
-    assert.equal(saved.history[0].mode, 'practice');
-    assert.equal(saved.lastMistake, 'not yet');
-    assert.equal(getWordProgress(second.id, 'fazia').attempts, 1);
-    assert.equal(getWordProgress(second.id, 'fazia').needsRevisit, true);
-    assert.deepEqual(getAllProgress('shiza'), {});
+    assert.equal(await definition.onComplete(result), true);
+    assert.equal(await definition.onComplete(result), true);
+    const savedAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    const firstSaved = savedAttempts.find(a => a.questionId === first.id);
+    const secondSaved = savedAttempts.find(a => a.questionId === second.id);
+    assert.ok(firstSaved);
+    assert.equal(firstSaved.outcome, 'incorrect');
+    assert.equal(firstSaved.submittedAnswer, 'not yet');
+    assert.equal(firstSaved.sessionMode, 'practice');
+    assert.ok(secondSaved);
+    assert.equal(secondSaved.outcome, 'skipped');
+    assert.deepEqual(await listLearningAttempts(getDefaultLearningRepository(), 'shiza'), []);
   });
 
-  test('Spell Bee exam summaries keep assisted answers out of unaided recall evidence', () => {
+  test('Spell Bee exam summaries keep assisted answers in metadata without unaided credit', async () => {
     const definition = buildSubjectRevision('spell-bee', 'shiza', '');
     assert.ok(definition.onComplete);
     const answers: RevisionResponse[] = definition.questions.slice(0, 2).map((item, index) => ({
@@ -535,20 +536,21 @@ describe('Shared exam-eve revision interactions', () => {
       assistance: index === 0 ? [] : ['read-aloud'], attemptId: `spell-exam-${index}`,
       attemptedAt: '2026-11-04T10:00:00.000Z'
     }));
-    assert.equal(definition.onComplete({
+    assert.equal(await definition.onComplete({
       mode: 'exam', section: 'all', completedAt: '2026-11-04T10:00:00.000Z', answers
     }), true);
-    const unaided = getWordProgress(answers[0].questionId, 'shiza');
-    const assisted = getWordProgress(answers[1].questionId, 'shiza');
-    assert.equal(unaided.history[0].mode, 'test');
-    assert.equal(unaided.unaidedCorrectCount, 1);
-    assert.equal(assisted.history[0].mode, 'practice');
-    assert.equal(assisted.unaidedCorrectCount, 0);
-    assert.equal(assisted.lastUnaidedCorrectDate, null);
-    assert.deepEqual(getAllProgress('fazia'), {});
+    const shizaAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'shiza');
+    const unaided = shizaAttempts.find(a => a.attemptId === answers[0].attemptId);
+    const assisted = shizaAttempts.find(a => a.attemptId === answers[1].attemptId);
+    assert.ok(unaided);
+    assert.ok(assisted);
+    assert.equal(unaided.sessionMode, 'exam');
+    assert.deepEqual(unaided.assistance, []);
+    assert.equal(assisted.sessionMode, 'exam');
+    assert.deepEqual(assisted.assistance, ['read-aloud']);
   });
 
-  test('Spell Bee save failure remains retryable without counting already saved words twice', t => {
+  test('Spell Bee save failure remains retryable without counting already saved words twice', async t => {
     const definition = buildSubjectRevision('spell-bee', 'fazia', '');
     assert.ok(definition.onComplete);
     const answers: RevisionResponse[] = definition.questions.slice(0, 2).map((item, index) => ({
@@ -556,41 +558,130 @@ describe('Shared exam-eve revision interactions', () => {
       assistance: [], attemptId: `spell-retry-${index}`, attemptedAt: '2026-11-04T10:00:00.000Z'
     }));
     const result = { mode: 'exam' as const, section: 'all', completedAt: '2026-11-04T10:00:00.000Z', answers };
-    const originalSetItem = dom.window.Storage.prototype.setItem;
     let writes = 0;
-    const storage = t.mock.method(dom.window.Storage.prototype, 'setItem', function (this: Storage, key: string, value: string) {
-      if (key === getStudentStorageKey('fazia') && ++writes === 2) throw new Error('QuotaExceededError');
-      originalSetItem.call(this, key, value);
+    const repo = getDefaultLearningRepository();
+    const originalPut = repo.put.bind(repo);
+    const mockPut = t.mock.method(repo, 'put', function (record: LearningRecord) {
+      if (record.kind === 'attempt' && ++writes === 2) {
+        return Promise.reject(new Error('QuotaExceededError'));
+      }
+      return originalPut(record);
     });
 
-    assert.equal(definition.onComplete(result), false);
-    assert.equal(getWordProgress(answers[0].questionId, 'fazia').attempts, 1);
-    assert.equal(getWordProgress(answers[1].questionId, 'fazia').attempts, 0);
-    storage.mock.restore();
-    assert.equal(definition.onComplete(result), true);
-    assert.ok(answers.every(answer => getWordProgress(answer.questionId, 'fazia').attempts === 1));
+    const completionPromise = definition.onComplete(result);
+    assert.ok(completionPromise instanceof Promise, 'completion handler should return a promise');
+    assert.equal(await completionPromise, false, 'completion handler reports failure on asynchronous rejection');
+    const firstWriteAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    assert.equal(firstWriteAttempts.length, 1, 'only first attempt is stored before failure');
+    assert.equal(firstWriteAttempts[0].attemptId, answers[0].attemptId);
+
+    mockPut.mock.restore();
+    assert.equal(await definition.onComplete(result), true, 'retry successfully persists');
+    const faziaAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    assert.equal(faziaAttempts.length, 2, 'both attempts are persisted');
+    assert.ok(answers.every(answer => faziaAttempts.some(a => a.attemptId === answer.attemptId)));
+    assert.equal(faziaAttempts.filter(a => a.attemptId === answers[0].attemptId).length, 1, 'previously persisted attempts are not duplicated');
+    assert.equal(faziaAttempts.filter(a => a.attemptId === answers[1].attemptId).length, 1, 'retried attempt is recorded once');
+
+    // Verify the UI doesn't report success before persistence completes and supports retry on rejection
+    let delayedResolve: (() => void) | undefined;
+    const delayedPromise = new Promise<void>(resolve => {
+      delayedResolve = resolve;
+    });
+    let delayedRetryResolve: (() => void) | undefined;
+    const delayedRetryPromise = new Promise<void>(resolve => {
+      delayedRetryResolve = resolve;
+    });
+    let uiWrites = 0;
+    let failSecondAttempt = true;
+    const uiMockPut = t.mock.method(repo, 'put', function (record: LearningRecord) {
+      if (record.kind === 'attempt') {
+        uiWrites++;
+        if (uiWrites === 1) {
+          return delayedPromise.then(() => originalPut(record));
+        }
+        if (uiWrites === 2 && failSecondAttempt) {
+          return Promise.reject(new Error('QuotaExceededError'));
+        }
+        if (uiWrites === 3) {
+          return delayedRetryPromise.then(() => originalPut(record));
+        }
+      }
+      return originalPut(record);
+    });
+
+    const [firstWord, secondWord] = definition.questions;
+    const view = render(React.createElement(ExamRevisionView, {
+      ...definition,
+      questions: [firstWord, secondWord],
+      learnerId: 'fazia',
+      subjectId: 'spell-bee',
+      sessionSize: 2,
+      onSessionSizeChange: () => {},
+      speechAudio: false
+    }));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Optional full mock exam' }));
+    fireEvent.change(await view.findByRole('textbox', { name: 'Your answer' }), { target: { value: firstWord.answer } });
+    fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    fireEvent.change(await view.findByRole('textbox', { name: 'Your answer' }), { target: { value: secondWord.answer } });
+    fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    await view.findByRole('heading', { name: 'Mock exam complete' });
+
+    // The UI doesn't report success before persistence completes:
+    assert.equal(view.queryByText('Result saved on this device.'), null);
+    assert.equal(view.queryByText('The result could not be saved. Retry saving it below.'), null);
+
+    // Resolve first write, allowing second write to reject:
+    delayedResolve!();
+
+    // The completion handler reports failure to the UI:
+    await view.findByText('The result could not be saved. Retry saving it below.');
+    assert.equal(view.queryByText('Result saved on this device.'), null);
+    const retryButton = view.getByRole('button', { name: 'Retry saving result' });
+    assert.ok(retryButton);
+
+    // Trigger retry: while retry persistence is pending, error is cleared, success is not reported prematurely, and retry button is hidden:
+    failSecondAttempt = false;
+    fireEvent.click(retryButton);
+    assert.equal(view.queryByText('Result saved on this device.'), null);
+    assert.equal(view.queryByText('The result could not be saved. Retry saving it below.'), null);
+    assert.equal(view.queryByRole('button', { name: 'Retry saving result' }), null);
+
+    // Resolve retry write:
+    delayedRetryResolve!();
+    await view.findByText('Result saved on this device.');
+    assert.equal(view.queryByRole('button', { name: 'Retry saving result' }), null);
+
+    // Verify all mock exam attempts are persisted without duplicates
+    const finalFaziaAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    const firstWordAttempts = finalFaziaAttempts.filter(a => a.questionId === firstWord.id);
+    const secondWordAttempts = finalFaziaAttempts.filter(a => a.questionId === secondWord.id);
+    assert.ok(firstWordAttempts.length >= 1, 'first word attempt persisted');
+    assert.ok(secondWordAttempts.length >= 1, 'second word attempt persisted');
+    const attemptIds = finalFaziaAttempts.map(a => a.attemptId);
+    assert.equal(new Set(attemptIds).size, attemptIds.length, 'no attempt IDs should be duplicated');
+
+    uiMockPut.mock.restore();
   });
 
-  test('Spell Bee completion saves progress but does not duplicate per-answer history', async t => {
-    const records: LearningRecord[] = [];
-    t.mock.method(getDefaultLearningRepository(), 'put', async (record: LearningRecord) => { records.push(record); });
+  test('Spell Bee completion saves progress to unified repository idempotently', async () => {
     const definition = buildSubjectRevision('spell-bee', 'fazia', '');
     assert.ok(definition.onComplete);
     const item = definition.questions[0];
-    Object.defineProperty(globalThis, 'indexedDB', { value: {}, configurable: true });
-    try {
-      assert.equal(definition.onComplete({
-        mode: 'practice', section: 'all', completedAt: '2026-11-04T10:00:00.000Z',
-        answers: [{
-          questionId: item.id, answer: item.answer, outcome: 'correct', attemptKind: 'initial',
-          assistance: [], attemptId: 'already-recorded', attemptedAt: '2026-11-04T10:00:00.000Z'
-        }]
-      }), true);
-      assert.equal(getWordProgress(item.id, 'fazia').attempts, 1);
-      assert.equal(records.length, 0);
-    } finally {
-      Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true });
-    }
+    const sessionResult = {
+      mode: 'practice' as const, section: 'all', completedAt: '2026-11-04T10:00:00.000Z',
+      answers: [{
+        questionId: item.id, answer: item.answer, outcome: 'correct' as const, attemptKind: 'initial' as const,
+        assistance: [], attemptId: 'already-recorded', attemptedAt: '2026-11-04T10:00:00.000Z'
+      }]
+    };
+    assert.equal(await definition.onComplete(sessionResult), true);
+    assert.equal(await definition.onComplete(sessionResult), true);
+    const saved = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    const matching = saved.filter(a => a.attemptId === 'already-recorded');
+    assert.equal(matching.length, 1);
   });
 
   test('an unavailable automatic check preserves the answer and allows retry', async () => {

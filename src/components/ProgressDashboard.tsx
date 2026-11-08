@@ -11,11 +11,10 @@ import {
   type RevisionRoundRecord
 } from '../learning/persistence';
 import { buildSubjectRevision } from '../learning/subjectRevision';
-import { resetStudentProgress } from '../utils/storage';
 
 export interface ProgressDashboardProps {
   activeStudent: StudentId;
-  onResetComplete: () => void;
+  onResetComplete?: () => void;
   onNavigate?: (view: ActiveAppView) => void;
 }
 
@@ -47,7 +46,6 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({ activeStud
   const [summaries, setSummaries] = useState<SubjectRevisionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [confirmReset, setConfirmReset] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const availableSubjects = getAvailableSubjectsForGrade(profile.grade);
 
@@ -134,16 +132,6 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({ activeStud
     });
     return () => { active = false; };
   }, [activeStudent, refreshKey]);
-
-  const resetOldSpellingProgress = () => {
-    if (resetStudentProgress(activeStudent)) {
-      setConfirmReset(false);
-      setRefreshKey(value => value + 1);
-      onResetComplete();
-    } else {
-      setError('The older Spell Bee word summary could not be reset.');
-    }
-  };
 
   const subjectNames = new Map(LEARNING_SUBJECTS.map(subject => [subject.id, subject.name]));
   const recentAttempts = [...attempts].reverse().slice(0, 12);
@@ -256,30 +244,6 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({ activeStud
               </li>
             ))}
           </ol>
-        )}
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="font-semibold text-slate-900">Older Spell Bee word summary</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Reset only the legacy word summary. Saved answer history and other subjects are not affected.
-        </p>
-        {!confirmReset ? (
-          <button
-            type="button"
-            className="mt-3 min-h-12 rounded-xl border border-slate-300 px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-            onClick={() => setConfirmReset(true)}
-          >
-            Reset old Spell Bee summary
-          </button>
-        ) : (
-          <div className="mt-3 space-y-3" role="group" aria-label="Confirm reset Spell Bee summary">
-            <p className="text-sm text-amber-900">This removes the older per-word summary for {profile.name}; saved attempt history remains available.</p>
-            <div className="flex flex-wrap gap-3">
-              <button type="button" className="min-h-12 rounded-xl border border-slate-300 px-4 py-3 font-semibold" onClick={() => setConfirmReset(false)}>Cancel</button>
-              <button type="button" className="min-h-12 rounded-xl bg-rose-700 px-4 py-3 font-semibold text-white" onClick={resetOldSpellingProgress}>Confirm reset</button>
-            </div>
-          </div>
         )}
       </section>
     </main>
