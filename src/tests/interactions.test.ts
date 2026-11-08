@@ -150,6 +150,63 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(await view.findByRole('region', { name: 'Recent learning history' }));
   });
 
+  test('the subjects home view merges timetable with expandable schedule and preserves native scripts', async () => {
+    const { ExamTimetableView, default: ExamTimetableViewDefault } = await import('../components/ExamTimetableView');
+    assert.ok(ExamTimetableView);
+    assert.equal(ExamTimetableView, ExamTimetableViewDefault);
+
+    const view = render(React.createElement(App));
+    // Header no longer contains standalone Timetable button
+    assert.equal(view.queryByRole('button', { name: 'Timetable' }), null);
+
+    // Initial state: Spotlight card is visible, timetable details are collapsed
+    const spotlight = await view.findByRole('region', { name: 'First Semester Exam Schedule' });
+    assert.ok(spotlight);
+    const viewButton = view.getByRole('button', { name: 'View Full Timetable' });
+    assert.ok(viewButton);
+    assert.equal(view.queryByText('Reporting & Assembly'), null);
+
+    // Click to expand timetable
+    fireEvent.click(viewButton);
+    assert.ok(await view.findByText('Reporting & Assembly'));
+    assert.ok(view.getByText('Examination Timing'));
+    assert.ok(view.getByText('Bus & Dispersal'));
+    assert.equal(view.queryByRole('button', { name: 'Print Schedule' }), null);
+    assert.ok(view.getByText('General Exam Guidelines'));
+
+    // Check that Malayalam and Hindi native scripts are rendered in the schedule
+    assert.ok(view.getByText(/Malayalam \(മലയാളം\)/));
+    assert.ok(view.getByText(/Hindi \(हिन्दी\)/));
+
+    // Collapse timetable
+    const hideButton = view.getByRole('button', { name: 'Hide Timetable' });
+    fireEvent.click(hideButton);
+    assert.equal(view.queryByText('Reporting & Assembly'), null);
+
+    // Verify ExamTimetableView wrapper backwards compatibility and learner switching
+    cleanup();
+    let switchedStudent: string | null = null;
+    let switchCalls = 0;
+    const wrapper = render(React.createElement(ExamTimetableView, {
+      activeStudent: 'fazia',
+      onSwitchStudent: id => {
+        switchCalls++;
+        switchedStudent = id;
+      }
+    }));
+    // Clicking already-selected learner (Fazia) does not trigger switch
+    assert.ok(wrapper.getByRole('button', { name: /Fazia/ }));
+    fireEvent.click(wrapper.getByRole('button', { name: /Fazia/ }));
+    assert.equal(switchCalls, 0);
+    assert.equal(switchedStudent, null);
+
+    // Clicking a different learner (Shiza) triggers switch
+    assert.ok(wrapper.getByRole('button', { name: /Shiza/ }));
+    fireEvent.click(wrapper.getByRole('button', { name: /Shiza/ }));
+    assert.equal(switchCalls, 1);
+    assert.equal(switchedStudent, 'shiza');
+  });
+
   test('AudioEngine properties synchronize speechAudio and slowSpeech with legacy aliases', () => {
     audioService.speechAudio = false;
     assert.equal(audioService.speechEnabled, false);
