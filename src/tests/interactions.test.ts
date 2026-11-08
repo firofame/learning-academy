@@ -510,12 +510,12 @@ describe('Shared exam-eve revision interactions', () => {
     ];
     const result = { mode: 'practice' as const, section: 'all', completedAt: '2026-11-04T10:06:00.000Z', answers };
 
-    assert.equal(definition.onComplete({ ...result, answers: [] }), false);
-    assert.equal(definition.onComplete(result), false);
+    assert.equal(await definition.onComplete({ ...result, answers: [] }), false);
+    assert.equal(await definition.onComplete(result), false);
     assert.deepEqual(await listLearningAttempts(getDefaultLearningRepository(), 'fazia'), []);
     answers[3] = { ...answers[3], outcome: 'skipped', answer: '', skipped: true };
-    assert.equal(definition.onComplete(result), true);
-    assert.equal(definition.onComplete(result), true);
+    assert.equal(await definition.onComplete(result), true);
+    assert.equal(await definition.onComplete(result), true);
     const savedAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
     const firstSaved = savedAttempts.find(a => a.questionId === first.id);
     const secondSaved = savedAttempts.find(a => a.questionId === second.id);
@@ -536,7 +536,7 @@ describe('Shared exam-eve revision interactions', () => {
       assistance: index === 0 ? [] : ['read-aloud'], attemptId: `spell-exam-${index}`,
       attemptedAt: '2026-11-04T10:00:00.000Z'
     }));
-    assert.equal(definition.onComplete({
+    assert.equal(await definition.onComplete({
       mode: 'exam', section: 'all', completedAt: '2026-11-04T10:00:00.000Z', answers
     }), true);
     const shizaAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'shiza');
@@ -562,15 +562,108 @@ describe('Shared exam-eve revision interactions', () => {
     const repo = getDefaultLearningRepository();
     const originalPut = repo.put.bind(repo);
     const mockPut = t.mock.method(repo, 'put', function (record: LearningRecord) {
-      if (++writes === 2) throw new Error('QuotaExceededError');
+      if (record.kind === 'attempt' && ++writes === 2) {
+        return Promise.reject(new Error('QuotaExceededError'));
+      }
       return originalPut(record);
     });
 
-    assert.equal(definition.onComplete(result), false);
+    const completionPromise = definition.onComplete(result);
+    assert.ok(completionPromise instanceof Promise, 'completion handler should return a promise');
+    assert.equal(await completionPromise, false, 'completion handler reports failure on asynchronous rejection');
+    const firstWriteAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    assert.equal(firstWriteAttempts.length, 1, 'only first attempt is stored before failure');
+    assert.equal(firstWriteAttempts[0].attemptId, answers[0].attemptId);
+
     mockPut.mock.restore();
-    assert.equal(definition.onComplete(result), true);
+    assert.equal(await definition.onComplete(result), true, 'retry successfully persists');
     const faziaAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    assert.equal(faziaAttempts.length, 2, 'both attempts are persisted');
     assert.ok(answers.every(answer => faziaAttempts.some(a => a.attemptId === answer.attemptId)));
+    assert.equal(faziaAttempts.filter(a => a.attemptId === answers[0].attemptId).length, 1, 'previously persisted attempts are not duplicated');
+    assert.equal(faziaAttempts.filter(a => a.attemptId === answers[1].attemptId).length, 1, 'retried attempt is recorded once');
+
+    // Verify the UI doesn't report success before persistence completes and supports retry on rejection
+    let delayedResolve: (() => void) | undefined;
+    const delayedPromise = new Promise<void>(resolve => {
+      delayedResolve = resolve;
+    });
+    let delayedRetryResolve: (() => void) | undefined;
+    const delayedRetryPromise = new Promise<void>(resolve => {
+      delayedRetryResolve = resolve;
+    });
+    let uiWrites = 0;
+    let failSecondAttempt = true;
+    const uiMockPut = t.mock.method(repo, 'put', function (record: LearningRecord) {
+      if (record.kind === 'attempt') {
+        uiWrites++;
+        if (uiWrites === 1) {
+          return delayedPromise.then(() => originalPut(record));
+        }
+        if (uiWrites === 2 && failSecondAttempt) {
+          return Promise.reject(new Error('QuotaExceededError'));
+        }
+        if (uiWrites === 3) {
+          return delayedRetryPromise.then(() => originalPut(record));
+        }
+      }
+      return originalPut(record);
+    });
+
+    const [firstWord, secondWord] = definition.questions;
+    const view = render(React.createElement(ExamRevisionView, {
+      ...definition,
+      questions: [firstWord, secondWord],
+      learnerId: 'fazia',
+      subjectId: 'spell-bee',
+      sessionSize: 2,
+      onSessionSizeChange: () => {},
+      speechAudio: false
+    }));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Optional full mock exam' }));
+    fireEvent.change(await view.findByRole('textbox', { name: 'Your answer' }), { target: { value: firstWord.answer } });
+    fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    fireEvent.change(await view.findByRole('textbox', { name: 'Your answer' }), { target: { value: secondWord.answer } });
+    fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    await view.findByRole('heading', { name: 'Mock exam complete' });
+
+    // The UI doesn't report success before persistence completes:
+    assert.equal(view.queryByText('Result saved on this device.'), null);
+    assert.equal(view.queryByText('The result could not be saved. Retry saving it below.'), null);
+
+    // Resolve first write, allowing second write to reject:
+    delayedResolve!();
+
+    // The completion handler reports failure to the UI:
+    await view.findByText('The result could not be saved. Retry saving it below.');
+    assert.equal(view.queryByText('Result saved on this device.'), null);
+    const retryButton = view.getByRole('button', { name: 'Retry saving result' });
+    assert.ok(retryButton);
+
+    // Trigger retry: while retry persistence is pending, error is cleared, success is not reported prematurely, and retry button is hidden:
+    failSecondAttempt = false;
+    fireEvent.click(retryButton);
+    assert.equal(view.queryByText('Result saved on this device.'), null);
+    assert.equal(view.queryByText('The result could not be saved. Retry saving it below.'), null);
+    assert.equal(view.queryByRole('button', { name: 'Retry saving result' }), null);
+
+    // Resolve retry write:
+    delayedRetryResolve!();
+    await view.findByText('Result saved on this device.');
+    assert.equal(view.queryByRole('button', { name: 'Retry saving result' }), null);
+
+    // Verify all mock exam attempts are persisted without duplicates
+    const finalFaziaAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    const firstWordAttempts = finalFaziaAttempts.filter(a => a.questionId === firstWord.id);
+    const secondWordAttempts = finalFaziaAttempts.filter(a => a.questionId === secondWord.id);
+    assert.ok(firstWordAttempts.length >= 1, 'first word attempt persisted');
+    assert.ok(secondWordAttempts.length >= 1, 'second word attempt persisted');
+    const attemptIds = finalFaziaAttempts.map(a => a.attemptId);
+    assert.equal(new Set(attemptIds).size, attemptIds.length, 'no attempt IDs should be duplicated');
+
+    uiMockPut.mock.restore();
   });
 
   test('Spell Bee completion saves progress to unified repository idempotently', async () => {
@@ -584,8 +677,8 @@ describe('Shared exam-eve revision interactions', () => {
         assistance: [], attemptId: 'already-recorded', attemptedAt: '2026-11-04T10:00:00.000Z'
       }]
     };
-    assert.equal(definition.onComplete(sessionResult), true);
-    assert.equal(definition.onComplete(sessionResult), true);
+    assert.equal(await definition.onComplete(sessionResult), true);
+    assert.equal(await definition.onComplete(sessionResult), true);
     const saved = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
     const matching = saved.filter(a => a.attemptId === 'already-recorded');
     assert.equal(matching.length, 1);

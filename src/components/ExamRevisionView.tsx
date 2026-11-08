@@ -511,6 +511,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       const message = cause instanceof Error ? cause.message : 'Unable to save the revision result.';
       setStorageMessage(message);
       emitStorageError(message);
+      setSavedResult(false);
     }
   };
 
@@ -606,6 +607,8 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
   const retrySaveResult = () => {
     if (!session) return;
+    setSavedResult(null);
+    setStorageMessage('');
     try {
       const outcome = onComplete?.({
         mode: session.mode,
@@ -629,6 +632,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       const message = cause instanceof Error ? cause.message : 'Unable to save the revision result.';
       setStorageMessage(message);
       emitStorageError(message);
+      setSavedResult(false);
     }
   };
 

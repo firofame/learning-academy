@@ -39,7 +39,7 @@ import { saveHindiResult } from '../utils/hindiStorage';
 import { saveEvsResult } from '../utils/evsStorage';
 import { saveBiologyResult } from '../utils/biologyStorage';
 import { saveChemistryResult } from '../utils/chemistryStorage';
-import { getDefaultLearningRepository } from './persistence';
+import { getDefaultLearningRepository, saveLearningAttempts } from './persistence';
 import { createRevisionAttempts } from './attemptRecords';
 
 interface RevisionDefinition {
@@ -48,7 +48,7 @@ interface RevisionDefinition {
   description: string;
   questions: readonly RevisionQuestion[];
   allowSectionAssessment?: boolean;
-  onComplete?: (result: RevisionSessionResult) => boolean;
+  onComplete?: (result: RevisionSessionResult) => boolean | Promise<boolean>;
 }
 
 function finalResponses(result: RevisionSessionResult): RevisionResponse[] {
@@ -69,53 +69,40 @@ function canSave(answers: readonly RevisionResponse[]): boolean {
   return answers.length > 0 && !answers.some(answer => answer.outcome === 'ungraded');
 }
 
-function saveSpellBeeSession(
+async function saveSpellBeeSession(
   learnerId: StudentId,
   result: RevisionSessionResult
-): boolean {
-  const responses = finalResponses(result);
-  if (!canSave(responses)) return false;
-  const profile = getStudentProfile(learnerId);
-  const lessonId = `spelling-grade-${profile.grade}`;
-  const attempts = createRevisionAttempts({
-    learnerId,
-    subjectId: 'spell-bee',
-    lessonId,
-    mode: result.mode,
-    completedAt: result.completedAt,
-    answers: responses.map(response => ({
-      questionId: response.questionId,
-      answer: response.answer,
-      correct: response.outcome === 'correct',
-      skipped: response.outcome === 'skipped',
-      ungraded: response.outcome === 'ungraded',
-      prompt: '',
-      referenceAnswer: response.answer,
-      attemptId: response.attemptId,
-      attemptedAt: response.attemptedAt,
-      assistance: response.assistance,
-      revisionAttemptKind: response.attemptKind
-    }))
-  });
-
-  const repo = getDefaultLearningRepository();
+): Promise<boolean> {
   try {
-    for (const attempt of attempts) {
-      const putResult = repo.put({
-        id: `attempt:${attempt.learnerId}:${attempt.attemptId}`,
-        schemaVersion: 1,
-        learnerId: attempt.learnerId,
-        subjectId: attempt.subjectId,
-        kind: 'attempt',
-        contentVersion: attempt.contentVersion,
-        rubricVersion: attempt.rubricVersion,
-        updatedAt: attempt.timestamp,
-        data: attempt
-      });
-      if (putResult instanceof Promise) {
-        void putResult.catch(() => {});
-      }
-    }
+    const responses = finalResponses(result);
+    if (!canSave(responses)) return false;
+    const profile = getStudentProfile(learnerId);
+    const lessonId = `spelling-grade-${profile.grade}`;
+    const attempts = createRevisionAttempts({
+      learnerId,
+      subjectId: 'spell-bee',
+      lessonId,
+      mode: result.mode,
+      completedAt: result.completedAt,
+      answers: responses.map(response => ({
+        questionId: response.questionId,
+        answer: response.answer,
+        correct: response.outcome === 'correct',
+        skipped: response.outcome === 'skipped',
+        ungraded: response.outcome === 'ungraded',
+        prompt: '',
+        referenceAnswer: response.answer,
+        attemptId: response.attemptId,
+        attemptedAt: response.attemptedAt,
+        assistance: response.assistance,
+        revisionAttemptKind: response.attemptKind
+      }))
+    });
+
+    await saveLearningAttempts(
+      getDefaultLearningRepository(),
+      attempts
+    );
     return true;
   } catch {
     return false;
