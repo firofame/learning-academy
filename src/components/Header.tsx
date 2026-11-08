@@ -23,11 +23,16 @@ export const Header: React.FC<HeaderProps> = ({
   settings,
   onUpdateSettings
 }) => {
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus());
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus(activeStudent));
 
   useEffect(() => {
-    return subscribeSyncStatus(setSyncStatus);
-  }, []);
+    setSyncStatus(getSyncStatus(activeStudent));
+    return subscribeSyncStatus((status, studentId) => {
+      if (!studentId || studentId === activeStudent) {
+        setSyncStatus(status);
+      }
+    }, activeStudent);
+  }, [activeStudent]);
   const currentProfile = getStudentProfile(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
   const currentSubject = getSubjectForView(currentView);

@@ -7,10 +7,18 @@
   "placement": {
     "region": "gcp:asia-south1"
   },
-  "kv_namespaces": [
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROGRESS_DO",
+        "class_name": "ProgressDurableObject"
+      }
+    ]
+  },
+  "migrations": [
     {
-      "binding": "PROGRESS_KV",
-      "id": "1f2fbfe674bb4311820a1fb69f082a18"
+      "tag": "v1",
+      "new_classes": ["ProgressDurableObject"]
     }
   ],
   "assets": {

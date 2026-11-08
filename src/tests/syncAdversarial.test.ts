@@ -10,6 +10,7 @@ import {
   type StudentProgressSnapshot as ClientSnapshot
 } from '../utils/syncService';
 import worker, {
+  ProgressDurableObject,
   mergeLearningRecords as workerMergeLearningRecords,
   mergeSubjectProgress as workerMergeSubjectProgress,
   mergeSpellingProgress as workerMergeSpellingProgress,
@@ -17,6 +18,7 @@ import worker, {
   type Env,
   type StudentProgressSnapshot as WorkerSnapshot
 } from '../../worker/index';
+import { MockDurableObjectNamespace } from './syncWorker.test';
 import type { WordProgress, StudentId } from '../types';
 import { loadSubjectProgressBase, type SubjectProgress, type SubjectResult } from '../utils/subjectStorage';
 import type { LearningRecord } from '../learning/persistence';
@@ -81,12 +83,13 @@ const mockStorage = new MockLocalStorage();
 (globalThis as any).window = globalThis;
 (globalThis as any).localStorage = mockStorage;
 
-function createWorkerEnv(kv = new MockKVNamespace()): Env {
-  return {
+function createWorkerEnv(doNamespace?: MockDurableObjectNamespace): Env {
+  const env: Env = {
     GEMINI_API_KEY: 'test-key',
-    ALLOWED_ORIGINS: 'https://learn.firofame.workers.dev,https://firofame.github.io',
-    PROGRESS_KV: kv as any
+    ALLOWED_ORIGINS: 'https://learn.firofame.workers.dev,https://firofame.github.io'
   };
+  env.PROGRESS_DO = doNamespace ?? new MockDurableObjectNamespace(ProgressDurableObject, env);
+  return env;
 }
 
 describe('Adversarial Stress Testing: Client & Worker Sync Engine', () => {
@@ -208,6 +211,132 @@ describe('Adversarial Stress Testing: Client & Worker Sync Engine', () => {
       assert.equal(merged.accommodate.unaidedCorrectCount, 4);
       // History deduplicates identical date:mode
       assert.equal(merged.accommodate.history.length, 1);
+    });
+
+    test('commutative merge: identical lastAttemptDate produces identical results in both call orders', () => {
+      const wordA: WordProgress = {
+        wordId: 'accommodate',
+        studentId: 'shiza',
+        attempts: 5,
+        unaidedCorrectCount: 3,
+        consecutiveUnaidedCorrect: 2,
+        unaidedCorrectDates: ['2026-11-01'],
+        lastAttemptDate: '2026-11-01T10:00:00.000Z',
+        level: 'learning',
+        needsRevisit: false,
+        history: [{ date: '2026-11-01T10:00:00.000Z', mode: 'practice', wasCorrect: true }]
+      };
+
+      const wordB: WordProgress = {
+        wordId: 'accommodate',
+        studentId: 'shiza',
+        attempts: 6,
+        unaidedCorrectCount: 4,
+        consecutiveUnaidedCorrect: 1,
+        unaidedCorrectDates: ['2026-11-01'],
+        lastAttemptDate: '2026-11-01T10:00:00.000Z',
+        level: 'learning',
+        needsRevisit: false,
+        history: [{ date: '2026-11-01T10:00:00.000Z', mode: 'practice', wasCorrect: false }]
+      };
+
+      const clientAB = clientMergeSpellingProgress({ accommodate: wordA }, { accommodate: wordB });
+      const clientBA = clientMergeSpellingProgress({ accommodate: wordB }, { accommodate: wordA });
+      const workerAB = workerMergeSpellingProgress({ accommodate: wordA }, { accommodate: wordB });
+      const workerBA = workerMergeSpellingProgress({ accommodate: wordB }, { accommodate: wordA });
+
+      assert.deepEqual(clientAB, clientBA, 'Client merge must be commutative');
+      assert.deepEqual(workerAB, workerBA, 'Worker merge must be commutative');
+      assert.deepEqual(clientAB, workerAB, 'Client and Worker merge must be identical');
+      assert.equal(JSON.stringify(clientAB), JSON.stringify(workerBA), 'JSON key order must match identically');
+    });
+
+    test('assisted practice after unaided failure preserves needsRevisit: true and lastMistake', () => {
+      // Device A: Failed unaided test at 10:00
+      const deviceA: WordProgress = {
+        wordId: 'separate',
+        studentId: 'shiza',
+        attempts: 3,
+        unaidedCorrectCount: 1,
+        consecutiveUnaidedCorrect: 0,
+        unaidedCorrectDates: [],
+        lastAttemptDate: '2026-11-01T10:00:00.000Z',
+        level: 'learning',
+        needsRevisit: true,
+        lastMistake: 'seperate',
+        history: [
+          { date: '2026-11-01T10:00:00.000Z', mode: 'test', wasCorrect: false, mistakeInput: 'seperate' }
+        ]
+      };
+
+      // Device B: Succeeded in assisted practice at 10:15
+      const deviceB: WordProgress = {
+        wordId: 'separate',
+        studentId: 'shiza',
+        attempts: 4,
+        unaidedCorrectCount: 1,
+        consecutiveUnaidedCorrect: 0,
+        unaidedCorrectDates: [],
+        lastAttemptDate: '2026-11-01T10:15:00.000Z',
+        level: 'learning',
+        needsRevisit: false,
+        history: [
+          { date: '2026-11-01T10:15:00.000Z', mode: 'practice', wasCorrect: true }
+        ]
+      };
+
+      const mergedAB = clientMergeSpellingProgress({ separate: deviceA }, { separate: deviceB }).separate;
+      const mergedBA = clientMergeSpellingProgress({ separate: deviceB }, { separate: deviceA }).separate;
+
+      assert.equal(mergedAB.needsRevisit, true, 'Assisted success must not clear needsRevisit');
+      assert.equal(mergedBA.needsRevisit, true, 'Symmetric call must also preserve needsRevisit');
+      assert.equal(mergedAB.lastMistake, 'seperate');
+      assert.equal(mergedBA.lastMistake, 'seperate');
+      assert.equal(mergedAB.consecutiveUnaidedCorrect, 0);
+    });
+
+    test('assisted practice on stale device does not resurrect wiped unaided streak', () => {
+      // Device A had unaided failure at 11:00
+      const deviceA: WordProgress = {
+        wordId: 'calendar',
+        studentId: 'fazia',
+        attempts: 5,
+        unaidedCorrectCount: 2,
+        consecutiveUnaidedCorrect: 0,
+        unaidedCorrectDates: [],
+        lastAttemptDate: '2026-11-02T11:00:00.000Z',
+        level: 'learning',
+        needsRevisit: true,
+        history: [
+          { date: '2026-11-02T11:00:00.000Z', mode: 'test', wasCorrect: false, mistakeInput: 'calender' }
+        ]
+      };
+
+      // Device B was offline with stale streak 3 from yesterday, and did assisted practice at 11:10
+      const deviceB: WordProgress = {
+        wordId: 'calendar',
+        studentId: 'fazia',
+        attempts: 6,
+        unaidedCorrectCount: 2,
+        consecutiveUnaidedCorrect: 3,
+        unaidedCorrectDates: ['2026-11-01'],
+        lastAttemptDate: '2026-11-02T11:10:00.000Z',
+        level: 'remembered',
+        needsRevisit: false,
+        history: [
+          { date: '2026-11-02T11:10:00.000Z', mode: 'practice', wasCorrect: true }
+        ]
+      };
+
+      const mergedAB = clientMergeSpellingProgress({ calendar: deviceA }, { calendar: deviceB }).calendar;
+      const mergedBA = clientMergeSpellingProgress({ calendar: deviceB }, { calendar: deviceA }).calendar;
+
+      assert.equal(mergedAB.consecutiveUnaidedCorrect, 0, 'Streak must remain 0 after unaided failure');
+      assert.equal(mergedBA.consecutiveUnaidedCorrect, 0);
+      assert.equal(mergedAB.level, 'learning');
+      assert.equal(mergedBA.level, 'learning');
+      assert.equal(mergedAB.needsRevisit, true);
+      assert.equal(mergedAB.needsRevisit, true);
     });
   });
 
@@ -855,8 +984,8 @@ describe('Adversarial Stress Testing: Client & Worker Sync Engine', () => {
     });
 
     test('worker endpoint strips injected device-local settings from incoming POST requests', async () => {
-      const kv = new MockKVNamespace();
-      const env = createWorkerEnv(kv);
+      const doNamespace = new MockDurableObjectNamespace(ProgressDurableObject);
+      const env = createWorkerEnv(doNamespace);
 
       const injectedPayload = {
         studentId: 'shiza',
@@ -884,12 +1013,12 @@ describe('Adversarial Stress Testing: Client & Worker Sync Engine', () => {
       assert.equal((returnedJson as any).spellbee_settings_v1, undefined);
       assert.equal((returnedJson as any).injected_admin_flag, undefined);
 
-      // Verify KV raw storage does not contain injected fields
-      const storedRaw = await kv.get('progress:shiza', 'text');
-      const storedObj = JSON.parse(storedRaw);
-      assert.equal(storedObj.spellbee_active_profile_v1, undefined);
-      assert.equal(storedObj.spellbee_settings_v1, undefined);
-      assert.equal(storedObj.injected_admin_flag, undefined);
+      // Verify DO storage does not contain injected fields
+      const storedObj = doNamespace.getStoredSnapshot('shiza');
+      assert.ok(storedObj);
+      assert.equal((storedObj as any).spellbee_active_profile_v1, undefined);
+      assert.equal((storedObj as any).spellbee_settings_v1, undefined);
+      assert.equal((storedObj as any).injected_admin_flag, undefined);
     });
 
     test('localStorage cross-contamination resistance when snapshot contains records with foreign learnerId', () => {

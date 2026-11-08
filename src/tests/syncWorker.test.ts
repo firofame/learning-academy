@@ -1,52 +1,115 @@
 import { describe, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import worker, { type Env, type StudentProgressSnapshot } from '../../worker/index';
+import worker, { ProgressDurableObject, type Env, type StudentProgressSnapshot } from '../../worker/index';
 
-// In-Memory KV Namespace Mock for Cloudflare Worker KV testing
-class MockKVNamespace {
-  private store = new Map<string, string>();
+// ---------------------------------------------------------------------------
+// Zero-Dependency Mock Harness for Cloudflare Durable Objects
+// ---------------------------------------------------------------------------
 
-  async get(key: string, type?: 'text' | 'json'): Promise<any> {
-    const raw = this.store.get(key);
-    if (raw === undefined) return null;
-    if (type === 'json') {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
+export class MockDurableObjectStorage {
+  private store = new Map<string, unknown>();
+
+  async get<T = unknown>(key: string): Promise<T | undefined> {
+    // Microtask delay simulates async storage I/O and exposes concurrency races
+    await new Promise(resolve => setTimeout(resolve, 1));
+    const value = this.store.get(key);
+    if (value === undefined) return undefined;
+    return structuredClone(value) as T;
+  }
+
+  async put<T>(key: string, value: T): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, 1));
+    this.store.set(key, structuredClone(value));
+  }
+
+  async delete(key: string): Promise<boolean> {
+    return this.store.delete(key);
+  }
+
+  async deleteAll(): Promise<void> {
+    this.store.clear();
+  }
+
+  getRaw(key: string): unknown {
+    return this.store.get(key);
+  }
+}
+
+export class MockDurableObjectState {
+  storage: MockDurableObjectStorage;
+  id: { toString(): string; name: string };
+
+  constructor(idString: string) {
+    this.storage = new MockDurableObjectStorage();
+    this.id = { toString: () => idString, name: idString };
+  }
+
+  waitUntil(_promise: Promise<unknown>): void {}
+}
+
+export class MockDurableObjectStub {
+  constructor(private instance: { fetch(request: Request): Promise<Response> }) {}
+
+  async fetch(request: Request | string, init?: RequestInit): Promise<Response> {
+    const req = typeof request === 'string' ? new Request(request, init) : request;
+    return this.instance.fetch(req);
+  }
+}
+
+export class MockDurableObjectNamespace {
+  private instances = new Map<string, any>();
+
+  constructor(
+    private DOClass: new (state: any, env: any) => { fetch(req: Request): Promise<Response> },
+    private env: any = {}
+  ) {}
+
+  idFromName(name: string): { toString(): string; name: string } {
+    return { toString: () => name, name };
+  }
+
+  get(id: { toString(): string }): MockDurableObjectStub {
+    const key = id.toString();
+    if (!this.instances.has(key)) {
+      const state = new MockDurableObjectState(key);
+      const instance = new this.DOClass(state, this.env);
+      this.instances.set(key, instance);
     }
-    return raw;
+    return new MockDurableObjectStub(this.instances.get(key));
   }
 
-  async put(key: string, value: string): Promise<void> {
-    this.store.set(key, value);
+  getStoredSnapshot(studentId: string): StudentProgressSnapshot | null {
+    const instance = this.instances.get(studentId);
+    if (!instance) return null;
+    const snap = (instance.state?.storage as MockDurableObjectStorage)?.getRaw('snapshot');
+    return snap ? (structuredClone(snap) as StudentProgressSnapshot) : null;
   }
 
-  async delete(key: string): Promise<void> {
-    this.store.delete(key);
+  reset(): void {
+    this.instances.clear();
   }
 }
 
 const ALLOWED_ORIGIN = 'https://learn.firofame.workers.dev';
 const ALLOWED_ORIGIN_2 = 'https://firofame.github.io';
 
-function createEnv(kv = new MockKVNamespace()): Env {
-  return {
+function createEnv(doNamespace?: MockDurableObjectNamespace): Env {
+  const env: Env = {
     GEMINI_API_KEY: 'test-key',
     ALLOWED_ORIGINS: `${ALLOWED_ORIGIN},${ALLOWED_ORIGIN_2},http://localhost:3000`,
-    PROGRESS_KV: kv as any,
     GRADING_RATE_LIMITER: { limit: async () => ({ success: true }) }
   };
+  env.PROGRESS_DO = doNamespace ?? new MockDurableObjectNamespace(ProgressDurableObject, env);
+  return env;
 }
 
 describe('Worker Progress Sync Endpoints', () => {
-  let kv: MockKVNamespace;
+  let doNamespace: MockDurableObjectNamespace;
   let env: Env;
 
   beforeEach(() => {
-    kv = new MockKVNamespace();
-    env = createEnv(kv);
+    doNamespace = new MockDurableObjectNamespace(ProgressDurableObject);
+    env = createEnv(doNamespace);
   });
 
   describe('CORS and Origin Validation', () => {
@@ -163,18 +226,20 @@ describe('Worker Progress Sync Endpoints', () => {
       }
     });
 
-    test('returns 503 when PROGRESS_KV binding is missing', async () => {
-      const envWithoutKV = { ...env, PROGRESS_KV: undefined };
+    test('returns 503 when PROGRESS_DO binding is missing', async () => {
+      const envWithoutDO = { ...env, PROGRESS_DO: undefined };
       const response = await worker.fetch(
         new Request('https://learn.firofame.workers.dev/api/progress/shiza'),
-        envWithoutKV
+        envWithoutDO
       );
       assert.equal(response.status, 503);
+      const body = await response.json() as { error: string };
+      assert.match(body.error, /Progress storage is not configured/i);
     });
   });
 
-  describe('GET & POST Progress Synchronization & KV Persistence', () => {
-    test('GET returns 200 with null when KV is empty', async () => {
+  describe('GET & POST Progress Synchronization & DO Persistence', () => {
+    test('GET returns 200 with null when DO storage is empty', async () => {
       const response = await worker.fetch(
         new Request('https://learn.firofame.workers.dev/api/progress/shiza'),
         env
@@ -184,7 +249,7 @@ describe('Worker Progress Sync Endpoints', () => {
       assert.equal(data, null);
     });
 
-    test('POST persists snapshot to KV and returns merged result', async () => {
+    test('POST persists snapshot to DO and returns merged result', async () => {
       const snapshot: StudentProgressSnapshot = {
         studentId: 'shiza',
         version: 1,
@@ -241,8 +306,8 @@ describe('Worker Progress Sync Endpoints', () => {
       assert.ok('elephant' in postResult.spelling);
       assert.equal(postResult.learningRecords.length, 1);
 
-      // Verify KV received the record
-      const stored = await kv.get('progress:shiza', 'json');
+      // Verify DO received the record
+      const stored = doNamespace.getStoredSnapshot('shiza');
       assert.ok(stored);
       assert.equal(stored.studentId, 'shiza');
       assert.equal(stored.learningRecords.length, 1);
@@ -258,7 +323,7 @@ describe('Worker Progress Sync Endpoints', () => {
       assert.ok('elephant' in getData.spelling);
     });
 
-    test('POST merges second device payload with existing KV snapshot deterministically', async () => {
+    test('POST merges second device payload with existing DO snapshot deterministically', async () => {
       // 1. Initial snapshot from Device 1
       const device1Snapshot: StudentProgressSnapshot = {
         studentId: 'shiza',
@@ -413,6 +478,204 @@ describe('Worker Progress Sync Endpoints', () => {
         env
       );
       assert.equal(response.status, 400);
+    });
+
+    test('rejects POST with payload exceeding 2MB with 413 Payload Too Large', async () => {
+      const largeData = 'A'.repeat(2 * 1024 * 1024 + 100);
+      const oversizedPayload = JSON.stringify({
+        studentId: 'shiza',
+        version: 1,
+        syncedAt: '2026-11-04T10:00:00Z',
+        spelling: {},
+        subjects: {},
+        learningRecords: [
+          {
+            id: 'attempt:shiza:huge',
+            schemaVersion: 1,
+            learnerId: 'shiza',
+            subjectId: 'robotics',
+            kind: 'attempt',
+            contentVersion: 'v1',
+            updatedAt: '2026-11-04T10:00:00Z',
+            data: { text: largeData }
+          }
+        ]
+      });
+
+      const response = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': String(new TextEncoder().encode(oversizedPayload).byteLength)
+          },
+          body: oversizedPayload
+        }),
+        env
+      );
+
+      assert.equal(response.status, 413);
+      const body = await response.json() as { error: string };
+      assert.match(body.error, /Payload too large/i);
+    });
+
+    test('strictly isolates storage between learners shiza and fazia', async () => {
+      const testDONamespace = new MockDurableObjectNamespace(ProgressDurableObject);
+      const testEnv = createEnv(testDONamespace);
+
+      const shizaSnapshot: StudentProgressSnapshot = {
+        studentId: 'shiza',
+        version: 1,
+        syncedAt: '2026-11-04T10:00:00Z',
+        spelling: {
+          apple: {
+            wordId: 'apple',
+            studentId: 'shiza',
+            attempts: 1,
+            unaidedCorrectCount: 1,
+            consecutiveUnaidedCorrect: 1,
+            unaidedCorrectDates: ['2026-11-04'],
+            lastAttemptDate: '2026-11-04T10:00:00Z',
+            level: 'learning',
+            needsRevisit: false,
+            history: []
+          }
+        },
+        subjects: {},
+        learningRecords: []
+      };
+
+      // POST for Shiza
+      const postShiza = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(shizaSnapshot)
+        }),
+        testEnv
+      );
+      assert.equal(postShiza.status, 200);
+
+      // Fazia DO storage must remain strictly empty (null)
+      const getFazia = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/fazia'),
+        testEnv
+      );
+      assert.equal(getFazia.status, 200);
+      const faziaData = await getFazia.json();
+      assert.equal(faziaData, null);
+      assert.equal(testDONamespace.getStoredSnapshot('fazia'), null);
+
+      // Shiza DO storage must contain 'apple'
+      const shizaStored = testDONamespace.getStoredSnapshot('shiza');
+      assert.ok(shizaStored);
+      assert.ok('apple' in shizaStored.spelling);
+    });
+
+    test('sequential device switching guarantees immediate read-after-write consistency', async () => {
+      const testDONamespace = new MockDurableObjectNamespace(ProgressDurableObject);
+      const testEnv = createEnv(testDONamespace);
+
+      // Device 1 (Mobile): POSTs newly practiced word
+      const mobileSnapshot: StudentProgressSnapshot = {
+        studentId: 'shiza',
+        version: 1,
+        syncedAt: '2026-11-04T15:00:00Z',
+        spelling: {
+          butterfly: {
+            wordId: 'butterfly',
+            studentId: 'shiza',
+            attempts: 2,
+            unaidedCorrectCount: 2,
+            consecutiveUnaidedCorrect: 2,
+            unaidedCorrectDates: ['2026-11-04'],
+            lastAttemptDate: '2026-11-04T15:00:00Z',
+            level: 'practising',
+            needsRevisit: false,
+            history: []
+          }
+        },
+        subjects: {},
+        learningRecords: []
+      };
+
+      const postRes = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mobileSnapshot)
+        }),
+        testEnv
+      );
+      assert.equal(postRes.status, 200);
+
+      // Device 2 (Chromebook): Immediately performs GET
+      const chromebookGet = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza'),
+        testEnv
+      );
+      assert.equal(chromebookGet.status, 200);
+      const chromebookData = await chromebookGet.json() as StudentProgressSnapshot;
+
+      // Must read the exact committed state without replication delay
+      assert.equal(chromebookData.studentId, 'shiza');
+      assert.equal(chromebookData.spelling['butterfly'].level, 'practising');
+      assert.equal(chromebookData.spelling['butterfly'].consecutiveUnaidedCorrect, 2);
+    });
+
+    test('serializes concurrent POST operations per learner without lost updates', async () => {
+      const testDONamespace = new MockDurableObjectNamespace(ProgressDurableObject);
+      const testEnv = createEnv(testDONamespace);
+
+      const attempts = Array.from({ length: 10 }, (_, i) => ({
+        id: `attempt:shiza:concurrent-${i}`,
+        schemaVersion: 1 as const,
+        learnerId: 'shiza' as const,
+        subjectId: 'robotics' as const,
+        kind: 'attempt' as const,
+        contentVersion: 'v1',
+        updatedAt: new Date(Date.now() + i * 1000).toISOString(),
+        data: { index: i }
+      }));
+
+      // Fire 10 concurrent POST requests
+      const promises = attempts.map(attempt => {
+        const payload: StudentProgressSnapshot = {
+          studentId: 'shiza',
+          version: 1,
+          syncedAt: new Date().toISOString(),
+          spelling: {},
+          subjects: {},
+          learningRecords: [attempt]
+        };
+        return worker.fetch(
+          new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }),
+          testEnv
+        );
+      });
+
+      const responses = await Promise.all(promises);
+      for (const res of responses) {
+        assert.equal(res.status, 200);
+      }
+
+      // Verify DO storage has all 10 attempts without any lost updates
+      const finalGet = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza'),
+        testEnv
+      );
+      assert.equal(finalGet.status, 200);
+      const finalData = await finalGet.json() as StudentProgressSnapshot;
+      assert.equal(finalData.learningRecords.length, 10);
+      const ids = finalData.learningRecords.map(r => r.id).sort();
+      assert.equal(ids.length, 10);
+      for (let i = 0; i < 10; i++) {
+        assert.ok(ids.includes(`attempt:shiza:concurrent-${i}`));
+      }
     });
   });
 });

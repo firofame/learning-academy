@@ -7,7 +7,7 @@ import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/writtenGrading';
-import type { WordProgress, StudentId, LearningSubjectId } from '../src/types';
+import type { WordProgress, StudentId, LearningSubjectId, MasteryLevel } from '../src/types';
 
 export interface GradingEnv {
   GEMINI_API_KEY: string;
@@ -17,17 +17,48 @@ export interface GradingEnv {
   };
 }
 
+export interface DurableObjectIdLike {
+  toString(): string;
+  name?: string;
+}
+
+export interface DurableObjectStubLike {
+  fetch(request: Request | string, init?: RequestInit): Promise<Response>;
+}
+
+export interface DurableObjectNamespaceLike {
+  idFromName(name: string): DurableObjectIdLike;
+  get(id: DurableObjectIdLike): DurableObjectStubLike;
+}
+
+export interface DurableObjectStorageLike {
+  get<T = unknown>(key: string): Promise<T | undefined>;
+  put<T>(key: string, value: T): Promise<void>;
+  delete?(key: string): Promise<boolean>;
+  deleteAll?(): Promise<void>;
+}
+
+export interface DurableObjectStateLike {
+  storage: DurableObjectStorageLike;
+  id?: DurableObjectIdLike;
+  waitUntil?(promise: Promise<unknown>): void;
+}
+
 export interface Env {
   GEMINI_API_KEY?: string;
   ALLOWED_ORIGINS?: string;
   GRADING_RATE_LIMITER?: {
     limit(options: { key: string }): Promise<{ success: boolean }>;
   };
+  /**
+   * @deprecated Replaced by PROGRESS_DO for strongly consistent read-after-write synchronization.
+   */
   PROGRESS_KV?: {
     get(key: string, type?: 'text' | 'json'): Promise<any>;
     put(key: string, value: string): Promise<void>;
     delete?(key: string): Promise<void>;
   };
+  PROGRESS_DO?: DurableObjectNamespaceLike;
   ASSETS?: {
     fetch(request: Request): Promise<Response>;
   };
@@ -450,12 +481,309 @@ export function mergeSubjectProgress(
   return merged;
 }
 
+/**
+ * Generates an unambiguous canonical representation of a WordProgress record
+ * used as the final total-order tie-breaker. Fully independent of object key order.
+ */
+export function canonicalWordProgressString(w: WordProgress): string {
+  const dates = Array.isArray(w.unaidedCorrectDates)
+    ? [...w.unaidedCorrectDates].sort().join(',')
+    : '';
+
+  const sortedHist = (w.history || [])
+    .map(h => `${h.date || ''}:${h.mode || ''}:${h.wasCorrect}:${h.attemptId || ''}:${h.mistakeInput || ''}`)
+    .sort()
+    .join(';');
+
+  return [
+    w.wordId || '',
+    w.studentId || '',
+    w.attempts || 0,
+    w.unaidedCorrectCount || 0,
+    w.consecutiveUnaidedCorrect || 0,
+    dates,
+    w.lastAttemptDate || '',
+    w.lastUnaidedCorrectDate || '',
+    w.level || '',
+    w.lastMistake || '',
+    Boolean(w.needsRevisit),
+    sortedHist
+  ].join('|');
+}
+
+/**
+ * Strict total ordering comparator for WordProgress records.
+ *
+ * Invariants:
+ * 1. Antisymmetry: compareWordProgress(a, b) === -compareWordProgress(b, a)
+ * 2. Transitivity: if a > b and b > c, then a > c
+ * 3. Totality: exactly one of a > b, b > a, or a === b holds
+ */
+export function compareWordProgress(a: WordProgress, b: WordProgress): number {
+  const timeA = a.lastAttemptDate ? (Date.parse(a.lastAttemptDate) || 0) : 0;
+  const timeB = b.lastAttemptDate ? (Date.parse(b.lastAttemptDate) || 0) : 0;
+  if (timeA !== timeB) return timeA - timeB;
+
+  const histTimeA = (a.history && a.history.length > 0)
+    ? Math.max(...a.history.map(h => (h && h.date ? (Date.parse(h.date) || 0) : 0)))
+    : 0;
+  const histTimeB = (b.history && b.history.length > 0)
+    ? Math.max(...b.history.map(h => (h && h.date ? (Date.parse(h.date) || 0) : 0)))
+    : 0;
+  if (histTimeA !== histTimeB) return histTimeA - histTimeB;
+
+  const revisitA = Boolean(a.needsRevisit);
+  const revisitB = Boolean(b.needsRevisit);
+  if (revisitA !== revisitB) return revisitA ? 1 : -1;
+
+  const streakA = a.consecutiveUnaidedCorrect || 0;
+  const streakB = b.consecutiveUnaidedCorrect || 0;
+  if (streakA !== streakB) return streakA - streakB;
+
+  const unaidedA = a.unaidedCorrectCount || 0;
+  const unaidedB = b.unaidedCorrectCount || 0;
+  if (unaidedA !== unaidedB) return unaidedA - unaidedB;
+
+  const attemptsA = a.attempts || 0;
+  const attemptsB = b.attempts || 0;
+  if (attemptsA !== attemptsB) return attemptsA - attemptsB;
+
+  const histLenA = a.history ? a.history.length : 0;
+  const histLenB = b.history ? b.history.length : 0;
+  if (histLenA !== histLenB) return histLenA - histLenB;
+
+  const levelRank: Record<string, number> = { learning: 1, practising: 2, remembered: 3 };
+  const rankA = levelRank[a.level] || 0;
+  const rankB = levelRank[b.level] || 0;
+  if (rankA !== rankB) return rankA - rankB;
+
+  const strA = canonicalWordProgressString(a);
+  const strB = canonicalWordProgressString(b);
+  if (strA < strB) return -1;
+  if (strA > strB) return 1;
+
+  return 0;
+}
+
+function canonicalHistoryEntryKey(h: WordProgress['history'][number]): string {
+  return h.attemptId || `${h.date}:${h.mode}`;
+}
+
+function canonicalHistorySortKey(h: WordProgress['history'][number]): string {
+  return `${h.date}|${h.mode}|${h.wasCorrect ? 1 : 0}|${h.attemptId || ''}|${h.mistakeInput || ''}`;
+}
+
+export function mergeHistoryRecords(
+  historyA?: WordProgress['history'],
+  historyB?: WordProgress['history']
+): WordProgress['history'] {
+  const historyMap = new Map<string, WordProgress['history'][number]>();
+  const combined = [...(historyA || []), ...(historyB || [])];
+
+  for (const entry of combined) {
+    if (!entry || !entry.date) continue;
+    const key = canonicalHistoryEntryKey(entry);
+    const existing = historyMap.get(key);
+    if (!existing) {
+      historyMap.set(key, entry);
+    } else {
+      if (canonicalHistorySortKey(entry) > canonicalHistorySortKey(existing)) {
+        historyMap.set(key, entry);
+      }
+    }
+  }
+
+  return Array.from(historyMap.values())
+    .sort((x, y) => {
+      const timeX = Date.parse(x.date) || 0;
+      const timeY = Date.parse(y.date) || 0;
+      if (timeX !== timeY) return timeX - timeY;
+      const keyX = canonicalHistorySortKey(x);
+      const keyY = canonicalHistorySortKey(y);
+      if (keyX < keyY) return -1;
+      if (keyX > keyY) return 1;
+      return 0;
+    })
+    .slice(-15);
+}
+
+export function mergeLastUnaidedCorrectDate(
+  dateA?: string | null,
+  dateB?: string | null
+): string | null {
+  if (!dateA) return dateB ?? null;
+  if (!dateB) return dateA ?? null;
+  const timeA = Date.parse(dateA) || 0;
+  const timeB = Date.parse(dateB) || 0;
+  if (timeA !== timeB) return timeA > timeB ? dateA : dateB;
+  return dateA > dateB ? dateA : dateB;
+}
+
+function readinessFromRecallEvidence(
+  consecutive: number,
+  dates: string[]
+): 'learning' | 'practising' | 'remembered' {
+  if (consecutive >= 2 && new Set(dates).size >= 2) return 'remembered';
+  return consecutive > 0 ? 'practising' : 'learning';
+}
+
+function resolveWorkingMemoryState(
+  primary: WordProgress,
+  secondary: WordProgress,
+  mergedHistory: WordProgress['history']
+): {
+  consecutiveUnaidedCorrect: number;
+  unaidedCorrectDates: string[];
+  level: WordProgress['level'];
+} {
+  let latestUnaidedFailureTime = -1;
+  let latestUnaidedSuccessTime = -1;
+
+  for (const entry of mergedHistory) {
+    if (!entry || !entry.date) continue;
+    const isUnaided = entry.mode === 'test' || entry.mode === 'paper';
+    if (!isUnaided) continue;
+
+    const t = Date.parse(entry.date) || 0;
+    if (entry.wasCorrect) {
+      if (t > latestUnaidedSuccessTime) latestUnaidedSuccessTime = t;
+    } else {
+      if (t > latestUnaidedFailureTime) latestUnaidedFailureTime = t;
+    }
+  }
+
+  if (latestUnaidedFailureTime >= 0 && latestUnaidedFailureTime >= latestUnaidedSuccessTime) {
+    return {
+      consecutiveUnaidedCorrect: 0,
+      unaidedCorrectDates: [],
+      level: 'learning'
+    };
+  }
+
+  const consecutiveUnaidedCorrect = primary.consecutiveUnaidedCorrect || 0;
+  const unaidedCorrectDates = Array.isArray(primary.unaidedCorrectDates)
+    ? [...primary.unaidedCorrectDates]
+    : [];
+
+  const level = (consecutiveUnaidedCorrect === 0)
+    ? 'learning'
+    : (primary.level || readinessFromRecallEvidence(consecutiveUnaidedCorrect, unaidedCorrectDates));
+
+  return { consecutiveUnaidedCorrect, unaidedCorrectDates, level };
+}
+
+function resolveNeedsRevisitAndMistake(
+  primary: WordProgress,
+  secondary: WordProgress,
+  mergedHistory: WordProgress['history']
+): { needsRevisit: boolean; lastMistake?: string } {
+  let latestUnaidedFailureTime = -1;
+  let latestUnaidedSuccessTime = -1;
+  let latestFailureMistake: string | undefined;
+
+  for (const entry of mergedHistory) {
+    if (!entry || !entry.date) continue;
+    const isUnaided = entry.mode === 'test' || entry.mode === 'paper';
+    if (!isUnaided) continue;
+
+    const t = Date.parse(entry.date) || 0;
+    if (entry.wasCorrect) {
+      if (t > latestUnaidedSuccessTime) latestUnaidedSuccessTime = t;
+    } else {
+      if (t >= latestUnaidedFailureTime) {
+        latestUnaidedFailureTime = t;
+        if (entry.mistakeInput) latestFailureMistake = entry.mistakeInput;
+      }
+    }
+  }
+
+  // If there is an outstanding unaided failure (not cleared by a subsequent unaided success),
+  // needsRevisit MUST remain true, because assisted practice cannot clear an unaided failure.
+  if (latestUnaidedFailureTime >= 0 && latestUnaidedFailureTime >= latestUnaidedSuccessTime) {
+    return {
+      needsRevisit: true,
+      lastMistake: latestFailureMistake || primary.lastMistake || secondary.lastMistake || undefined
+    };
+  }
+
+  // If there is no outstanding unaided failure, inspect the chronologically latest attempt in mergedHistory
+  const latestEntry = mergedHistory.length > 0 ? mergedHistory[mergedHistory.length - 1] : undefined;
+  if (latestEntry) {
+    if (!latestEntry.wasCorrect) {
+      return {
+        needsRevisit: true,
+        lastMistake: latestEntry.mistakeInput || primary.lastMistake || secondary.lastMistake || undefined
+      };
+    }
+    const isUnaided = latestEntry.mode === 'test' || latestEntry.mode === 'paper';
+    if (isUnaided && latestEntry.wasCorrect) {
+      return {
+        needsRevisit: false,
+        lastMistake: undefined
+      };
+    }
+  }
+
+  const needsRevisit = Boolean(primary.needsRevisit);
+  const lastMistake = needsRevisit
+    ? (primary.lastMistake ?? secondary.lastMistake ?? undefined)
+    : undefined;
+
+  return { needsRevisit, lastMistake };
+}
+
+export function mergeSingleWordProgress(
+  loc: WordProgress,
+  rem: WordProgress
+): WordProgress {
+  const comparison = compareWordProgress(loc, rem);
+  const primary = comparison >= 0 ? loc : rem;
+  const secondary = comparison >= 0 ? rem : loc;
+
+  const mergedHistory = mergeHistoryRecords(loc.history, rem.history);
+  const attempts = Math.max(loc.attempts || 0, rem.attempts || 0, mergedHistory.length);
+  const unaidedCorrectCount = Math.max(loc.unaidedCorrectCount || 0, rem.unaidedCorrectCount || 0);
+
+  const { consecutiveUnaidedCorrect, unaidedCorrectDates, level } =
+    resolveWorkingMemoryState(primary, secondary, mergedHistory);
+
+  const { needsRevisit, lastMistake } =
+    resolveNeedsRevisitAndMistake(primary, secondary, mergedHistory);
+
+  const lastAttemptDate = primary.lastAttemptDate ?? secondary.lastAttemptDate ?? null;
+  const lastUnaidedCorrectDate = mergeLastUnaidedCorrectDate(loc.lastUnaidedCorrectDate, rem.lastUnaidedCorrectDate);
+
+  const result: WordProgress = {
+    wordId: primary.wordId,
+    studentId: primary.studentId,
+    attempts,
+    unaidedCorrectCount,
+    consecutiveUnaidedCorrect,
+    unaidedCorrectDates,
+    lastAttemptDate,
+    level,
+    needsRevisit,
+    history: mergedHistory
+  };
+
+  if (lastUnaidedCorrectDate) {
+    result.lastUnaidedCorrectDate = lastUnaidedCorrectDate;
+  }
+  if (lastMistake !== undefined) {
+    result.lastMistake = lastMistake;
+  }
+
+  return result;
+}
+
 export function mergeSpellingProgress(
   local: Record<string, WordProgress>,
   remote: Record<string, WordProgress>
 ): Record<string, WordProgress> {
   const merged: Record<string, WordProgress> = {};
-  const allWordIds = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})]);
+  const allWordIds = Array.from(
+    new Set([...Object.keys(local || {}), ...Object.keys(remote || {})])
+  ).sort();
 
   for (const wordId of allWordIds) {
     const loc = local?.[wordId];
@@ -470,38 +798,7 @@ export function mergeSpellingProgress(
       continue;
     }
 
-    const localTime = loc.lastAttemptDate ? (Date.parse(loc.lastAttemptDate) || 0) : 0;
-    const remoteTime = rem.lastAttemptDate ? (Date.parse(rem.lastAttemptDate) || 0) : 0;
-
-    const primary = remoteTime > localTime ? rem : loc;
-    const secondary = remoteTime > localTime ? loc : rem;
-
-    const historyMap = new Map<string, WordProgress['history'][number]>();
-    for (const h of [...(loc.history || []), ...(rem.history || [])]) {
-      if (!h) continue;
-      const key = h.attemptId || `${h.date}:${h.mode}`;
-      if (!historyMap.has(key)) {
-        historyMap.set(key, h);
-      }
-    }
-    const mergedHistory = Array.from(historyMap.values())
-      .sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0))
-      .slice(-15);
-
-    merged[wordId] = {
-      wordId,
-      studentId: primary.studentId,
-      attempts: Math.max(loc.attempts || 0, rem.attempts || 0, mergedHistory.length),
-      unaidedCorrectCount: Math.max(loc.unaidedCorrectCount || 0, rem.unaidedCorrectCount || 0),
-      consecutiveUnaidedCorrect: primary.consecutiveUnaidedCorrect,
-      unaidedCorrectDates: [...(primary.unaidedCorrectDates || [])],
-      lastAttemptDate: primary.lastAttemptDate ?? secondary.lastAttemptDate,
-      lastUnaidedCorrectDate: primary.lastUnaidedCorrectDate ?? secondary.lastUnaidedCorrectDate,
-      level: primary.level,
-      lastMistake: primary.lastMistake,
-      needsRevisit: primary.needsRevisit,
-      history: mergedHistory
-    };
+    merged[wordId] = mergeSingleWordProgress(loc, rem);
   }
 
   return merged;
@@ -515,14 +812,135 @@ export function mergeProgressSnapshots(
     throw new Error(`Cannot merge snapshots for different students: ${local.studentId} vs ${remote.studentId}`);
   }
 
+  const timeL = Date.parse(local.syncedAt || '') || 0;
+  const timeR = Date.parse(remote.syncedAt || '') || 0;
+  let syncedAt: string;
+  if (timeL > timeR) {
+    syncedAt = local.syncedAt;
+  } else if (timeR > timeL) {
+    syncedAt = remote.syncedAt;
+  } else if (local.syncedAt && remote.syncedAt) {
+    syncedAt = local.syncedAt.localeCompare(remote.syncedAt) >= 0 ? local.syncedAt : remote.syncedAt;
+  } else {
+    syncedAt = local.syncedAt || remote.syncedAt || new Date().toISOString();
+  }
+
   return {
     studentId: local.studentId,
     version: 1,
-    syncedAt: new Date().toISOString(),
+    syncedAt,
     spelling: mergeSpellingProgress(local.spelling || {}, remote.spelling || {}),
     subjects: mergeSubjectProgress(local.subjects || {}, remote.subjects || {}),
     learningRecords: mergeLearningRecords(local.learningRecords || [], remote.learningRecords || [])
   };
+}
+
+// ---------------------------------------------------------------------------
+// Durable Object: Authoritative Learner Progress Actor
+// ---------------------------------------------------------------------------
+
+export class ProgressDurableObject {
+  readonly state: DurableObjectStateLike;
+  readonly env: Env;
+  private writeMutex: Promise<unknown> = Promise.resolve();
+
+  constructor(state: DurableObjectStateLike, env: Env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  private async enqueueWrite<T>(task: () => Promise<T>): Promise<T> {
+    const previous = this.writeMutex;
+    let nextResolve!: () => void;
+    this.writeMutex = new Promise<void>((resolve) => {
+      nextResolve = resolve;
+    });
+
+    try {
+      await previous;
+      return await task();
+    } finally {
+      nextResolve();
+    }
+  }
+
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store'
+    });
+    const reply = (status: number, body: unknown) =>
+      new Response(JSON.stringify(body), { status, headers });
+
+    if (request.method === 'GET') {
+      const snapshot = (await this.state.storage.get<StudentProgressSnapshot>('snapshot')) ?? null;
+      return reply(200, snapshot);
+    }
+
+    if (request.method === 'POST') {
+      const contentType = request.headers.get('Content-Type') || '';
+      if (!contentType.toLowerCase().startsWith('application/json')) {
+        return reply(415, { error: 'Use application/json.' });
+      }
+
+      const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024; // 2MB
+      const contentLength = request.headers.get('content-length');
+      if (contentLength && parseInt(contentLength, 10) > MAX_PAYLOAD_BYTES) {
+        return reply(413, { error: 'Payload too large. Maximum size is 2MB.' });
+      }
+
+      const rawBody = await request.text();
+      if (new TextEncoder().encode(rawBody).byteLength > MAX_PAYLOAD_BYTES) {
+        return reply(413, { error: 'Payload too large. Maximum size is 2MB.' });
+      }
+
+      let incoming: unknown;
+      try {
+        incoming = JSON.parse(rawBody);
+      } catch {
+        return reply(400, { error: 'The progress payload must be valid JSON.' });
+      }
+
+      if (!isRecord(incoming)) {
+        return reply(400, { error: 'The progress payload must be an object.' });
+      }
+
+      const match = url.pathname.match(/^\/api\/progress\/([^/]+)\/?$/);
+      const pathStudentId = match ? match[1] : undefined;
+
+      if (typeof incoming.studentId === 'string' && pathStudentId && incoming.studentId !== pathStudentId) {
+        return reply(400, { error: 'Student ID in payload does not match URL path.' });
+      }
+
+      const studentId = (pathStudentId || incoming.studentId) as string;
+      if (studentId !== 'shiza' && studentId !== 'fazia') {
+        return reply(400, { error: "Invalid student ID. Only 'shiza' and 'fazia' are allowed." });
+      }
+
+      const normalizedIncoming: StudentProgressSnapshot = {
+        studentId: studentId as 'shiza' | 'fazia',
+        version: 1,
+        syncedAt: typeof incoming.syncedAt === 'string' ? incoming.syncedAt : new Date().toISOString(),
+        spelling: isRecord(incoming.spelling) ? incoming.spelling as StudentProgressSnapshot['spelling'] : {},
+        subjects: isRecord(incoming.subjects) ? incoming.subjects as StudentProgressSnapshot['subjects'] : {},
+        learningRecords: Array.isArray(incoming.learningRecords) ? incoming.learningRecords as StudentProgressSnapshot['learningRecords'] : []
+      };
+
+      const merged = await this.enqueueWrite(async () => {
+        const existing = (await this.state.storage.get<StudentProgressSnapshot>('snapshot')) ?? null;
+        const result = existing
+          ? mergeProgressSnapshots(existing, normalizedIncoming)
+          : normalizedIncoming;
+        await this.state.storage.put('snapshot', result);
+        return result;
+      });
+
+      return reply(200, merged);
+    }
+
+    return reply(405, { error: 'Method not allowed. Use GET or POST.' });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -580,69 +998,44 @@ export async function handleProgressRequest(
     return reply(405, { error: 'Method not allowed. Use GET or POST.' });
   }
 
-  if (!env.PROGRESS_KV) {
+  if (!env.PROGRESS_DO) {
     return reply(503, { error: 'Progress storage is not configured.' });
   }
 
-  const kvKey = `progress:${studentId}`;
-
-  if (request.method === 'GET') {
-    const raw = await env.PROGRESS_KV.get(kvKey, 'text');
-    if (!raw) {
-      return reply(200, null);
+  let forwardRequest = request;
+  if (request.method === 'POST') {
+    const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024; // 2MB
+    const contentLength = request.headers.get('content-length');
+    if (contentLength && parseInt(contentLength, 10) > MAX_PAYLOAD_BYTES) {
+      return reply(413, { error: 'Payload too large. Maximum size is 2MB.' });
     }
-    return new Response(raw, { status: 200, headers });
-  }
-
-  // POST handling
-  const contentType = request.headers.get('Content-Type') || '';
-  if (!contentType.toLowerCase().startsWith('application/json')) {
-    return reply(415, { error: 'Use application/json.' });
-  }
-
-  let incoming: unknown;
-  try {
-    incoming = await request.json();
-  } catch {
-    return reply(400, { error: 'The progress payload must be valid JSON.' });
-  }
-
-  if (!isRecord(incoming)) {
-    return reply(400, { error: 'The progress payload must be an object.' });
-  }
-
-  if (typeof incoming.studentId === 'string' && incoming.studentId !== studentId) {
-    return reply(400, { error: 'Student ID in payload does not match URL path.' });
-  }
-
-  const existingRaw = await env.PROGRESS_KV.get(kvKey, 'text');
-  let existing: StudentProgressSnapshot | null = null;
-  if (existingRaw) {
-    try {
-      const parsed = JSON.parse(existingRaw);
-      if (isRecord(parsed) && parsed.studentId === studentId) {
-        existing = parsed as unknown as StudentProgressSnapshot;
-      }
-    } catch {
-      existing = null;
+    const rawBody = await request.text();
+    if (new TextEncoder().encode(rawBody).byteLength > MAX_PAYLOAD_BYTES) {
+      return reply(413, { error: 'Payload too large. Maximum size is 2MB.' });
     }
+    forwardRequest = new Request(request.url, {
+      method: request.method,
+      headers: request.headers,
+      body: rawBody
+    });
   }
 
-  const normalizedIncoming: StudentProgressSnapshot = {
-    studentId,
-    version: 1,
-    syncedAt: typeof incoming.syncedAt === 'string' ? incoming.syncedAt : new Date().toISOString(),
-    spelling: isRecord(incoming.spelling) ? incoming.spelling as StudentProgressSnapshot['spelling'] : {},
-    subjects: isRecord(incoming.subjects) ? incoming.subjects as StudentProgressSnapshot['subjects'] : {},
-    learningRecords: Array.isArray(incoming.learningRecords) ? incoming.learningRecords as StudentProgressSnapshot['learningRecords'] : []
-  };
+  const id = env.PROGRESS_DO.idFromName(studentId);
+  const stub = env.PROGRESS_DO.get(id);
+  const doResponse = await stub.fetch(forwardRequest);
 
-  const merged = existing
-    ? mergeProgressSnapshots(existing, normalizedIncoming)
-    : normalizedIncoming;
+  const responseHeaders = new Headers(doResponse.headers);
+  responseHeaders.set('Cache-Control', 'no-store');
+  responseHeaders.set('Vary', 'Origin');
+  if (origin) {
+    responseHeaders.set('Access-Control-Allow-Origin', origin);
+  }
 
-  await env.PROGRESS_KV.put(kvKey, JSON.stringify(merged));
-  return reply(200, merged);
+  return new Response(doResponse.body, {
+    status: doResponse.status,
+    statusText: doResponse.statusText,
+    headers: responseHeaders
+  });
 }
 
 // ---------------------------------------------------------------------------

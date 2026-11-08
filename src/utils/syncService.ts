@@ -1,4 +1,4 @@
-import type { StudentId, WordProgress } from '../types';
+import type { StudentId, WordProgress, MasteryLevel } from '../types';
 import type { SubjectProgress, SubjectResult } from './subjectStorage';
 import type { LearningRecord } from '../learning/persistence';
 
@@ -186,16 +186,313 @@ export function mergeSubjectProgress(
 }
 
 /**
- * 3. Spell Bee Word Progress Merge:
- * - Merge word history (capped at 15)
- * - Take later lastAttemptDate to preserve mastery levels and streaks
+ * 3. Commutative Spell Bee Word Progress Merge:
+ * Guarantees merge(A, B) === merge(B, A) under all conditions including timestamp ties.
  */
+
+/**
+ * Generates an unambiguous canonical representation of a WordProgress record
+ * used as the final total-order tie-breaker. Fully independent of object key order.
+ */
+export function canonicalWordProgressString(w: WordProgress): string {
+  const dates = Array.isArray(w.unaidedCorrectDates)
+    ? [...w.unaidedCorrectDates].sort().join(',')
+    : '';
+
+  const sortedHist = (w.history || [])
+    .map(h => `${h.date || ''}:${h.mode || ''}:${h.wasCorrect}:${h.attemptId || ''}:${h.mistakeInput || ''}`)
+    .sort()
+    .join(';');
+
+  return [
+    w.wordId || '',
+    w.studentId || '',
+    w.attempts || 0,
+    w.unaidedCorrectCount || 0,
+    w.consecutiveUnaidedCorrect || 0,
+    dates,
+    w.lastAttemptDate || '',
+    w.lastUnaidedCorrectDate || '',
+    w.level || '',
+    w.lastMistake || '',
+    Boolean(w.needsRevisit),
+    sortedHist
+  ].join('|');
+}
+
+/**
+ * Strict total ordering comparator for WordProgress records.
+ *
+ * Invariants:
+ * 1. Antisymmetry: compareWordProgress(a, b) === -compareWordProgress(b, a)
+ * 2. Transitivity: if a > b and b > c, then a > c
+ * 3. Totality: exactly one of a > b, b > a, or a === b holds
+ */
+export function compareWordProgress(a: WordProgress, b: WordProgress): number {
+  const timeA = a.lastAttemptDate ? (Date.parse(a.lastAttemptDate) || 0) : 0;
+  const timeB = b.lastAttemptDate ? (Date.parse(b.lastAttemptDate) || 0) : 0;
+  if (timeA !== timeB) return timeA - timeB;
+
+  const histTimeA = (a.history && a.history.length > 0)
+    ? Math.max(...a.history.map(h => (h && h.date ? (Date.parse(h.date) || 0) : 0)))
+    : 0;
+  const histTimeB = (b.history && b.history.length > 0)
+    ? Math.max(...b.history.map(h => (h && h.date ? (Date.parse(h.date) || 0) : 0)))
+    : 0;
+  if (histTimeA !== histTimeB) return histTimeA - histTimeB;
+
+  const revisitA = Boolean(a.needsRevisit);
+  const revisitB = Boolean(b.needsRevisit);
+  if (revisitA !== revisitB) return revisitA ? 1 : -1;
+
+  const streakA = a.consecutiveUnaidedCorrect || 0;
+  const streakB = b.consecutiveUnaidedCorrect || 0;
+  if (streakA !== streakB) return streakA - streakB;
+
+  const unaidedA = a.unaidedCorrectCount || 0;
+  const unaidedB = b.unaidedCorrectCount || 0;
+  if (unaidedA !== unaidedB) return unaidedA - unaidedB;
+
+  const attemptsA = a.attempts || 0;
+  const attemptsB = b.attempts || 0;
+  if (attemptsA !== attemptsB) return attemptsA - attemptsB;
+
+  const histLenA = a.history ? a.history.length : 0;
+  const histLenB = b.history ? b.history.length : 0;
+  if (histLenA !== histLenB) return histLenA - histLenB;
+
+  const levelRank: Record<string, number> = { learning: 1, practising: 2, remembered: 3 };
+  const rankA = levelRank[a.level] || 0;
+  const rankB = levelRank[b.level] || 0;
+  if (rankA !== rankB) return rankA - rankB;
+
+  const strA = canonicalWordProgressString(a);
+  const strB = canonicalWordProgressString(b);
+  if (strA < strB) return -1;
+  if (strA > strB) return 1;
+
+  return 0;
+}
+
+function canonicalHistoryEntryKey(h: WordProgress['history'][number]): string {
+  return h.attemptId || `${h.date}:${h.mode}`;
+}
+
+function canonicalHistorySortKey(h: WordProgress['history'][number]): string {
+  return `${h.date}|${h.mode}|${h.wasCorrect ? 1 : 0}|${h.attemptId || ''}|${h.mistakeInput || ''}`;
+}
+
+export function mergeHistoryRecords(
+  historyA?: WordProgress['history'],
+  historyB?: WordProgress['history']
+): WordProgress['history'] {
+  const historyMap = new Map<string, WordProgress['history'][number]>();
+  const combined = [...(historyA || []), ...(historyB || [])];
+
+  for (const entry of combined) {
+    if (!entry || !entry.date) continue;
+    const key = canonicalHistoryEntryKey(entry);
+    const existing = historyMap.get(key);
+    if (!existing) {
+      historyMap.set(key, entry);
+    } else {
+      if (canonicalHistorySortKey(entry) > canonicalHistorySortKey(existing)) {
+        historyMap.set(key, entry);
+      }
+    }
+  }
+
+  return Array.from(historyMap.values())
+    .sort((x, y) => {
+      const timeX = Date.parse(x.date) || 0;
+      const timeY = Date.parse(y.date) || 0;
+      if (timeX !== timeY) return timeX - timeY;
+      const keyX = canonicalHistorySortKey(x);
+      const keyY = canonicalHistorySortKey(y);
+      if (keyX < keyY) return -1;
+      if (keyX > keyY) return 1;
+      return 0;
+    })
+    .slice(-15);
+}
+
+export function mergeLastUnaidedCorrectDate(
+  dateA?: string | null,
+  dateB?: string | null
+): string | null {
+  if (!dateA) return dateB ?? null;
+  if (!dateB) return dateA ?? null;
+  const timeA = Date.parse(dateA) || 0;
+  const timeB = Date.parse(dateB) || 0;
+  if (timeA !== timeB) return timeA > timeB ? dateA : dateB;
+  return dateA > dateB ? dateA : dateB;
+}
+
+function readinessFromRecallEvidence(
+  consecutive: number,
+  dates: string[]
+): 'learning' | 'practising' | 'remembered' {
+  if (consecutive >= 2 && new Set(dates).size >= 2) return 'remembered';
+  return consecutive > 0 ? 'practising' : 'learning';
+}
+
+function resolveWorkingMemoryState(
+  primary: WordProgress,
+  secondary: WordProgress,
+  mergedHistory: WordProgress['history']
+): {
+  consecutiveUnaidedCorrect: number;
+  unaidedCorrectDates: string[];
+  level: WordProgress['level'];
+} {
+  let latestUnaidedFailureTime = -1;
+  let latestUnaidedSuccessTime = -1;
+
+  for (const entry of mergedHistory) {
+    if (!entry || !entry.date) continue;
+    const isUnaided = entry.mode === 'test' || entry.mode === 'paper';
+    if (!isUnaided) continue;
+
+    const t = Date.parse(entry.date) || 0;
+    if (entry.wasCorrect) {
+      if (t > latestUnaidedSuccessTime) latestUnaidedSuccessTime = t;
+    } else {
+      if (t > latestUnaidedFailureTime) latestUnaidedFailureTime = t;
+    }
+  }
+
+  if (latestUnaidedFailureTime >= 0 && latestUnaidedFailureTime >= latestUnaidedSuccessTime) {
+    return {
+      consecutiveUnaidedCorrect: 0,
+      unaidedCorrectDates: [],
+      level: 'learning'
+    };
+  }
+
+  const consecutiveUnaidedCorrect = primary.consecutiveUnaidedCorrect || 0;
+  const unaidedCorrectDates = Array.isArray(primary.unaidedCorrectDates)
+    ? [...primary.unaidedCorrectDates]
+    : [];
+
+  const level = (consecutiveUnaidedCorrect === 0)
+    ? 'learning'
+    : (primary.level || readinessFromRecallEvidence(consecutiveUnaidedCorrect, unaidedCorrectDates));
+
+  return { consecutiveUnaidedCorrect, unaidedCorrectDates, level };
+}
+
+function resolveNeedsRevisitAndMistake(
+  primary: WordProgress,
+  secondary: WordProgress,
+  mergedHistory: WordProgress['history']
+): { needsRevisit: boolean; lastMistake?: string } {
+  let latestUnaidedFailureTime = -1;
+  let latestUnaidedSuccessTime = -1;
+  let latestFailureMistake: string | undefined;
+
+  for (const entry of mergedHistory) {
+    if (!entry || !entry.date) continue;
+    const isUnaided = entry.mode === 'test' || entry.mode === 'paper';
+    if (!isUnaided) continue;
+
+    const t = Date.parse(entry.date) || 0;
+    if (entry.wasCorrect) {
+      if (t > latestUnaidedSuccessTime) latestUnaidedSuccessTime = t;
+    } else {
+      if (t >= latestUnaidedFailureTime) {
+        latestUnaidedFailureTime = t;
+        if (entry.mistakeInput) latestFailureMistake = entry.mistakeInput;
+      }
+    }
+  }
+
+  // If there is an outstanding unaided failure (not cleared by a subsequent unaided success),
+  // needsRevisit MUST remain true, because assisted practice cannot clear an unaided failure.
+  if (latestUnaidedFailureTime >= 0 && latestUnaidedFailureTime >= latestUnaidedSuccessTime) {
+    return {
+      needsRevisit: true,
+      lastMistake: latestFailureMistake || primary.lastMistake || secondary.lastMistake || undefined
+    };
+  }
+
+  // If there is no outstanding unaided failure, inspect the chronologically latest attempt in mergedHistory
+  const latestEntry = mergedHistory.length > 0 ? mergedHistory[mergedHistory.length - 1] : undefined;
+  if (latestEntry) {
+    if (!latestEntry.wasCorrect) {
+      return {
+        needsRevisit: true,
+        lastMistake: latestEntry.mistakeInput || primary.lastMistake || secondary.lastMistake || undefined
+      };
+    }
+    const isUnaided = latestEntry.mode === 'test' || latestEntry.mode === 'paper';
+    if (isUnaided && latestEntry.wasCorrect) {
+      return {
+        needsRevisit: false,
+        lastMistake: undefined
+      };
+    }
+  }
+
+  const needsRevisit = Boolean(primary.needsRevisit);
+  const lastMistake = needsRevisit
+    ? (primary.lastMistake ?? secondary.lastMistake ?? undefined)
+    : undefined;
+
+  return { needsRevisit, lastMistake };
+}
+
+export function mergeSingleWordProgress(
+  loc: WordProgress,
+  rem: WordProgress
+): WordProgress {
+  const comparison = compareWordProgress(loc, rem);
+  const primary = comparison >= 0 ? loc : rem;
+  const secondary = comparison >= 0 ? rem : loc;
+
+  const mergedHistory = mergeHistoryRecords(loc.history, rem.history);
+  const attempts = Math.max(loc.attempts || 0, rem.attempts || 0, mergedHistory.length);
+  const unaidedCorrectCount = Math.max(loc.unaidedCorrectCount || 0, rem.unaidedCorrectCount || 0);
+
+  const { consecutiveUnaidedCorrect, unaidedCorrectDates, level } =
+    resolveWorkingMemoryState(primary, secondary, mergedHistory);
+
+  const { needsRevisit, lastMistake } =
+    resolveNeedsRevisitAndMistake(primary, secondary, mergedHistory);
+
+  const lastAttemptDate = primary.lastAttemptDate ?? secondary.lastAttemptDate ?? null;
+  const lastUnaidedCorrectDate = mergeLastUnaidedCorrectDate(loc.lastUnaidedCorrectDate, rem.lastUnaidedCorrectDate);
+
+  const result: WordProgress = {
+    wordId: primary.wordId,
+    studentId: primary.studentId,
+    attempts,
+    unaidedCorrectCount,
+    consecutiveUnaidedCorrect,
+    unaidedCorrectDates,
+    lastAttemptDate,
+    level,
+    needsRevisit,
+    history: mergedHistory
+  };
+
+  if (lastUnaidedCorrectDate) {
+    result.lastUnaidedCorrectDate = lastUnaidedCorrectDate;
+  }
+  if (lastMistake !== undefined) {
+    result.lastMistake = lastMistake;
+  }
+
+  return result;
+}
+
 export function mergeSpellingProgress(
   local: Record<string, WordProgress>,
   remote: Record<string, WordProgress>
 ): Record<string, WordProgress> {
   const merged: Record<string, WordProgress> = {};
-  const allWordIds = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})]);
+  const allWordIds = Array.from(
+    new Set([...Object.keys(local || {}), ...Object.keys(remote || {})])
+  ).sort();
 
   for (const wordId of allWordIds) {
     const loc = local?.[wordId];
@@ -210,41 +507,7 @@ export function mergeSpellingProgress(
       continue;
     }
 
-    const localTime = loc.lastAttemptDate ? (Date.parse(loc.lastAttemptDate) || 0) : 0;
-    const remoteTime = rem.lastAttemptDate ? (Date.parse(rem.lastAttemptDate) || 0) : 0;
-
-    // Side with later lastAttemptDate provides primary mastery, streak, and dates
-    const primary = remoteTime > localTime ? rem : loc;
-    const secondary = remoteTime > localTime ? loc : rem;
-
-    // Merge history: union, deduplicate by attemptId or date+mode, sort, keep latest 15
-    const historyMap = new Map<string, WordProgress['history'][number]>();
-    const allHistory = [...(loc.history || []), ...(rem.history || [])];
-    for (const entry of allHistory) {
-      if (!entry) continue;
-      const key = entry.attemptId || `${entry.date}:${entry.mode}`;
-      if (!historyMap.has(key)) {
-        historyMap.set(key, entry);
-      }
-    }
-    const mergedHistory = Array.from(historyMap.values())
-      .sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0))
-      .slice(-15);
-
-    merged[wordId] = {
-      wordId,
-      studentId: primary.studentId,
-      attempts: Math.max(loc.attempts || 0, rem.attempts || 0, mergedHistory.length),
-      unaidedCorrectCount: Math.max(loc.unaidedCorrectCount || 0, rem.unaidedCorrectCount || 0),
-      consecutiveUnaidedCorrect: primary.consecutiveUnaidedCorrect,
-      unaidedCorrectDates: [...(primary.unaidedCorrectDates || [])],
-      lastAttemptDate: primary.lastAttemptDate ?? secondary.lastAttemptDate,
-      lastUnaidedCorrectDate: primary.lastUnaidedCorrectDate ?? secondary.lastUnaidedCorrectDate,
-      level: primary.level,
-      lastMistake: primary.lastMistake,
-      needsRevisit: primary.needsRevisit,
-      history: mergedHistory
-    };
+    merged[wordId] = mergeSingleWordProgress(loc, rem);
   }
 
   return merged;
@@ -262,10 +525,23 @@ export function mergeProgressSnapshots(
     throw new Error(`Cannot merge snapshots for different students: ${local.studentId} vs ${remote.studentId}`);
   }
 
+  const timeL = Date.parse(local.syncedAt || '') || 0;
+  const timeR = Date.parse(remote.syncedAt || '') || 0;
+  let syncedAt: string;
+  if (timeL > timeR) {
+    syncedAt = local.syncedAt;
+  } else if (timeR > timeL) {
+    syncedAt = remote.syncedAt;
+  } else if (local.syncedAt && remote.syncedAt) {
+    syncedAt = local.syncedAt.localeCompare(remote.syncedAt) >= 0 ? local.syncedAt : remote.syncedAt;
+  } else {
+    syncedAt = local.syncedAt || remote.syncedAt || new Date().toISOString();
+  }
+
   return {
     studentId: local.studentId,
     version: 1,
-    syncedAt: new Date().toISOString(),
+    syncedAt,
     spelling: mergeSpellingProgress(local.spelling || {}, remote.spelling || {}),
     subjects: mergeSubjectProgress(local.subjects || {}, remote.subjects || {}),
     learningRecords: mergeLearningRecords(local.learningRecords || [], remote.learningRecords || [])
@@ -386,76 +662,135 @@ export function saveSnapshotToLocalStorage(snapshot: StudentProgressSnapshot): v
 }
 
 // ---------------------------------------------------------------------------
-// Sync Status Reporting
+// Endpoint Resolver & Local Storage Safe Snapshot Apply
 // ---------------------------------------------------------------------------
 
-let currentSyncStatus: SyncStatus = 'idle';
-const statusListeners = new Set<(status: SyncStatus) => void>();
-let resetStatusTimer: ReturnType<typeof setTimeout> | null = null;
+export function getProgressApiUrl(studentId: StudentId): string {
+  const envBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PROGRESS_API_URL)
+    ? String(import.meta.env.VITE_PROGRESS_API_URL).replace(/\/+$/, '')
+    : '';
+  return envBase ? `${envBase}/${studentId}` : `/api/progress/${studentId}`;
+}
 
-function setSyncStatus(status: SyncStatus): void {
-  currentSyncStatus = status;
-  if (resetStatusTimer) {
-    clearTimeout(resetStatusTimer);
-    resetStatusTimer = null;
+export function applyRemoteSnapshotToLocalStorage(
+  incoming: StudentProgressSnapshot
+): StudentProgressSnapshot {
+  if (!incoming || (incoming.studentId !== 'shiza' && incoming.studentId !== 'fazia')) {
+    return incoming;
   }
+  const freshLocal = buildLocalSnapshot(incoming.studentId);
+  const safelyMerged = mergeProgressSnapshots(freshLocal, incoming);
+  saveSnapshotToLocalStorage(safelyMerged);
+  return safelyMerged;
+}
+
+// ---------------------------------------------------------------------------
+// Per-Learner Sync Status Reporting
+// ---------------------------------------------------------------------------
+
+const studentSyncStatuses = new Map<StudentId, SyncStatus>([
+  ['shiza', 'idle'],
+  ['fazia', 'idle']
+]);
+let currentSyncStatus: SyncStatus = 'idle';
+const statusListeners = new Set<(status: SyncStatus, studentId?: StudentId) => void>();
+const resetStatusTimers = new Map<StudentId, ReturnType<typeof setTimeout>>();
+
+export function setSyncStatus(status: SyncStatus, studentId?: StudentId): void {
+  currentSyncStatus = status;
+  if (studentId) {
+    studentSyncStatuses.set(studentId, status);
+    const existingReset = resetStatusTimers.get(studentId);
+    if (existingReset) {
+      clearTimeout(existingReset);
+      resetStatusTimers.delete(studentId);
+    }
+  }
+
   for (const listener of statusListeners) {
     try {
-      listener(status);
+      listener(status, studentId);
     } catch {}
   }
+
   if (status === 'synced') {
-    resetStatusTimer = setTimeout(() => {
-      setSyncStatus('idle');
+    const timer = setTimeout(() => {
+      if (studentId) {
+        resetStatusTimers.delete(studentId);
+        setSyncStatus('idle', studentId);
+      } else {
+        setSyncStatus('idle');
+      }
     }, 3000);
+    if (studentId) {
+      resetStatusTimers.set(studentId, timer);
+    }
   }
 }
 
-export function getSyncStatus(): SyncStatus {
+export function getSyncStatus(studentId?: StudentId): SyncStatus {
+  if (studentId && studentSyncStatuses.has(studentId)) {
+    return studentSyncStatuses.get(studentId)!;
+  }
   return currentSyncStatus;
 }
 
-export function subscribeSyncStatus(listener: (status: SyncStatus) => void): () => void {
+export function subscribeSyncStatus(
+  listener: (status: SyncStatus, studentId?: StudentId) => void,
+  studentId?: StudentId
+): () => void {
   statusListeners.add(listener);
-  listener(currentSyncStatus);
+  listener(getSyncStatus(studentId), studentId);
   return () => {
     statusListeners.delete(listener);
   };
 }
 
 // ---------------------------------------------------------------------------
-// Network Sync Implementation
+// Network Sync & Per-Learner In-Flight Queue
 // ---------------------------------------------------------------------------
 
-let inFlightSync: Promise<StudentProgressSnapshot | null> | null = null;
-let queuedStudentId: StudentId | null = null;
+const debounceTimers = new Map<StudentId, ReturnType<typeof setTimeout>>();
+const inFlightSyncs = new Map<StudentId, Promise<StudentProgressSnapshot | null>>();
+const pendingSyncFlags = new Map<StudentId, boolean>([
+  ['shiza', false],
+  ['fazia', false]
+]);
 
 export async function syncProgress(
   studentId: StudentId,
   options?: { keepalive?: boolean }
 ): Promise<StudentProgressSnapshot | null> {
-  if (inFlightSync) {
-    queuedStudentId = studentId;
-    await inFlightSync;
-    if (queuedStudentId === studentId) {
-      queuedStudentId = null;
+  const currentInFlight = inFlightSyncs.get(studentId);
+  if (currentInFlight) {
+    pendingSyncFlags.set(studentId, true);
+    await currentInFlight;
+    if (pendingSyncFlags.get(studentId)) {
+      pendingSyncFlags.set(studentId, false);
       return syncProgress(studentId, options);
+    }
+    const nextInFlight = inFlightSyncs.get(studentId);
+    if (nextInFlight) {
+      return nextInFlight;
     }
     return null;
   }
 
   const executeSync = async (): Promise<StudentProgressSnapshot | null> => {
-    setSyncStatus('syncing');
+    setSyncStatus('syncing', studentId);
+    let result: StudentProgressSnapshot | null = null;
+
     try {
       const localSnapshot = buildLocalSnapshot(studentId);
+      const url = getProgressApiUrl(studentId);
 
-      const response = await fetch(`/api/progress/${studentId}`, {
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       });
 
       if (!response.ok) {
-        throw new Error(`GET /api/progress/${studentId} returned ${response.status}`);
+        throw new Error(`GET ${url} returned ${response.status}`);
       }
 
       const remoteData = await response.json();
@@ -481,77 +816,115 @@ export async function syncProgress(
       let finalSnapshot = merged;
 
       if (hasLocalChanges) {
-        const postResponse = await fetch(`/api/progress/${studentId}`, {
+        const postResponse = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(merged),
           keepalive: options?.keepalive ?? false
         });
 
-        if (postResponse.ok) {
-          const postResult = await postResponse.json();
-          if (postResult && typeof postResult === 'object' && postResult.studentId === studentId) {
-            finalSnapshot = postResult as StudentProgressSnapshot;
-          }
+        if (!postResponse.ok) {
+          throw new Error(`POST ${url} returned ${postResponse.status}`);
         }
+
+        const postResult = await postResponse.json();
+        if (!postResult || typeof postResult !== 'object' || postResult.studentId !== studentId) {
+          throw new Error(`POST ${url} returned malformed payload`);
+        }
+        finalSnapshot = postResult as StudentProgressSnapshot;
       }
 
-      saveSnapshotToLocalStorage(finalSnapshot);
+      result = applyRemoteSnapshotToLocalStorage(finalSnapshot);
       dispatchSyncEvent(studentId);
-      setSyncStatus('synced');
-      return finalSnapshot;
-    } catch {
-      setSyncStatus('error');
-      return null;
+      setSyncStatus('synced', studentId);
+
+      const freshLocalAfterApply = buildLocalSnapshot(studentId);
+      const hasIntermediateChanges =
+        JSON.stringify(freshLocalAfterApply.spelling) !== JSON.stringify(finalSnapshot.spelling) ||
+        JSON.stringify(freshLocalAfterApply.subjects) !== JSON.stringify(finalSnapshot.subjects) ||
+        freshLocalAfterApply.learningRecords.length !== finalSnapshot.learningRecords.length ||
+        JSON.stringify(freshLocalAfterApply.learningRecords) !== JSON.stringify(finalSnapshot.learningRecords);
+
+      if (hasIntermediateChanges) {
+        pendingSyncFlags.set(studentId, true);
+      }
+    } catch (err) {
+      setSyncStatus('error', studentId);
+      pendingSyncFlags.set(studentId, true);
+      result = null;
     } finally {
-      inFlightSync = null;
+      inFlightSyncs.delete(studentId);
     }
+
+    if (result !== null && pendingSyncFlags.get(studentId)) {
+      pendingSyncFlags.set(studentId, false);
+      const timer = debounceTimers.get(studentId);
+      if (timer) {
+        clearTimeout(timer);
+        debounceTimers.delete(studentId);
+      }
+      return syncProgress(studentId, options);
+    }
+
+    return result;
   };
 
-  inFlightSync = executeSync();
-  return inFlightSync;
+  const promise = executeSync();
+  inFlightSyncs.set(studentId, promise);
+  return promise;
 }
 
 // ---------------------------------------------------------------------------
-// Debounce Controller
+// Per-Learner Debounce Controller
 // ---------------------------------------------------------------------------
-
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let debouncedStudentId: StudentId | null = null;
 
 export function scheduleDebouncedSync(studentId: StudentId): void {
-  debouncedStudentId = studentId;
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
+  if (inFlightSyncs.has(studentId)) {
+    pendingSyncFlags.set(studentId, true);
   }
-  debounceTimer = setTimeout(() => {
-    debounceTimer = null;
-    const target = debouncedStudentId;
-    debouncedStudentId = null;
-    if (target) {
-      void syncProgress(target);
-    }
+
+  const existingTimer = debounceTimers.get(studentId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timer = setTimeout(() => {
+    debounceTimers.delete(studentId);
+    void syncProgress(studentId);
   }, 3000);
+
+  debounceTimers.set(studentId, timer);
 }
 
-export function cancelDebouncedSync(): void {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-    debounceTimer = null;
+export function cancelDebouncedSync(studentId?: StudentId): void {
+  if (studentId) {
+    const timer = debounceTimers.get(studentId);
+    if (timer) {
+      clearTimeout(timer);
+      debounceTimers.delete(studentId);
+    }
+  } else {
+    for (const [, timer] of debounceTimers.entries()) {
+      clearTimeout(timer);
+    }
+    debounceTimers.clear();
   }
-  debouncedStudentId = null;
 }
 
 export async function flushDebouncedSync(
   studentId?: StudentId,
   options?: { keepalive?: boolean }
 ): Promise<StudentProgressSnapshot | null> {
-  const target = studentId || debouncedStudentId;
-  cancelDebouncedSync();
-  if (target) {
-    return syncProgress(target, options);
+  if (studentId) {
+    cancelDebouncedSync(studentId);
+    return syncProgress(studentId, options);
   }
-  return null;
+
+  const activeStudents = Array.from(debounceTimers.keys());
+  cancelDebouncedSync();
+  if (activeStudents.length === 0) return null;
+  const results = await Promise.all(activeStudents.map(sId => syncProgress(sId, options)));
+  return results[0] ?? null;
 }
 
 export const flushPendingSync = flushDebouncedSync;
