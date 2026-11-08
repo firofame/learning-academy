@@ -150,6 +150,40 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(await view.findByRole('region', { name: 'Recent learning history' }));
   });
 
+  test('the subjects home view merges timetable with expandable schedule and preserves native scripts', async () => {
+    const { ExamTimetableView, default: ExamTimetableViewDefault } = await import('../components/ExamTimetableView');
+    assert.ok(ExamTimetableView);
+    assert.equal(ExamTimetableView, ExamTimetableViewDefault);
+
+    const view = render(React.createElement(App));
+    // Header no longer contains standalone Timetable button
+    assert.equal(view.queryByRole('button', { name: 'Timetable' }), null);
+
+    // Initial state: Spotlight card is visible, timetable details are collapsed
+    const spotlight = await view.findByRole('region', { name: 'First Semester Exam Schedule' });
+    assert.ok(spotlight);
+    const viewButton = view.getByRole('button', { name: 'View Full Timetable' });
+    assert.ok(viewButton);
+    assert.equal(view.queryByText('Reporting & Assembly'), null);
+
+    // Click to expand timetable
+    fireEvent.click(viewButton);
+    assert.ok(await view.findByText('Reporting & Assembly'));
+    assert.ok(view.getByText('Examination Timing'));
+    assert.ok(view.getByText('Bus & Dispersal'));
+    assert.ok(view.getByRole('button', { name: 'Print Schedule' }));
+    assert.ok(view.getByText('General Exam Guidelines'));
+
+    // Check that Malayalam and Hindi native scripts are rendered in the schedule
+    assert.ok(view.getByText(/Malayalam \(മലയാളം\)/));
+    assert.ok(view.getByText(/Hindi \(हिन्दी\)/));
+
+    // Collapse timetable
+    const hideButton = view.getByRole('button', { name: 'Hide Timetable' });
+    fireEvent.click(hideButton);
+    assert.equal(view.queryByText('Reporting & Assembly'), null);
+  });
+
   test('AudioEngine properties synchronize speechAudio and slowSpeech with legacy aliases', () => {
     audioService.speechAudio = false;
     assert.equal(audioService.speechEnabled, false);

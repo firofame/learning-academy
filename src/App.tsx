@@ -17,7 +17,6 @@ import { audioService } from './utils/audio';
 import { syncProgress, flushPendingSync } from './utils/syncService';
 
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
-const ExamTimetableView = lazy(() => import('./components/ExamTimetableView').then(module => ({ default: module.ExamTimetableView })));
 
 export default function App() {
   const [currentView, setCurrentView] = useState<ActiveAppView>('home');
@@ -165,16 +164,12 @@ export default function App() {
       {/* Main View Container */}
       <main className="flex-1 min-w-0">
         <Suspense fallback={<div className="max-w-5xl mx-auto p-6 text-sm text-slate-600" role="status">Loading your lesson…</div>}>
-        {(currentView === 'home' || currentView === 'progress') && (
-          <SubjectHome activeStudent={activeStudent} onNavigate={handleNavigate} />
-        )}
-
-        {currentView === 'timetable' && (
-          <ExamTimetableView
-            key={activeStudent}
+        {(currentView === 'home' || currentView === 'progress' || currentView === 'timetable') && (
+          <SubjectHome
+            key={`${activeStudent}-${currentView}`}
             activeStudent={activeStudent}
             onNavigate={handleNavigate}
-            onSwitchStudent={handleSwitchStudent}
+            initialShowTimetable={currentView === 'timetable'}
           />
         )}
 
