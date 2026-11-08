@@ -22,7 +22,11 @@ export const ExamTimetableView: React.FC<ExamTimetableViewProps> = ({
             {STUDENT_PROFILES.map(profile => (
               <button
                 key={profile.id}
-                onClick={() => onSwitchStudent(profile.id)}
+                onClick={() => {
+                  if (profile.id !== activeStudent) {
+                    onSwitchStudent(profile.id);
+                  }
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeStudent === profile.id
                     ? 'bg-white text-slate-900 shadow-xs border border-slate-200'

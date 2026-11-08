@@ -184,13 +184,26 @@ describe('Shared exam-eve revision interactions', () => {
     assert.equal(view.queryByText('Reporting & Assembly'), null);
 
     // Verify ExamTimetableView wrapper backwards compatibility and learner switching
+    cleanup();
     let switchedStudent: string | null = null;
+    let switchCalls = 0;
     const wrapper = render(React.createElement(ExamTimetableView, {
       activeStudent: 'fazia',
-      onSwitchStudent: id => { switchedStudent = id; }
+      onSwitchStudent: id => {
+        switchCalls++;
+        switchedStudent = id;
+      }
     }));
+    // Clicking already-selected learner (Fazia) does not trigger switch
+    assert.ok(wrapper.getByRole('button', { name: /Fazia/ }));
+    fireEvent.click(wrapper.getByRole('button', { name: /Fazia/ }));
+    assert.equal(switchCalls, 0);
+    assert.equal(switchedStudent, null);
+
+    // Clicking a different learner (Shiza) triggers switch
     assert.ok(wrapper.getByRole('button', { name: /Shiza/ }));
     fireEvent.click(wrapper.getByRole('button', { name: /Shiza/ }));
+    assert.equal(switchCalls, 1);
     assert.equal(switchedStudent, 'shiza');
   });
 
