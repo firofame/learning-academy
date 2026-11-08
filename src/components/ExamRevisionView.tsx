@@ -133,6 +133,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const [storageMessage, setStorageMessage] = useState('');
   const abortController = useRef<AbortController | null>(null);
   const promptRef = useRef<HTMLHeadingElement>(null);
+  const [revisionReloadKey, setRevisionReloadKey] = useState(0);
 
   const questionById = useMemo(() => new Map(questions.map(question => [question.id, question])), [questions]);
   const questionIdsKey = questions.map(question => question.id).join('\u001f');
@@ -175,6 +176,24 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       .flatMap(attempt => attempt.assistance)));
   };
 
+  // Reactive update when cross-device sync merges new progress
+  useEffect(() => {
+    const handleProgressSynced = (event: Event) => {
+      const customEvent = event as CustomEvent<{ studentId?: StudentId }>;
+      if (customEvent.detail?.studentId && customEvent.detail.studentId !== learnerId) {
+        return;
+      }
+      // Protect in-flight student inputs: reload only when NOT actively taking a quiz session
+      if (screen !== 'session') {
+        setRevisionReloadKey(prev => prev + 1);
+      }
+    };
+    window.addEventListener('academy-progress-synced', handleProgressSynced);
+    return () => {
+      window.removeEventListener('academy-progress-synced', handleProgressSynced);
+    };
+  }, [learnerId, screen]);
+
   useEffect(() => {
     let active = true;
     const repository = getDefaultLearningRepository();
@@ -203,7 +222,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       if (active) setLoaded(true);
     });
     return () => { active = false; };
-  }, [learnerId, lessonId, questionIdsKey, subjectId]);
+  }, [learnerId, lessonId, questionIdsKey, subjectId, revisionReloadKey]);
 
   useEffect(() => {
     promptRef.current?.focus();

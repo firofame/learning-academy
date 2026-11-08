@@ -1,5 +1,6 @@
 import type { LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from './contracts';
+import { scheduleDebouncedSync } from '../utils/syncService';
 
 export const LEARNING_DATABASE_NAME = 'learning-academy-progress';
 export const LEARNING_DATABASE_VERSION = 1;
@@ -75,6 +76,7 @@ export class LocalStorageLearningRepository implements LearningRepository {
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(this.getStorageKey(record.id), JSON.stringify(record));
+        scheduleDebouncedSync(record.learnerId);
         return;
       } catch {}
     }

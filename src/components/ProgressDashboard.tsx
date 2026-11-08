@@ -51,6 +51,20 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({ activeStud
   const [refreshKey, setRefreshKey] = useState(0);
   const availableSubjects = getAvailableSubjectsForGrade(profile.grade);
 
+  // Reactive update when cross-device sync merges new progress
+  useEffect(() => {
+    const handleProgressSynced = (event: Event) => {
+      const customEvent = event as CustomEvent<{ studentId?: StudentId }>;
+      if (!customEvent.detail?.studentId || customEvent.detail.studentId === activeStudent) {
+        setRefreshKey(prev => prev + 1);
+      }
+    };
+    window.addEventListener('academy-progress-synced', handleProgressSynced);
+    return () => {
+      window.removeEventListener('academy-progress-synced', handleProgressSynced);
+    };
+  }, [activeStudent]);
+
   useEffect(() => {
     let active = true;
     setLoading(true);

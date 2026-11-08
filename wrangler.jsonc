@@ -7,11 +7,25 @@
   "placement": {
     "region": "gcp:asia-south1"
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "PROGRESS_DO",
+        "class_name": "ProgressDurableObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["ProgressDurableObject"]
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": ["/grade"]
+    "run_worker_first": ["/grade", "/api/*"]
   },
   "secrets": {
     "required": ["GEMINI_API_KEY"]

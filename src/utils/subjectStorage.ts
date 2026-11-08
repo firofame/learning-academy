@@ -1,6 +1,7 @@
 import type { StudentId } from '../types';
 import type { AssistanceKind, ReviewClearingPolicy } from '../learning/contracts';
 import { emitStorageError } from './appStorage';
+import { scheduleDebouncedSync } from './syncService';
 
 export type SubjectRevisionMode = 'practice' | 'exam';
 export type SubjectQuizMode = SubjectRevisionMode;
@@ -177,6 +178,7 @@ export function saveSubjectResultBase(
   try {
     const key = getSubjectStorageKey(subject, studentId);
     localStorage.setItem(key, JSON.stringify(updated));
+    scheduleDebouncedSync(studentId);
     return updated;
   } catch {
     emitStorageError(`Storage save failed for ${subject}.`);
