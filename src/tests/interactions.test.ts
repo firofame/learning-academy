@@ -133,19 +133,21 @@ describe('Shared exam-eve revision interactions', () => {
     assert.equal(view.queryByRole('button', { name: /Worksheets/ }), null);
   });
 
-  test('the header routes to Progress and renders ProgressDashboard', async () => {
+  test('the subjects home view merges progress and renders revision coverage and learning history', async () => {
     const { ParentDashboard, default: ParentDashboardDefault } = await import('../components/ParentDashboard');
     const { ProgressDashboard, default: ProgressDashboardDefault } = await import('../components/ProgressDashboard');
     assert.equal(ParentDashboard, ProgressDashboard);
     assert.equal(ParentDashboardDefault, ProgressDashboardDefault);
 
     const view = render(React.createElement(App));
-    const progressNavButton = view.getByRole('button', { name: 'Progress' });
-    fireEvent.click(progressNavButton);
+    // Header no longer contains standalone Progress button
+    assert.equal(view.queryByRole('button', { name: 'Progress' }), null);
 
-    const heading = await view.findByRole('heading', { name: 'Progress' });
+    // Subjects tab includes both subjects and revision coverage
+    const heading = await view.findByRole('heading', { name: 'What would you like to learn?' });
     assert.ok(heading);
     assert.ok(await view.findByRole('region', { name: 'Current revision coverage' }));
+    assert.ok(await view.findByRole('region', { name: 'Recent learning history' }));
   });
 
   test('AudioEngine properties synchronize speechAudio and slowSpeech with legacy aliases', () => {
