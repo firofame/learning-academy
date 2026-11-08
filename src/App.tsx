@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { SubjectHome } from './components/SubjectHome';
 import { ActiveAppView, StudentId } from './types';
@@ -14,6 +14,7 @@ import type { AppSettings } from './utils/appStorage';
 import { getStudentProfile } from './data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from './data/subjects';
 import { audioService } from './utils/audio';
+import { syncProgress, flushPendingSync } from './utils/syncService';
 
 const ProgressDashboard = lazy(() => import('./components/ProgressDashboard').then(module => ({ default: module.ProgressDashboard })));
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
@@ -25,6 +26,43 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
+  const activeStudentRef = useRef<StudentId>(activeStudent);
+  activeStudentRef.current = activeStudent;
+
+  // Cross-device sync lifecycle hooks
+  useEffect(() => {
+    // 1. Initial sync on app mount
+    void syncProgress(activeStudentRef.current);
+
+    // 2. Visibility change listener (sync when tab/window becomes visible)
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        void syncProgress(activeStudentRef.current);
+      }
+    };
+
+    // 3. Focus listener (sync when window regains focus)
+    const handleFocus = () => {
+      void syncProgress(activeStudentRef.current);
+    };
+
+    // 4. Pagehide & Beforeunload listeners (immediate flush with keepalive: true)
+    const handleUnload = () => {
+      flushPendingSync(activeStudentRef.current, { keepalive: true });
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('pagehide', handleUnload);
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('pagehide', handleUnload);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -72,9 +110,18 @@ export default function App() {
   };
 
   const handleSwitchStudent = (newStudent: StudentId) => {
+    if (newStudent === activeStudent) return;
     audioService.stopAll();
+
+    // Flush pending changes for the outgoing student immediately
+    flushPendingSync(activeStudent);
+
     setActiveStudent(newStudent);
     saveActiveStudent(newStudent);
+
+    // Trigger sync for the newly selected student
+    void syncProgress(newStudent);
+
     const nextGrade = getStudentProfile(newStudent).grade;
     const subject = getSubjectForView(currentView);
     if (subject && !getAvailableSubjectsForGrade(nextGrade).some(available => available.id === subject.id)) {

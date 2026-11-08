@@ -2,6 +2,7 @@ import { WordProgress, MasteryLevel, SubjectCategory, WordEntry, StudentId, Stud
 import { getWordsForStudent } from '../data/wordList';
 import { isRetentionCheckDue, localCalendarDate, readinessFromRecallEvidence } from '../learning/domain';
 import { emitStorageError } from './appStorage';
+import { scheduleDebouncedSync } from './syncService';
 export {
   ACTIVE_PROFILE_KEY, DEFAULT_SETTINGS, SETTINGS_KEY, emitStorageError,
   loadActiveStudent, loadSettings, saveActiveStudent, saveSettings, subscribeStorageError
@@ -169,6 +170,18 @@ export interface ExtendedWordProgress extends WordProgress {
  * - 'practising': spelled correctly independently at least once.
  * - 'remembered': spelled correctly independently across AT LEAST TWO separate distinct calendar days without hints.
  */
+export function saveWordProgress(studentId: StudentId, progress: Record<string, WordProgress>): boolean {
+  if (typeof window === 'undefined') return true;
+  try {
+    localStorage.setItem(getStudentStorageKey(studentId), JSON.stringify(progress));
+    scheduleDebouncedSync(studentId);
+    return true;
+  } catch {
+    emitStorageError('Unable to save progress to local storage. Your browser storage may be full or disabled.');
+    return false;
+  }
+}
+
 export function recordAttempt(
   wordId: string,
   studentId: StudentId,
@@ -240,14 +253,9 @@ export function recordAttempt(
 
   all[wordId] = updatedProgress;
   let saveFailed = false;
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(getStudentStorageKey(studentId), JSON.stringify(all));
-    } catch {
-      saveFailed = true;
-      updatedProgress.saveFailed = true;
-      emitStorageError('Unable to save progress to local storage. Your browser storage may be full or disabled.');
-    }
+  if (!saveWordProgress(studentId, all)) {
+    saveFailed = true;
+    updatedProgress.saveFailed = true;
   }
 
   return updatedProgress;

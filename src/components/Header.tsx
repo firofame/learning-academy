@@ -1,9 +1,10 @@
-import React from 'react';
-import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Calendar, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { AppSettings } from '../utils/appStorage';
 import { getStudentProfile, STUDENT_PROFILES } from '../data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
+import { getSyncStatus, subscribeSyncStatus, type SyncStatus } from '../utils/syncService';
 
 interface HeaderProps {
   currentView: ActiveAppView;
@@ -22,6 +23,11 @@ export const Header: React.FC<HeaderProps> = ({
   settings,
   onUpdateSettings
 }) => {
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus());
+
+  useEffect(() => {
+    return subscribeSyncStatus(setSyncStatus);
+  }, []);
   const currentProfile = getStudentProfile(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
   const currentSubject = getSubjectForView(currentView);
@@ -131,6 +137,37 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Zone 3: Settings & Audio Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Minimal Sync Status Indicator */}
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label={
+              syncStatus === 'syncing'
+                ? 'Syncing progress with cloud…'
+                : syncStatus === 'error'
+                ? 'Offline · changes saved locally'
+                : 'Progress synced with cloud'
+            }
+            title={
+              syncStatus === 'syncing'
+                ? 'Syncing progress…'
+                : syncStatus === 'error'
+                ? 'Offline · changes saved locally'
+                : 'Progress synced'
+            }
+            className="flex items-center justify-center w-8 h-8 rounded-lg select-none transition-colors"
+          >
+            {syncStatus === 'syncing' && (
+              <RefreshCw className="w-4 h-4 text-slate-400 animate-spin" />
+            )}
+            {syncStatus === 'synced' && (
+              <Cloud className="w-4 h-4 text-emerald-600" />
+            )}
+            {syncStatus === 'error' && (
+              <CloudOff className="w-4 h-4 text-amber-500" />
+            )}
+          </div>
+
           {/* Turtle Mode (Slow speech) */}
           <button
             onClick={() => onUpdateSettings({ ...settings, slowSpeech: !settings.slowSpeech })}

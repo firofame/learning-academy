@@ -7,6 +7,7 @@ import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/writtenGrading';
+import type { WordProgress, StudentId, LearningSubjectId } from '../src/types';
 
 export interface GradingEnv {
   GEMINI_API_KEY: string;
@@ -14,6 +15,60 @@ export interface GradingEnv {
   GRADING_RATE_LIMITER: {
     limit(options: { key: string }): Promise<{ success: boolean }>;
   };
+}
+
+export interface Env {
+  GEMINI_API_KEY?: string;
+  ALLOWED_ORIGINS?: string;
+  GRADING_RATE_LIMITER?: {
+    limit(options: { key: string }): Promise<{ success: boolean }>;
+  };
+  PROGRESS_KV?: {
+    get(key: string, type?: 'text' | 'json'): Promise<any>;
+    put(key: string, value: string): Promise<void>;
+    delete?(key: string): Promise<void>;
+  };
+  ASSETS?: {
+    fetch(request: Request): Promise<Response>;
+  };
+}
+
+export interface SubjectResult {
+  mode: 'practice' | 'exam';
+  completedAt: string;
+  section?: string;
+  topic?: string;
+  answers: unknown[];
+  contentVersion?: string;
+}
+
+export interface SubjectProgress {
+  studentId: StudentId;
+  lessonId: string;
+  practice: SubjectResult | null;
+  exam: SubjectResult | null;
+  reviewQuestionIds: string[];
+}
+
+export interface LearningRecord<T = unknown> {
+  id: string;
+  schemaVersion: 1;
+  learnerId: StudentId;
+  subjectId: LearningSubjectId;
+  kind: 'attempt' | 'draft' | 'revision-state';
+  contentVersion: string;
+  rubricVersion?: string;
+  updatedAt: string;
+  data: T;
+}
+
+export interface StudentProgressSnapshot {
+  studentId: 'shiza' | 'fazia';
+  version: 1;
+  syncedAt: string;
+  spelling: Record<string, WordProgress>;
+  subjects: Record<string, SubjectProgress>;
+  learningRecords: LearningRecord[];
 }
 
 class GradingError extends Error {
@@ -68,7 +123,7 @@ async function generateGrade(
       `https://generativelanguage.googleapis.com/v1beta/models/${GRADING_MODEL}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY || '' },
         signal: AbortSignal.timeout(20_000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
@@ -277,6 +332,337 @@ export async function handleGradingRequest(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Merge Functions for Progress Snapshots
+// ---------------------------------------------------------------------------
+
+export function mergeLearningRecords(
+  local: readonly LearningRecord[],
+  remote: readonly LearningRecord[]
+): LearningRecord[] {
+  const recordMap = new Map<string, LearningRecord>();
+
+  for (const rec of local) {
+    if (!rec || typeof rec.id !== 'string') continue;
+    recordMap.set(rec.id, rec);
+  }
+
+  for (const rec of remote) {
+    if (!rec || typeof rec.id !== 'string') continue;
+    const existing = recordMap.get(rec.id);
+    if (!existing) {
+      recordMap.set(rec.id, rec);
+      continue;
+    }
+
+    if (rec.kind === 'attempt') {
+      continue;
+    }
+
+    const existingTime = Date.parse(existing.updatedAt) || 0;
+    const remoteTime = Date.parse(rec.updatedAt) || 0;
+    if (remoteTime > existingTime) {
+      recordMap.set(rec.id, rec);
+    }
+  }
+
+  return Array.from(recordMap.values());
+}
+
+function pickLaterResult(a: SubjectResult | null, b: SubjectResult | null): SubjectResult | null {
+  if (!a) return b ?? null;
+  if (!b) return a ?? null;
+  const timeA = Date.parse(a.completedAt) || 0;
+  const timeB = Date.parse(b.completedAt) || 0;
+  return timeB > timeA ? (b ?? null) : (a ?? null);
+}
+
+export function mergeSubjectProgress(
+  local: Record<string, SubjectProgress>,
+  remote: Record<string, SubjectProgress>
+): Record<string, SubjectProgress> {
+  const merged: Record<string, SubjectProgress> = {};
+  const allSubjects = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})]);
+
+  for (const subject of allSubjects) {
+    const loc = local?.[subject];
+    const rem = remote?.[subject];
+
+    if (!loc) {
+      if (rem) {
+        merged[subject] = {
+          studentId: rem.studentId,
+          lessonId: rem.lessonId,
+          practice: rem.practice ?? null,
+          exam: rem.exam ?? null,
+          reviewQuestionIds: Array.isArray(rem.reviewQuestionIds) ? [...rem.reviewQuestionIds] : []
+        };
+      }
+      continue;
+    }
+    if (!rem) {
+      merged[subject] = {
+        studentId: loc.studentId,
+        lessonId: loc.lessonId,
+        practice: loc.practice ?? null,
+        exam: loc.exam ?? null,
+        reviewQuestionIds: Array.isArray(loc.reviewQuestionIds) ? [...loc.reviewQuestionIds] : []
+      };
+      continue;
+    }
+
+    const mergedPractice = pickLaterResult(loc.practice, rem.practice);
+    const mergedExam = pickLaterResult(loc.exam, rem.exam);
+
+    const localTime = Math.max(
+      loc.practice?.completedAt ? (Date.parse(loc.practice.completedAt) || 0) : 0,
+      loc.exam?.completedAt ? (Date.parse(loc.exam.completedAt) || 0) : 0
+    );
+    const remoteTime = Math.max(
+      rem.practice?.completedAt ? (Date.parse(rem.practice.completedAt) || 0) : 0,
+      rem.exam?.completedAt ? (Date.parse(rem.exam.completedAt) || 0) : 0
+    );
+
+    let reviewQuestionIds: string[];
+    if (localTime > remoteTime) {
+      reviewQuestionIds = [...(loc.reviewQuestionIds || [])];
+    } else if (remoteTime > localTime) {
+      reviewQuestionIds = [...(rem.reviewQuestionIds || [])];
+    } else {
+      reviewQuestionIds = Array.from(new Set([
+        ...(loc.reviewQuestionIds || []),
+        ...(rem.reviewQuestionIds || [])
+      ]));
+    }
+
+    const lessonId = localTime >= remoteTime ? loc.lessonId : rem.lessonId;
+    const studentId = loc.studentId || rem.studentId;
+
+    merged[subject] = {
+      studentId,
+      lessonId,
+      practice: mergedPractice ?? null,
+      exam: mergedExam ?? null,
+      reviewQuestionIds
+    };
+  }
+
+  return merged;
+}
+
+export function mergeSpellingProgress(
+  local: Record<string, WordProgress>,
+  remote: Record<string, WordProgress>
+): Record<string, WordProgress> {
+  const merged: Record<string, WordProgress> = {};
+  const allWordIds = new Set([...Object.keys(local || {}), ...Object.keys(remote || {})]);
+
+  for (const wordId of allWordIds) {
+    const loc = local?.[wordId];
+    const rem = remote?.[wordId];
+
+    if (!loc) {
+      if (rem) merged[wordId] = rem;
+      continue;
+    }
+    if (!rem) {
+      merged[wordId] = loc;
+      continue;
+    }
+
+    const localTime = loc.lastAttemptDate ? (Date.parse(loc.lastAttemptDate) || 0) : 0;
+    const remoteTime = rem.lastAttemptDate ? (Date.parse(rem.lastAttemptDate) || 0) : 0;
+
+    const primary = remoteTime > localTime ? rem : loc;
+    const secondary = remoteTime > localTime ? loc : rem;
+
+    const historyMap = new Map<string, WordProgress['history'][number]>();
+    for (const h of [...(loc.history || []), ...(rem.history || [])]) {
+      if (!h) continue;
+      const key = h.attemptId || `${h.date}:${h.mode}`;
+      if (!historyMap.has(key)) {
+        historyMap.set(key, h);
+      }
+    }
+    const mergedHistory = Array.from(historyMap.values())
+      .sort((a, b) => (Date.parse(a.date) || 0) - (Date.parse(b.date) || 0))
+      .slice(-15);
+
+    merged[wordId] = {
+      wordId,
+      studentId: primary.studentId,
+      attempts: Math.max(loc.attempts || 0, rem.attempts || 0, mergedHistory.length),
+      unaidedCorrectCount: Math.max(loc.unaidedCorrectCount || 0, rem.unaidedCorrectCount || 0),
+      consecutiveUnaidedCorrect: primary.consecutiveUnaidedCorrect,
+      unaidedCorrectDates: [...(primary.unaidedCorrectDates || [])],
+      lastAttemptDate: primary.lastAttemptDate ?? secondary.lastAttemptDate,
+      lastUnaidedCorrectDate: primary.lastUnaidedCorrectDate ?? secondary.lastUnaidedCorrectDate,
+      level: primary.level,
+      lastMistake: primary.lastMistake,
+      needsRevisit: primary.needsRevisit,
+      history: mergedHistory
+    };
+  }
+
+  return merged;
+}
+
+export function mergeProgressSnapshots(
+  local: StudentProgressSnapshot,
+  remote: StudentProgressSnapshot
+): StudentProgressSnapshot {
+  if (local.studentId !== remote.studentId) {
+    throw new Error(`Cannot merge snapshots for different students: ${local.studentId} vs ${remote.studentId}`);
+  }
+
+  return {
+    studentId: local.studentId,
+    version: 1,
+    syncedAt: new Date().toISOString(),
+    spelling: mergeSpellingProgress(local.spelling || {}, remote.spelling || {}),
+    subjects: mergeSubjectProgress(local.subjects || {}, remote.subjects || {}),
+    learningRecords: mergeLearningRecords(local.learningRecords || [], remote.learningRecords || [])
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Progress Request Handler (/api/progress/:studentId)
+// ---------------------------------------------------------------------------
+
+export async function handleProgressRequest(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  const origin = request.headers.get('Origin');
+  const allowed = (env.ALLOWED_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean);
+  const headers = new Headers({
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store',
+    Vary: 'Origin'
+  });
+  const reply = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers });
+
+  const url = new URL(request.url);
+  const isSameOrigin = Boolean(origin && origin === url.origin);
+  const isAllowedOrigin = origin === null || isSameOrigin || allowed.includes(origin);
+
+  if (!isAllowedOrigin) {
+    return reply(403, { error: 'Origin not allowed.' });
+  }
+
+  if (origin) {
+    headers.set('Access-Control-Allow-Origin', origin);
+  }
+
+  if (request.method === 'OPTIONS') {
+    headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type');
+    headers.set('Access-Control-Max-Age', '600');
+    return new Response(null, { status: 204, headers });
+  }
+
+  if (url.search) {
+    return reply(400, { error: 'Query parameters are not supported.' });
+  }
+
+  const match = url.pathname.match(/^\/api\/progress\/([^/]+)\/?$/);
+  if (!match) {
+    return reply(400, { error: 'Invalid path. Expected /api/progress/:studentId.' });
+  }
+
+  const studentId = match[1];
+  if (studentId !== 'shiza' && studentId !== 'fazia') {
+    return reply(400, { error: "Invalid student ID. Only 'shiza' and 'fazia' are allowed." });
+  }
+
+  if (request.method !== 'GET' && request.method !== 'POST') {
+    return reply(405, { error: 'Method not allowed. Use GET or POST.' });
+  }
+
+  if (!env.PROGRESS_KV) {
+    return reply(503, { error: 'Progress storage is not configured.' });
+  }
+
+  const kvKey = `progress:${studentId}`;
+
+  if (request.method === 'GET') {
+    const raw = await env.PROGRESS_KV.get(kvKey, 'text');
+    if (!raw) {
+      return reply(200, null);
+    }
+    return new Response(raw, { status: 200, headers });
+  }
+
+  // POST handling
+  const contentType = request.headers.get('Content-Type') || '';
+  if (!contentType.toLowerCase().startsWith('application/json')) {
+    return reply(415, { error: 'Use application/json.' });
+  }
+
+  let incoming: unknown;
+  try {
+    incoming = await request.json();
+  } catch {
+    return reply(400, { error: 'The progress payload must be valid JSON.' });
+  }
+
+  if (!isRecord(incoming)) {
+    return reply(400, { error: 'The progress payload must be an object.' });
+  }
+
+  if (typeof incoming.studentId === 'string' && incoming.studentId !== studentId) {
+    return reply(400, { error: 'Student ID in payload does not match URL path.' });
+  }
+
+  const existingRaw = await env.PROGRESS_KV.get(kvKey, 'text');
+  let existing: StudentProgressSnapshot | null = null;
+  if (existingRaw) {
+    try {
+      const parsed = JSON.parse(existingRaw);
+      if (isRecord(parsed) && parsed.studentId === studentId) {
+        existing = parsed as unknown as StudentProgressSnapshot;
+      }
+    } catch {
+      existing = null;
+    }
+  }
+
+  const normalizedIncoming: StudentProgressSnapshot = {
+    studentId,
+    version: 1,
+    syncedAt: typeof incoming.syncedAt === 'string' ? incoming.syncedAt : new Date().toISOString(),
+    spelling: isRecord(incoming.spelling) ? incoming.spelling as StudentProgressSnapshot['spelling'] : {},
+    subjects: isRecord(incoming.subjects) ? incoming.subjects as StudentProgressSnapshot['subjects'] : {},
+    learningRecords: Array.isArray(incoming.learningRecords) ? incoming.learningRecords as StudentProgressSnapshot['learningRecords'] : []
+  };
+
+  const merged = existing
+    ? mergeProgressSnapshots(existing, normalizedIncoming)
+    : normalizedIncoming;
+
+  await env.PROGRESS_KV.put(kvKey, JSON.stringify(merged));
+  return reply(200, merged);
+}
+
+// ---------------------------------------------------------------------------
+// Worker Default Export & Top-Level Routing
+// ---------------------------------------------------------------------------
+
 export default {
-  fetch(request: Request, env: GradingEnv) { return handleGradingRequest(request, env); }
+  fetch(request: Request, env: Env) {
+    const pathname = new URL(request.url).pathname;
+
+    if (pathname === '/grade') {
+      return handleGradingRequest(request, env as GradingEnv);
+    }
+
+    if (pathname.startsWith('/api/progress')) {
+      return handleProgressRequest(request, env);
+    }
+
+    return env.ASSETS
+      ? env.ASSETS.fetch(request)
+      : new Response('Not found', { status: 404 });
+  }
 };

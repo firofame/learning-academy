@@ -7,11 +7,17 @@
   "placement": {
     "region": "gcp:asia-south1"
   },
+  "kv_namespaces": [
+    {
+      "binding": "PROGRESS_KV",
+      "id": "1f2fbfe674bb4311820a1fb69f082a18"
+    }
+  ],
   "assets": {
     "directory": "./dist",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": ["/grade"]
+    "run_worker_first": ["/grade", "/api/*"]
   },
   "secrets": {
     "required": ["GEMINI_API_KEY"]
