@@ -39,7 +39,8 @@ import { saveHindiResult } from '../utils/hindiStorage';
 import { saveEvsResult } from '../utils/evsStorage';
 import { saveBiologyResult } from '../utils/biologyStorage';
 import { saveChemistryResult } from '../utils/chemistryStorage';
-import { recordAttempt } from '../utils/storage';
+import { getDefaultLearningRepository } from './persistence';
+import { createRevisionAttempts } from './attemptRecords';
 
 interface RevisionDefinition {
   lessonId: string;
@@ -74,14 +75,51 @@ function saveSpellBeeSession(
 ): boolean {
   const responses = finalResponses(result);
   if (!canSave(responses)) return false;
-  return responses.every(response => !recordAttempt(
-    response.questionId,
+  const profile = getStudentProfile(learnerId);
+  const lessonId = `spelling-grade-${profile.grade}`;
+  const attempts = createRevisionAttempts({
     learnerId,
-    response.outcome === 'correct',
-    result.mode === 'exam' && response.assistance.length === 0 ? 'test' : 'practice',
-    response.answer,
-    { attemptId: response.attemptId, mirrorAttempts: false }
-  ).saveFailed);
+    subjectId: 'spell-bee',
+    lessonId,
+    mode: result.mode,
+    completedAt: result.completedAt,
+    answers: responses.map(response => ({
+      questionId: response.questionId,
+      answer: response.answer,
+      correct: response.outcome === 'correct',
+      skipped: response.outcome === 'skipped',
+      ungraded: response.outcome === 'ungraded',
+      prompt: '',
+      referenceAnswer: response.answer,
+      attemptId: response.attemptId,
+      attemptedAt: response.attemptedAt,
+      assistance: response.assistance,
+      revisionAttemptKind: response.attemptKind
+    }))
+  });
+
+  const repo = getDefaultLearningRepository();
+  try {
+    for (const attempt of attempts) {
+      const putResult = repo.put({
+        id: `attempt:${attempt.learnerId}:${attempt.attemptId}`,
+        schemaVersion: 1,
+        learnerId: attempt.learnerId,
+        subjectId: attempt.subjectId,
+        kind: 'attempt',
+        contentVersion: attempt.contentVersion,
+        rubricVersion: attempt.rubricVersion,
+        updatedAt: attempt.timestamp,
+        data: attempt
+      });
+      if (putResult instanceof Promise) {
+        void putResult.catch(() => {});
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function spellingQuestion(word: WordEntry): RevisionQuestion {
