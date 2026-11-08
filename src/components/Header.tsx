@@ -151,14 +151,18 @@ export const Header: React.FC<HeaderProps> = ({
                 ? 'Syncing progress with cloud…'
                 : syncStatus === 'error'
                 ? 'Offline · changes saved locally'
-                : 'Progress synced with cloud'
+                : syncStatus === 'synced'
+                ? 'Progress synced with cloud'
+                : 'Waiting to sync'
             }
             title={
               syncStatus === 'syncing'
                 ? 'Syncing progress…'
                 : syncStatus === 'error'
                 ? 'Offline · changes saved locally'
-                : 'Progress synced'
+                : syncStatus === 'synced'
+                ? 'Progress synced'
+                : 'Waiting to sync'
             }
             className="flex items-center justify-center w-8 h-8 rounded-lg select-none transition-colors"
           >

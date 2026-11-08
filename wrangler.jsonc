@@ -18,7 +18,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": ["ProgressDurableObject"]
+      "new_sqlite_classes": ["ProgressDurableObject"]
     }
   ],
   "assets": {

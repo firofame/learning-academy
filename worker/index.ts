@@ -836,6 +836,185 @@ export function mergeProgressSnapshots(
 }
 
 // ---------------------------------------------------------------------------
+// Snapshot Structural Validation
+// ---------------------------------------------------------------------------
+
+export function validateProgressSnapshot(
+  incoming: unknown,
+  expectedStudentId: 'shiza' | 'fazia'
+): { valid: true; snapshot: StudentProgressSnapshot } | { valid: false; error: string } {
+  if (!isRecord(incoming)) {
+    return { valid: false, error: 'The progress payload must be an object.' };
+  }
+
+  if (typeof incoming.studentId === 'string' && incoming.studentId !== expectedStudentId) {
+    return { valid: false, error: `Student ID mismatch in payload: expected '${expectedStudentId}', got '${incoming.studentId}'.` };
+  }
+
+  if (incoming.version !== undefined && typeof incoming.version !== 'number') {
+    return { valid: false, error: 'Invalid version: expected a number.' };
+  }
+
+  if (incoming.syncedAt !== undefined && typeof incoming.syncedAt !== 'string') {
+    return { valid: false, error: 'Invalid syncedAt: expected a timestamp string.' };
+  }
+
+  // Validate spelling records
+  const spelling: Record<string, WordProgress> = {};
+  if (incoming.spelling !== undefined) {
+    if (!isRecord(incoming.spelling)) {
+      return { valid: false, error: 'Invalid spelling field: expected an object of word progress records.' };
+    }
+
+    for (const [wordId, wordData] of Object.entries(incoming.spelling)) {
+      if (!isRecord(wordData)) {
+        return { valid: false, error: `Invalid spelling record for "${wordId}": expected an object.` };
+      }
+
+      if (wordData.studentId !== undefined && wordData.studentId !== expectedStudentId) {
+        return { valid: false, error: `Student ID mismatch in spelling record "${wordId}": expected '${expectedStudentId}', got '${wordData.studentId}'.` };
+      }
+
+      if (wordData.attempts !== undefined && (typeof wordData.attempts !== 'number' || wordData.attempts < 0)) {
+        return { valid: false, error: `Invalid attempts count in spelling record "${wordId}".` };
+      }
+
+      if (wordData.unaidedCorrectCount !== undefined && (typeof wordData.unaidedCorrectCount !== 'number' || wordData.unaidedCorrectCount < 0)) {
+        return { valid: false, error: `Invalid unaidedCorrectCount in spelling record "${wordId}".` };
+      }
+
+      if (wordData.consecutiveUnaidedCorrect !== undefined && (typeof wordData.consecutiveUnaidedCorrect !== 'number' || wordData.consecutiveUnaidedCorrect < 0)) {
+        return { valid: false, error: `Invalid consecutiveUnaidedCorrect in spelling record "${wordId}".` };
+      }
+
+      if (wordData.unaidedCorrectDates !== undefined && !Array.isArray(wordData.unaidedCorrectDates)) {
+        return { valid: false, error: `Invalid unaidedCorrectDates in spelling record "${wordId}": expected an array.` };
+      }
+
+      if (wordData.history !== undefined) {
+        if (!Array.isArray(wordData.history)) {
+          return { valid: false, error: `Invalid history in spelling record "${wordId}": expected an array.` };
+        }
+        for (const item of wordData.history) {
+          if (!isRecord(item)) {
+            return { valid: false, error: `Invalid history entry in spelling record "${wordId}": expected an object.` };
+          }
+        }
+      }
+
+      spelling[wordId] = {
+        wordId: typeof wordData.wordId === 'string' && wordData.wordId ? wordData.wordId : wordId,
+        studentId: expectedStudentId,
+        attempts: typeof wordData.attempts === 'number' ? wordData.attempts : 0,
+        unaidedCorrectCount: typeof wordData.unaidedCorrectCount === 'number' ? wordData.unaidedCorrectCount : 0,
+        consecutiveUnaidedCorrect: typeof wordData.consecutiveUnaidedCorrect === 'number' ? wordData.consecutiveUnaidedCorrect : 0,
+        unaidedCorrectDates: Array.isArray(wordData.unaidedCorrectDates) ? [...wordData.unaidedCorrectDates] : [],
+        lastAttemptDate: typeof wordData.lastAttemptDate === 'string' ? wordData.lastAttemptDate : null,
+        lastUnaidedCorrectDate: typeof wordData.lastUnaidedCorrectDate === 'string' ? wordData.lastUnaidedCorrectDate : null,
+        level: (wordData.level as MasteryLevel) || 'learning',
+        lastMistake: typeof wordData.lastMistake === 'string' ? wordData.lastMistake : undefined,
+        needsRevisit: Boolean(wordData.needsRevisit),
+        history: Array.isArray(wordData.history) ? [...wordData.history] : []
+      };
+    }
+  }
+
+  // Validate subjects
+  const subjects: Record<string, SubjectProgress> = {};
+  if (incoming.subjects !== undefined) {
+    if (!isRecord(incoming.subjects)) {
+      return { valid: false, error: 'Invalid subjects field: expected an object of subject progress records.' };
+    }
+
+    for (const [subjectKey, subjectData] of Object.entries(incoming.subjects)) {
+      if (!isRecord(subjectData)) {
+        return { valid: false, error: `Invalid subject progress for "${subjectKey}": expected an object.` };
+      }
+
+      if (subjectData.studentId !== undefined && subjectData.studentId !== expectedStudentId) {
+        return { valid: false, error: `Student ID mismatch in subject progress "${subjectKey}": expected '${expectedStudentId}', got '${subjectData.studentId}'.` };
+      }
+
+      if (subjectData.practice !== undefined && subjectData.practice !== null) {
+        if (!isRecord(subjectData.practice)) {
+          return { valid: false, error: `Invalid practice field in subject "${subjectKey}": expected an object or null.` };
+        }
+        if (subjectData.practice.answers !== undefined && !Array.isArray(subjectData.practice.answers)) {
+          return { valid: false, error: `Invalid practice answers in subject "${subjectKey}": expected an array.` };
+        }
+      }
+
+      if (subjectData.exam !== undefined && subjectData.exam !== null) {
+        if (!isRecord(subjectData.exam)) {
+          return { valid: false, error: `Invalid exam field in subject "${subjectKey}": expected an object or null.` };
+        }
+        if (subjectData.exam.answers !== undefined && !Array.isArray(subjectData.exam.answers)) {
+          return { valid: false, error: `Invalid exam answers in subject "${subjectKey}": expected an array.` };
+        }
+      }
+
+      if (subjectData.reviewQuestionIds !== undefined && !Array.isArray(subjectData.reviewQuestionIds)) {
+        return { valid: false, error: `Invalid reviewQuestionIds in subject "${subjectKey}": expected an array.` };
+      }
+
+      subjects[subjectKey] = {
+        studentId: expectedStudentId,
+        lessonId: typeof subjectData.lessonId === 'string' ? subjectData.lessonId : subjectKey,
+        practice: isRecord(subjectData.practice) ? (subjectData.practice as unknown as SubjectResult) : null,
+        exam: isRecord(subjectData.exam) ? (subjectData.exam as unknown as SubjectResult) : null,
+        reviewQuestionIds: Array.isArray(subjectData.reviewQuestionIds) ? [...subjectData.reviewQuestionIds] : []
+      };
+    }
+  }
+
+  // Validate learningRecords
+  const learningRecords: LearningRecord[] = [];
+  if (incoming.learningRecords !== undefined) {
+    if (!Array.isArray(incoming.learningRecords)) {
+      return { valid: false, error: 'Invalid learningRecords field: expected an array.' };
+    }
+
+    for (const rec of incoming.learningRecords) {
+      if (!isRecord(rec)) {
+        return { valid: false, error: 'Invalid learning record entry: expected an object.' };
+      }
+
+      if (typeof rec.id !== 'string' || !rec.id.trim()) {
+        return { valid: false, error: 'Invalid learning record: id is required and must be a non-empty string.' };
+      }
+
+      if (rec.learnerId !== undefined && rec.learnerId !== expectedStudentId) {
+        return { valid: false, error: `Learner ID mismatch in learning record "${rec.id}": expected '${expectedStudentId}', got '${rec.learnerId}'.` };
+      }
+
+      learningRecords.push({
+        id: rec.id,
+        schemaVersion: 1,
+        learnerId: expectedStudentId,
+        subjectId: (rec.subjectId as LearningSubjectId) || 'robotics',
+        kind: (rec.kind as 'attempt' | 'draft' | 'revision-state') || 'attempt',
+        contentVersion: typeof rec.contentVersion === 'string' ? rec.contentVersion : 'v1',
+        rubricVersion: typeof rec.rubricVersion === 'string' ? rec.rubricVersion : undefined,
+        updatedAt: typeof rec.updatedAt === 'string' ? rec.updatedAt : new Date().toISOString(),
+        data: rec.data !== undefined ? rec.data : {}
+      });
+    }
+  }
+
+  return {
+    valid: true,
+    snapshot: {
+      studentId: expectedStudentId,
+      version: 1,
+      syncedAt: typeof incoming.syncedAt === 'string' ? incoming.syncedAt : new Date().toISOString(),
+      spelling,
+      subjects,
+      learningRecords
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Durable Object: Authoritative Learner Progress Actor
 // ---------------------------------------------------------------------------
 
@@ -918,14 +1097,12 @@ export class ProgressDurableObject {
         return reply(400, { error: "Invalid student ID. Only 'shiza' and 'fazia' are allowed." });
       }
 
-      const normalizedIncoming: StudentProgressSnapshot = {
-        studentId: studentId as 'shiza' | 'fazia',
-        version: 1,
-        syncedAt: typeof incoming.syncedAt === 'string' ? incoming.syncedAt : new Date().toISOString(),
-        spelling: isRecord(incoming.spelling) ? incoming.spelling as StudentProgressSnapshot['spelling'] : {},
-        subjects: isRecord(incoming.subjects) ? incoming.subjects as StudentProgressSnapshot['subjects'] : {},
-        learningRecords: Array.isArray(incoming.learningRecords) ? incoming.learningRecords as StudentProgressSnapshot['learningRecords'] : []
-      };
+      const validation = validateProgressSnapshot(incoming, studentId as 'shiza' | 'fazia');
+      if (!validation.valid) {
+        return reply(400, { error: validation.error });
+      }
+
+      const normalizedIncoming = validation.snapshot;
 
       const merged = await this.enqueueWrite(async () => {
         const existing = (await this.state.storage.get<StudentProgressSnapshot>('snapshot')) ?? null;

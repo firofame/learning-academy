@@ -480,6 +480,146 @@ describe('Worker Progress Sync Endpoints', () => {
       assert.equal(response.status, 400);
     });
 
+    test('rejects POST with malformed spelling record history (not an array)', async () => {
+      const response = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            spelling: {
+              apple: {
+                wordId: 'apple',
+                studentId: 'shiza',
+                history: 'invalid-string-history'
+              }
+            }
+          })
+        }),
+        env
+      );
+      assert.equal(response.status, 400);
+      const data = await response.json() as any;
+      assert.match(data.error, /Invalid history in spelling record "apple"/i);
+    });
+
+    test('rejects POST with learner ID mismatch in nested records', async () => {
+      // 1. Mismatch in spelling wordData.studentId
+      const spellingMismatch = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            spelling: {
+              apple: {
+                wordId: 'apple',
+                studentId: 'fazia'
+              }
+            }
+          })
+        }),
+        env
+      );
+      assert.equal(spellingMismatch.status, 400);
+      assert.match(((await spellingMismatch.json()) as any).error, /Student ID mismatch in spelling record/i);
+
+      // 2. Mismatch in subject progress studentId
+      const subjectMismatch = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            subjects: {
+              robotics: {
+                studentId: 'fazia',
+                lessonId: 'l1'
+              }
+            }
+          })
+        }),
+        env
+      );
+      assert.equal(subjectMismatch.status, 400);
+      assert.match(((await subjectMismatch.json()) as any).error, /Student ID mismatch in subject progress/i);
+
+      // 3. Mismatch in learning record learnerId
+      const recordMismatch = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            learningRecords: [
+              {
+                id: 'attempt:1',
+                learnerId: 'fazia',
+                subjectId: 'robotics',
+                kind: 'attempt',
+                contentVersion: 'v1',
+                updatedAt: new Date().toISOString(),
+                data: {}
+              }
+            ]
+          })
+        }),
+        env
+      );
+      assert.equal(recordMismatch.status, 400);
+      assert.match(((await recordMismatch.json()) as any).error, /Learner ID mismatch in learning record/i);
+    });
+
+    test('rejects POST with malformed subject answers or invalid learning record id', async () => {
+      // Invalid practice answers (string instead of array)
+      const badAnswers = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            subjects: {
+              robotics: {
+                studentId: 'shiza',
+                lessonId: 'l1',
+                practice: { mode: 'practice', completedAt: '2026-11-04', answers: 'not-an-array' }
+              }
+            }
+          })
+        }),
+        env
+      );
+      assert.equal(badAnswers.status, 400);
+      assert.match(((await badAnswers.json()) as any).error, /Invalid practice answers in subject "robotics"/i);
+
+      // Missing learning record ID
+      const badRecord = await worker.fetch(
+        new Request('https://learn.firofame.workers.dev/api/progress/shiza', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            learningRecords: [
+              {
+                learnerId: 'shiza',
+                subjectId: 'robotics',
+                kind: 'attempt'
+              }
+            ]
+          })
+        }),
+        env
+      );
+      assert.equal(badRecord.status, 400);
+      assert.match(((await badRecord.json()) as any).error, /Invalid learning record: id is required/i);
+    });
+
     test('rejects POST with payload exceeding 2MB with 413 Payload Too Large', async () => {
       const largeData = 'A'.repeat(2 * 1024 * 1024 + 100);
       const oversizedPayload = JSON.stringify({
