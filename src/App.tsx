@@ -82,12 +82,6 @@ export default function App() {
     if (!settings.speechAudio) audioService.stopAll();
   }, [settings.speechAudio, settings.slowSpeech]);
 
-  useEffect(() => {
-    if (currentView !== 'spell-bee') {
-      audioService.stopAll();
-    }
-  }, [currentView]);
-
   const currentProfile = getStudentProfile(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
   const currentSubject = getSubjectForView(currentView);
