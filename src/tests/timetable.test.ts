@@ -4,11 +4,16 @@ import {
   EXAM_GENERAL_INFO,
   GRADE_2_TIMETABLE,
   GRADE_6_TIMETABLE,
+  DEFAULT_EXAM_DISPERSAL_TIME,
   getTimetableForGrade,
   getExamStatus,
   getUpcomingExams,
   getNextExam,
-  getNextActualExam
+  getNextActualExam,
+  parseReferenceDateTime,
+  getExamEndCutoffTime,
+  isExamPast,
+  normalizeTimeString
 } from '../data/timetable';
 import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 
@@ -185,5 +190,120 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(getSubjectForView('timetable'), undefined);
     assert.equal(getSubjectForView('home'), undefined);
     assert.equal(getSubjectForView('progress'), undefined);
+  });
+
+  test('advances Next Exam and transitions status after 11:00 AM exam hours', () => {
+    // 1. Time normalization & reference date/time parsing
+    assert.equal(DEFAULT_EXAM_DISPERSAL_TIME, '11:00');
+    assert.equal(normalizeTimeString('9:30'), '09:30');
+    assert.equal(normalizeTimeString('09:30'), '09:30');
+    assert.equal(normalizeTimeString('8:30 AM'), '08:30');
+    assert.equal(normalizeTimeString('11:00 AM'), '11:00');
+    assert.equal(normalizeTimeString('12:00 PM'), '12:00');
+    assert.equal(normalizeTimeString('12:30 AM'), '00:30');
+    assert.equal(normalizeTimeString('1:15 PM'), '13:15');
+    assert.equal(normalizeTimeString('14:11'), '14:11');
+    assert.equal(normalizeTimeString('10:45:00'), '10:45');
+    assert.equal(normalizeTimeString('invalid'), undefined);
+    assert.equal(normalizeTimeString(undefined), undefined);
+
+    assert.deepEqual(parseReferenceDateTime('2026-11-09'), { date: '2026-11-09', time: undefined });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09', '14:15'), { date: '2026-11-09', time: '14:15' });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09', '9:30'), { date: '2026-11-09', time: '09:30' });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09', '1:15 PM'), { date: '2026-11-09', time: '13:15' });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09T10:45:00'), { date: '2026-11-09', time: '10:45' });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09T9:30'), { date: '2026-11-09', time: '09:30' });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09 11:30'), { date: '2026-11-09', time: '11:30' });
+    assert.deepEqual(parseReferenceDateTime('2026-11-09 1:15 PM'), { date: '2026-11-09', time: '13:15' });
+
+    // Date object parsing
+    const dateMorning = new Date(2026, 10, 9, 8, 30);
+    const parsedMorning = parseReferenceDateTime(dateMorning);
+    assert.equal(parsedMorning.date, '2026-11-09');
+    assert.equal(parsedMorning.time, '08:30');
+
+    // 2. Cutoff calculation helper
+    const regular2HourEntry = GRADE_2_TIMETABLE.find(e => e.date === '2026-11-09')!; // EVS
+    assert.equal(getExamEndCutoffTime(regular2HourEntry), '11:00');
+
+    const hypothetical3HourEntry = { ...regular2HourEntry, sessionTime: '8:30 AM – 11:45 AM' };
+    assert.equal(getExamEndCutoffTime(hypothetical3HourEntry), '11:45');
+
+    const entryWithoutSession = GRADE_2_TIMETABLE.find(e => e.date === '2026-11-13')!; // SUPW
+    assert.equal(getExamEndCutoffTime(entryWithoutSession), '11:00');
+
+    // 3. Morning on exam day (2026-11-09, EVS for G2, Chemistry for G6)
+    // 8:30 AM: Exam just started -> today's exam is active
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '08:30'), false);
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '8:30 AM'), false);
+    assert.equal(getExamStatus('2026-11-09', '2026-11-09', '08:30'), 'today');
+    assert.equal(getNextExam(2, '2026-11-09', '08:30')?.subject, 'EVS');
+    assert.equal(getNextActualExam(2, '2026-11-09', '08:30')?.subject, 'EVS');
+    assert.equal(getNextExam(6, '2026-11-09', '08:30')?.subject, 'Chemistry');
+    assert.equal(getNextActualExam(6, '2026-11-09', '08:30')?.subject, 'Chemistry');
+
+    // Single-digit hour morning regression (9:30 AM): must NOT be treated as >= 11:00
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '9:30'), false);
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '9:30 AM'), false);
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09T9:30'), false);
+    assert.equal(getExamStatus('2026-11-09', '2026-11-09', '9:30'), 'today');
+    assert.equal(getNextExam(2, '2026-11-09', '9:30')?.subject, 'EVS');
+
+    // 10:59 AM: Just before dispersal -> still today
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '10:59'), false);
+    assert.equal(getExamStatus('2026-11-09', '2026-11-09', '10:59'), 'today');
+    assert.equal(getNextExam(2, '2026-11-09', '10:59')?.subject, 'EVS');
+
+    // Exactly 11:00 AM: Dispersal cutoff reached -> today's exam is past
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '11:00'), true);
+    assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '11:00 AM'), true);
+    assert.equal(getExamStatus('2026-11-09', '2026-11-09', '11:00'), 'past');
+    // Grade 2 advances to Study Leave (10/11) and next actual exam is Hindi (11/11)
+    const g2At11 = getNextExam(2, '2026-11-09', '11:00');
+    assert.equal(g2At11?.date, '2026-11-10');
+    assert.equal(g2At11?.subject, 'Study Leave');
+    assert.equal(g2At11?.isStudyLeave, true);
+    const g2ActualAt11 = getNextActualExam(2, '2026-11-09', '11:00');
+    assert.equal(g2ActualAt11?.date, '2026-11-11');
+    assert.equal(g2ActualAt11?.subject, 'Hindi (हिन्दी)');
+
+    // Grade 6 advances to English II (10/11)
+    const g6At11 = getNextExam(6, '2026-11-09', '11:00');
+    assert.equal(g6At11?.date, '2026-11-10');
+    assert.equal(g6At11?.subject, 'English II');
+    assert.equal(getNextActualExam(6, '2026-11-09', '11:00')?.subject, 'English II');
+
+    // 4. Afternoon after exam hours (the user's reported scenario: 14:11 / 2:11 PM on 2026-11-09)
+    assert.equal(getExamStatus('2026-11-09', '2026-11-09', '14:11'), 'past');
+    assert.equal(getExamStatus('2026-11-09', '2026-11-09', '2:11 PM'), 'past');
+    assert.equal(getNextExam(2, '2026-11-09', '14:11')?.date, '2026-11-10');
+    assert.equal(getNextActualExam(2, '2026-11-09', '14:11')?.subject, 'Hindi (हिन्दी)');
+    assert.equal(getNextExam(6, '2026-11-09', '14:11')?.subject, 'English II');
+
+    // 5. Study Leave day handling (2026-11-04 for Grade 2 vs Grade 6)
+    // Grade 2 has Study Leave on 2026-11-04:
+    // It remains a full-day self-revision day and does NOT get treated as past at 11 AM
+    assert.equal(isExamPast(GRADE_2_TIMETABLE.find(e => e.date === '2026-11-04')!, '2026-11-04', '09:00'), false);
+    assert.equal(isExamPast(GRADE_2_TIMETABLE.find(e => e.date === '2026-11-04')!, '2026-11-04', '14:00'), false);
+    assert.equal(getExamStatus(GRADE_2_TIMETABLE.find(e => e.date === '2026-11-04')!, '2026-11-04', '14:00'), 'today');
+    assert.equal(getExamStatus('2026-11-04', '2026-11-04 14:00', 2), 'today');
+    assert.equal(getNextExam(2, '2026-11-04', '14:00')?.subject, 'Study Leave');
+    assert.equal(getNextActualExam(2, '2026-11-04', '14:00')?.subject, 'Malayalam (മലയാളം)');
+
+    // Grade 6 has Physics exam on 2026-11-04:
+    // At 14:00, Physics IS an exam that finished, so Grade 6 advances to Hindi (2026-11-05)
+    assert.equal(getExamStatus('2026-11-04', '2026-11-04', '14:00', 6), 'past');
+    assert.equal(getExamStatus('2026-11-04', '2026-11-04 14:00', 6), 'past');
+    assert.equal(getNextExam(6, '2026-11-04', '14:00')?.subject, 'Hindi (हिन्दी)');
+
+    // 6. Final day of examination period (2026-11-13, SUPW / Moral Science)
+    assert.equal(getNextExam(2, '2026-11-13', '09:00')?.date, '2026-11-13');
+    assert.equal(getNextExam(2, '2026-11-13', '11:00'), undefined);
+    assert.equal(getNextActualExam(2, '2026-11-13', '11:00'), undefined);
+
+    // 7. Date object overload
+    const afternoonDate = new Date(2026, 10, 9, 14, 0);
+    assert.equal(getNextExam(2, afternoonDate)?.date, '2026-11-10');
+    assert.equal(getNextActualExam(2, afternoonDate)?.date, '2026-11-11');
   });
 });

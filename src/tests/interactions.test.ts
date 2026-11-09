@@ -207,8 +207,8 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(view.getByText('General Exam Guidelines'));
 
     // Check that Malayalam and Hindi native scripts are rendered in the schedule
-    assert.ok(view.getByText(/Malayalam \(മലയാളം\)/));
-    assert.ok(view.getByText(/Hindi \(हिन्दी\)/));
+    assert.ok(view.getAllByText(/Malayalam \(മലയാളം\)/).length >= 1);
+    assert.ok(view.getAllByText(/Hindi \(हिन्दी\)/).length >= 1);
 
     // Collapse timetable
     const hideButton = view.getByRole('button', { name: 'Hide Timetable' });
