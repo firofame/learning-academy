@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { AppSettings } from '../utils/appStorage';
 import { getStudentProfile, STUDENT_PROFILES } from '../data/profiles';
-import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 import { getSyncStatus, subscribeSyncStatus, type SyncStatus } from '../utils/syncService';
 
 interface HeaderProps {
@@ -34,8 +33,6 @@ export const Header: React.FC<HeaderProps> = ({
     }, activeStudent);
   }, [activeStudent]);
   const currentProfile = getStudentProfile(activeStudent);
-  const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
-  const currentSubject = getSubjectForView(currentView);
 
   const toggleStudent = () => {
     const index = STUDENT_PROFILES.findIndex(profile => profile.id === activeStudent);
@@ -44,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="border-b border-slate-200 bg-white/95 sm:sticky top-0 z-40 backdrop-blur-sm no-print">
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 sm:py-3 lg:py-2 lg:min-h-16 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-3">
         {/* Zone 1: Brand & Profile Switcher */}
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <button
@@ -73,52 +70,22 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Zone 2: Navigation Links */}
-        <nav aria-label="Main navigation" className="order-last lg:order-none w-full lg:w-auto flex flex-wrap items-center gap-1 sm:gap-2">
-          <button
-            onClick={() => onNavigate('home')}
-            aria-current={currentView === 'home' || currentView === 'timetable' ? 'page' : undefined}
-            className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              currentView === 'home' || currentView === 'timetable'
-                ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            Subjects
-          </button>
-          {availableSubjects.map(subject => (
+        {/* Zone 2: Navigation & Controls */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <nav aria-label="Main navigation" className="flex items-center">
             <button
-              key={subject.id}
-              onClick={() => onNavigate(subject.startView)}
-              aria-current={currentSubject?.id === subject.id ? 'page' : undefined}
-              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors inline-flex items-center gap-1.5 ${
-                currentSubject?.id === subject.id
+              onClick={() => onNavigate('home')}
+              aria-current={currentView === 'home' || currentView === 'timetable' ? 'page' : undefined}
+              className={`px-3 py-1.5 sm:py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                currentView === 'home' || currentView === 'timetable'
                   ? 'bg-amber-50 text-amber-900 border border-amber-200 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              {subject.id === 'robotics' ? (
-                <Bot className="w-4 h-4" />
-              ) : subject.id === 'maths' ? (
-                <Calculator className="w-4 h-4" />
-              ) : subject.id === 'malayalam' || subject.id === 'hindi' ? (
-                <Languages className="w-4 h-4" />
-              ) : subject.id === 'evs' ? (
-                <Leaf className="w-4 h-4 text-emerald-700" />
-              ) : subject.id === 'biology' ? (
-                <Dna className="w-4 h-4 text-emerald-700" />
-              ) : subject.id === 'chemistry' ? (
-                <FlaskConical className="w-4 h-4 text-purple-700" />
-              ) : (
-                <BookOpen className="w-4 h-4" />
-              )}
-              {subject.name}
+              Subjects
             </button>
-          ))}
-        </nav>
+          </nav>
 
-        {/* Zone 3: Settings & Audio Controls */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Minimal Sync Status Indicator */}
           <div
             role="status"
