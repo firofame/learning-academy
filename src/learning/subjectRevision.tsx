@@ -187,7 +187,6 @@ function roboticsQuestion(
         </div>
       )
     } : {}),
-    listenText: question.prompt,
     language: 'en',
     languageCode: 'en-US',
     maxLength: MAX_WRITTEN_ANSWER_LENGTH,
@@ -264,7 +263,6 @@ function mathsQuestion(question: MathsQuestion, lesson: ReturnType<typeof getMat
         {!cards.length && !solutions.length && <p>{question.explanation}</p>}
       </div>
     ),
-    listenText: question.prompt,
     language: 'en',
     languageCode: 'en-US',
     grade: async answer => ({
@@ -304,7 +302,6 @@ function malayalamQuestion(
     language: 'ml',
     languageClass: 'font-malayalam',
     direction: 'auto',
-    listenText: question.prompt,
     languageCode: 'ml-IN',
     maxLength: MAX_WRITTEN_ANSWER_LENGTH,
     grade: async (answer, signal) => {
@@ -355,7 +352,6 @@ function hindiQuestion(
     language: 'hi',
     languageClass: 'font-devanagari',
     direction: 'auto',
-    listenText: question.prompt,
     languageCode: 'hi-IN',
     maxLength: MAX_WRITTEN_ANSWER_LENGTH,
     grade: async (answer, signal) => {
@@ -408,7 +404,6 @@ function evsQuestion(
         ))}
       </div>
     ),
-    listenText: question.prompt,
     language: 'en',
     languageCode: 'en-US',
     maxLength: MAX_WRITTEN_ANSWER_LENGTH,
@@ -462,7 +457,6 @@ function biologyQuestion(
         ))}
       </div>
     ),
-    listenText: question.prompt,
     language: 'en',
     languageCode: 'en-US',
     maxLength: MAX_WRITTEN_ANSWER_LENGTH,
@@ -513,7 +507,6 @@ function chemistryQuestion(
         ))}
       </div>
     ),
-    listenText: question.prompt,
     language: 'en',
     languageCode: 'en-US',
     maxLength: MAX_WRITTEN_ANSWER_LENGTH,

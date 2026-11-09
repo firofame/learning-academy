@@ -228,7 +228,10 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     promptRef.current?.focus();
   }, [session?.index, screen]);
 
-  useEffect(() => () => abortController.current?.abort(), []);
+  useEffect(() => () => {
+    abortController.current?.abort();
+    audioService.stopAll();
+  }, []);
 
   const persistRound = async (revisionRoundId: string): Promise<RevisionRoundRecord> => {
     const next: RevisionRoundRecord = {

@@ -133,6 +133,38 @@ describe('Shared exam-eve revision interactions', () => {
     assert.equal(view.queryByRole('button', { name: /Worksheets/ }), null);
   });
 
+  test('header audio and turtle controls are limited to Spell Bee and stop audio on exit', async t => {
+    const stopAll = t.mock.method(audioService, 'stopAll');
+    const view = render(React.createElement(App));
+
+    // Home view: no turtle or audio toggle in header
+    assert.equal(view.queryByTitle(/Slow speech|Normal speech/), null);
+    assert.equal(view.queryByRole('button', { name: 'Toggle audio' }), null);
+
+    // Open Maths: still no turtle or audio toggle
+    fireEvent.click(view.getByRole('button', { name: 'Open Maths' }));
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.equal(view.queryByTitle(/Slow speech|Normal speech/), null);
+    assert.equal(view.queryByRole('button', { name: 'Toggle audio' }), null);
+
+    // Navigate to Home then to Spell Bee
+    fireEvent.click(view.getByRole('button', { name: 'Subjects' }));
+    await view.findByRole('heading', { name: 'What would you like to learn?' });
+    fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
+    await view.findByRole('region', { name: 'Revision overview' });
+
+    // In Spell Bee: turtle and audio toggle are visible
+    assert.ok(view.getByTitle(/Slow speech|Normal speech/));
+    assert.ok(view.getByRole('button', { name: 'Toggle audio' }));
+
+    // Navigating away from Spell Bee calls stopAll and hides controls
+    fireEvent.click(view.getByRole('button', { name: 'Subjects' }));
+    await view.findByRole('heading', { name: 'What would you like to learn?' });
+    assert.equal(view.queryByTitle(/Slow speech|Normal speech/), null);
+    assert.equal(view.queryByRole('button', { name: 'Toggle audio' }), null);
+    assert.ok(stopAll.mock.callCount() > 0);
+  });
+
   test('the subjects home view merges progress and renders revision coverage and learning history', async () => {
     const { ParentDashboard, default: ParentDashboardDefault } = await import('../components/ParentDashboard');
     const { ProgressDashboard, default: ProgressDashboardDefault } = await import('../components/ProgressDashboard');
@@ -466,11 +498,42 @@ describe('Shared exam-eve revision interactions', () => {
     assert.equal(view.queryByRole('button', { name: 'Resume current session' }), null);
   });
 
-  test('a Maths assessment saves graded answers after read-aloud, including the final question', async t => {
+  test('a Spell Bee assessment saves graded answers after read-aloud, including the final question', async t => {
     const speak = t.mock.method(audioService, 'speak', () => true);
+    const definition = buildSubjectRevision('spell-bee', 'fazia', '');
+    const questions = definition.questions.slice(0, 3);
+    const view = render(React.createElement(ExamRevisionView, {
+      ...definition,
+      questions,
+      learnerId: 'fazia',
+      subjectId: 'spell-bee',
+      sessionSize: 5,
+      onSessionSizeChange: () => {},
+      speechAudio: true
+    }));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Optional full mock exam' }));
+    for (const item of questions) {
+      await view.findByRole('heading', { name: item.prompt });
+      fireEvent.click(view.getByRole('button', { name: 'Listen to question' }));
+      fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: item.answer } });
+      fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
+    }
+
+    await view.findByRole('heading', { name: 'Mock exam complete' });
+    assert.ok(view.getByText(`${questions.length} correct of ${questions.length} checked`));
+    assert.ok(view.getByText('Result saved on this device.'));
+    assert.equal(view.queryByText('Not checked'), null);
+    assert.equal(speak.mock.callCount(), questions.length);
+    const savedAttempts = await listLearningAttempts(getDefaultLearningRepository(), 'fazia');
+    const examAttempts = savedAttempts.filter(a => a.sessionMode === 'exam');
+    assert.equal(examAttempts.length, questions.length);
+    assert.ok(examAttempts.every(answer => answer.outcome === 'correct' && answer.assistance?.includes('read-aloud')));
+  });
+
+  test('non-spelling subjects do not render read-aloud button even when speechAudio is enabled', async () => {
     const definition = buildSubjectRevision('maths', 'fazia', '');
-    const portion = definition.questions[0].section;
-    const questions = definition.questions.filter(item => item.section === portion);
     const view = render(React.createElement(ExamRevisionView, {
       ...definition,
       learnerId: 'fazia',
@@ -481,28 +544,9 @@ describe('Shared exam-eve revision interactions', () => {
     }));
 
     await view.findByRole('region', { name: 'Revision overview' });
-    fireEvent.change(view.getByRole('combobox', { name: 'Choose a portion' }), { target: { value: portion } });
-    fireEvent.click(view.getByRole('button', { name: /Optional .* assessment/ }));
-    for (const item of questions) {
-      await view.findByRole('heading', { name: item.prompt });
-      fireEvent.click(view.getByRole('button', { name: 'Listen to question' }));
-      if (item.options) {
-        fireEvent.click(view.getByRole('radio', { name: item.answer }));
-      } else {
-        fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: item.answer } });
-      }
-      fireEvent.click(view.getByRole('button', { name: 'Save answer and continue' }));
-    }
-
-    await view.findByRole('heading', { name: 'Mock exam complete' });
-    assert.ok(view.getByText(`${questions.length} correct of ${questions.length} checked`));
-    assert.ok(view.getByText('Result saved on this device.'));
-    assert.equal(view.queryByText('Not checked'), null);
-    assert.equal(speak.mock.callCount(), questions.length);
-    const saved = loadMathsProgress('fazia').exam;
-    assert.equal(saved?.answers.length, questions.length);
-    assert.ok(saved?.answers.every(answer => answer.correct && answer.assistance?.includes('read-aloud')));
-    assert.equal(loadMathsProgress('shiza').exam, null);
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+    await view.findByRole('heading', { name: definition.questions[0].prompt });
+    assert.equal(view.queryByRole('button', { name: 'Listen to question' }), null);
   });
 
   for (const finish of ['check', 'skip'] as const) {

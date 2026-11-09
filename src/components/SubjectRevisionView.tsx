@@ -26,7 +26,7 @@ export const SubjectRevisionView: React.FC<SubjectRevisionViewProps> = ({
       subjectId={subjectId}
       sessionSize={settings.sessionSize}
       onSessionSizeChange={onSessionSizeChange}
-      speechAudio={settings.speechAudio}
+      speechAudio={subjectId === 'spell-bee' && settings.speechAudio}
     />
   );
 };
