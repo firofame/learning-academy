@@ -717,6 +717,75 @@ describe('Cross-device Progress Sync Service', () => {
       assert.ok(postCallCount >= 2, `Expected at least 2 POST calls, got ${postCallCount}`);
     });
 
+    test('AC 5b: multiple learning records in arbitrary local storage order do not cause an infinite sync loop', async () => {
+      mockStorage.clear();
+      mockStorage.setItem('academy_rec_rec-b', JSON.stringify({
+        id: 'rec-b',
+        learnerId: 'shiza',
+        subjectId: 'robotics',
+        lessonId: 'l1',
+        kind: 'attempt',
+        createdAt: '2026-11-08T10:00:00Z',
+        updatedAt: '2026-11-08T10:00:00Z'
+      }));
+      mockStorage.setItem('academy_rec_rec-a', JSON.stringify({
+        id: 'rec-a',
+        learnerId: 'shiza',
+        subjectId: 'robotics',
+        lessonId: 'l1',
+        kind: 'attempt',
+        createdAt: '2026-11-08T10:00:00Z',
+        updatedAt: '2026-11-08T10:00:00Z'
+      }));
+
+      let fetchCount = 0;
+      (globalThis as any).fetch = async (url: string | URL | Request, init?: RequestInit) => {
+        fetchCount++;
+        if (fetchCount > 10) {
+          throw new Error('Infinite sync loop detected!');
+        }
+        if (init?.method === 'GET' || !init?.method) {
+          return new Response(JSON.stringify({
+            studentId: 'shiza',
+            version: 1,
+            syncedAt: '2026-11-08T10:00:00Z',
+            spelling: {},
+            subjects: {},
+            learningRecords: [
+              {
+                id: 'rec-a',
+                learnerId: 'shiza',
+                subjectId: 'robotics',
+                lessonId: 'l1',
+                kind: 'attempt',
+                createdAt: '2026-11-08T10:00:00Z',
+                updatedAt: '2026-11-08T10:00:00Z'
+              },
+              {
+                id: 'rec-b',
+                learnerId: 'shiza',
+                subjectId: 'robotics',
+                lessonId: 'l1',
+                kind: 'attempt',
+                createdAt: '2026-11-08T10:00:00Z',
+                updatedAt: '2026-11-08T10:00:00Z'
+              }
+            ]
+          }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        if (init?.method === 'POST') {
+          return new Response(String(init.body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+        return new Response('Not found', { status: 404 });
+      };
+
+      const result = await syncProgress('shiza');
+      assert.ok(result !== null);
+      // Only 1 GET request should happen since local and remote records match (no local changes to post)
+      assert.equal(fetchCount, 1, `Expected 1 network call, got ${fetchCount}`);
+      assert.equal(getSyncStatus('shiza'), 'synced');
+    });
+
     test('AC 6: streak resets to 0 and level reverts to learning upon failed Spell Bee attempt', () => {
       const priorMasteredWord: WordProgress = {
         wordId: 'elephant',

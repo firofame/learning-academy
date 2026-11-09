@@ -93,7 +93,7 @@ export function mergeLearningRecords(
     }
   }
 
-  return Array.from(map.values());
+  return Array.from(map.values()).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function pickLaterSubjectResult(a: SubjectResult | null, b: SubjectResult | null): SubjectResult | null {
@@ -604,6 +604,8 @@ export function buildLocalSnapshot(studentId: StudentId): StudentProgressSnapsho
     }
   }
 
+  learningRecords.sort((a, b) => a.id.localeCompare(b.id));
+
   // NOTE: Device-local keys 'spellbee_active_profile_v1' and 'spellbee_settings_v1'
   // are NEVER read into the snapshot.
 
@@ -837,17 +839,6 @@ export async function syncProgress(
       result = applyRemoteSnapshotToLocalStorage(finalSnapshot);
       dispatchSyncEvent(studentId);
       setSyncStatus('synced', studentId);
-
-      const freshLocalAfterApply = buildLocalSnapshot(studentId);
-      const hasIntermediateChanges =
-        JSON.stringify(freshLocalAfterApply.spelling) !== JSON.stringify(finalSnapshot.spelling) ||
-        JSON.stringify(freshLocalAfterApply.subjects) !== JSON.stringify(finalSnapshot.subjects) ||
-        freshLocalAfterApply.learningRecords.length !== finalSnapshot.learningRecords.length ||
-        JSON.stringify(freshLocalAfterApply.learningRecords) !== JSON.stringify(finalSnapshot.learningRecords);
-
-      if (hasIntermediateChanges) {
-        pendingSyncFlags.set(studentId, true);
-      }
     } catch (err) {
       setSyncStatus('error', studentId);
       pendingSyncFlags.set(studentId, true);
