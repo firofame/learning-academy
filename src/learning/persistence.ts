@@ -146,7 +146,7 @@ function isLearningAttempt(value: unknown): value is LearningAttempt {
         ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(item))) ||
       !['deterministic', 'ai', 'parent', 'none'].includes(String(value.gradingSource)) ||
       !['correct', 'incorrect', 'skipped', 'ungraded'].includes(String(value.outcome))) return false;
-  if (!['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'biology', 'chemistry'].includes(String(value.subjectId))) return false;
+  if (!['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'biology', 'chemistry', 'english'].includes(String(value.subjectId))) return false;
   if (value.gradingVersion !== undefined && typeof value.gradingVersion !== 'string') return false;
   if (value.modelId !== undefined && typeof value.modelId !== 'string') return false;
   if (value.feedback !== undefined && typeof value.feedback !== 'string') return false;
@@ -249,7 +249,7 @@ export async function deleteSessionDraft(
 function isRevisionRoundRecord(value: unknown): value is RevisionRoundRecord {
   return isPlainRecord(value) && typeof value.revisionRoundId === 'string' &&
     (value.learnerId === 'fazia' || value.learnerId === 'shiza') &&
-    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'biology', 'chemistry'].includes(String(value.subjectId)) &&
+    ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'biology', 'chemistry', 'english'].includes(String(value.subjectId)) &&
     typeof value.lessonId === 'string' && typeof value.contentVersion === 'string' &&
     typeof value.startedAt === 'string' && Number.isFinite(Date.parse(value.startedAt)) &&
     Array.isArray(value.questionIds) && value.questionIds.length > 0 &&

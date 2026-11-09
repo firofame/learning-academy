@@ -88,7 +88,8 @@ export const SUBJECT_REVIEW_POLICIES = {
   hindi: 'practice-correct-and-full-exam-refresh',
   evs: 'practice-or-exam-correct',
   biology: 'practice-or-exam-correct',
-  chemistry: 'practice-or-exam-correct'
+  chemistry: 'practice-or-exam-correct',
+  english: 'practice-or-exam-correct'
 } as const satisfies Record<string, ReviewClearingPolicy>;
 
 export function shouldClearMissedQuestion(
