@@ -61,19 +61,9 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
   const recentAttempts = [...attempts].reverse().slice(0, 15);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12 space-y-8">
-      {/* Header */}
-      <header className="space-y-3">
-        <p className="text-sm font-bold text-amber-800 uppercase tracking-wide">
-          {profile.name} · {profile.gradeLabel}
-        </p>
-        <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-          What would you like to learn?
-        </h1>
-        <p className="text-base text-slate-600 max-w-2xl">
-          Choose a subject to get started and track your revision progress. Only subjects available for {profile.gradeLabel} are shown.
-        </p>
-      </header>
+    <div className="max-w-5xl mx-auto px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
+      {/* Screen-reader accessible heading; visual space saved for mobile */}
+      <h1 className="sr-only">What would you like to learn?</h1>
 
       {error && (
         <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
