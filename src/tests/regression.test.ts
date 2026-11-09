@@ -733,4 +733,26 @@ describe('Spelling Learning Companion - Regression Test Suite', () => {
     mockStorage.setItem('spellbee_progress_fazia_v1', JSON.stringify({ [wordId]: sameDayRecovery }));
     assert.equal(recordAttempt(wordId, 'fazia', true, 'test').level, 'remembered');
   });
+
+  test('favicon is configured with orange book icon and available in public assets', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    const indexHtml = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+    assert.match(indexHtml, /<link[^>]+rel=["']icon["'][^>]+href=["']\/favicon\.svg["']/i);
+    assert.match(indexHtml, /<link[^>]+rel=["']alternate icon["'][^>]+href=["']\/favicon\.ico["']/i);
+
+    const svgPath = path.resolve(process.cwd(), 'public/favicon.svg');
+    assert.equal(fs.existsSync(svgPath), true, 'public/favicon.svg exists');
+    const svgContent = fs.readFileSync(svgPath, 'utf-8');
+    assert.match(svgContent, /fill=["']#f59e0b["']/i, 'SVG uses orange/amber color');
+    assert.match(svgContent, /<rect[^>]+rx=["'][678]["']/i, 'SVG has rounded badge shape');
+    assert.match(svgContent, /d=["']M12 7v14["']/, 'SVG contains Lucide BookOpen spine path');
+    assert.match(svgContent, /d=["']M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z["']/, 'SVG contains Lucide BookOpen pages path');
+
+    const icoPath = path.resolve(process.cwd(), 'public/favicon.ico');
+    assert.equal(fs.existsSync(icoPath), true, 'public/favicon.ico exists');
+    const icoStats = fs.statSync(icoPath);
+    assert.ok(icoStats.size > 0, 'public/favicon.ico is non-empty');
+  });
 });
