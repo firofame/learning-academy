@@ -280,10 +280,23 @@ describe('Fazia Grade 2 Hindi exam portions', () => {
 
     const chooseQuestions = FAZIA_HINDI_LESSON.questions.filter(q => q.section === 'choose-word');
     assert.equal(chooseQuestions.length, 6);
-    for (const q of chooseQuestions) {
-      assert.equal(q.kind, 'choice');
+    const expectedIllustrations = [
+      { id: 'g2-hin-choose-1', clue: 'Elephant', emoji: '🐘', answer: 'हाथी' },
+      { id: 'g2-hin-choose-2', clue: 'Clay Lamp', emoji: '🪔', answer: 'दीपक' },
+      { id: 'g2-hin-choose-3', clue: 'Book', emoji: '📖', answer: 'किताब' },
+      { id: 'g2-hin-choose-4', clue: 'Water', emoji: '💧', answer: 'पानी' },
+      { id: 'g2-hin-choose-5', clue: 'Bird', emoji: '🐦', answer: 'चिड़िया' },
+      { id: 'g2-hin-choose-6', clue: 'Girl', emoji: '👧', answer: 'लड़की' }
+    ];
+
+    for (const expected of expectedIllustrations) {
+      const q = chooseQuestions.find(item => item.id === expected.id);
+      assert.ok(q && q.kind === 'choice');
+      assert.equal(q.clue, expected.clue);
+      assert.equal(q.visualEmoji, expected.emoji);
+      assert.equal(q.answer, expected.answer);
       assert.ok(!q.prompt.includes(q.answer), `Prompt "${q.prompt}" must not reveal answer "${q.answer}"`);
-      assert.ok(q.prompt.startsWith('सही शब्द चुनिए:'), `Prompt "${q.prompt}" must use neutral prompt prefix`);
+      assert.equal(q.prompt, `सही शब्द चुनिए: ${expected.clue}`);
     }
 
     const ray = FAZIA_HINDI_LESSON.questions.find(q => q.id === 'g2-hin-readwrite-1')!;

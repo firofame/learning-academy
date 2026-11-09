@@ -538,7 +538,7 @@ const faziaChooseWords: {
   { clue: 'Elephant', emoji: '🐘', options: ['हाथी', 'राजा'], answer: 'हाथी' },
   { clue: 'Clay Lamp', emoji: '🪔', options: ['दीपक', 'चिड़िया'], answer: 'दीपक' },
   { clue: 'Book', emoji: '📖', options: ['किताब', 'किसान'], answer: 'किताब' },
-  { clue: 'Water', emoji: '🥛', options: ['पानी', 'नानी'], answer: 'पानी' },
+  { clue: 'Water', emoji: '💧', options: ['पानी', 'नानी'], answer: 'पानी' },
   { clue: 'Bird', emoji: '🐦', options: ['चिड़िया', 'नदिया'], answer: 'चिड़िया' },
   { clue: 'Girl', emoji: '👧', options: ['लड़की', 'मकड़ी'], answer: 'लड़की' }
 ];
