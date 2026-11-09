@@ -397,7 +397,7 @@ export function mergeLearningRecords(
     }
   }
 
-  return Array.from(recordMap.values());
+  return Array.from(recordMap.values()).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function pickLaterResult(a: SubjectResult | null, b: SubjectResult | null): SubjectResult | null {
