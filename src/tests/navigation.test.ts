@@ -96,6 +96,23 @@ describe('URL Navigation & Route Resolution', () => {
       assert.deepEqual(parseRoute('/', '#/shiza/maths'), { studentId: 'shiza', view: 'maths' });
       assert.deepEqual(parseRoute('', '#fazia/evs'), { studentId: 'fazia', view: 'evs' });
     });
+
+    test('requires strict segment boundary when stripping base prefix', () => {
+      // Subpath with exact segment boundary is stripped correctly
+      assert.deepEqual(
+        parseRoute('/learning-academy/shiza/maths', '', '/learning-academy'),
+        { studentId: 'shiza', view: 'maths' }
+      );
+      assert.deepEqual(
+        parseRoute('/learning-academy', '', '/learning-academy'),
+        { studentId: null, view: null }
+      );
+      // Similar prefix without slash boundary must NOT be stripped
+      assert.deepEqual(
+        parseRoute('/learning-academy-other/shiza/maths', '', '/learning-academy'),
+        { studentId: null, view: null }
+      );
+    });
   });
 
   describe('buildRouteUrl', () => {

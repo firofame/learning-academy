@@ -933,8 +933,8 @@ describe('Shared exam-eve revision interactions', () => {
     assert.equal(window.location.pathname, '/shiza/maths');
   });
 
-  test('browser popstate navigation restores previous view', async () => {
-    window.history.replaceState(null, '', '/shiza/home');
+  test('actual browser history.back() restores previous view', async () => {
+    window.history.pushState(null, '', '/shiza/home');
     const view = render(React.createElement(App));
 
     assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
@@ -944,14 +944,21 @@ describe('Shared exam-eve revision interactions', () => {
     await view.findByRole('region', { name: 'Revision overview' });
     assert.equal(window.location.pathname, '/shiza/maths');
 
-    // Simulate browser Back button
-    window.history.replaceState(null, '', '/shiza/home');
+    // Exercise actual browser history stack with history.back()
     await act(async () => {
-      window.dispatchEvent(new window.PopStateEvent('popstate', { state: { studentId: 'shiza', view: 'home' } }));
+      window.history.back();
     });
 
+    await waitFor(() => assert.equal(window.location.pathname, '/shiza/home'));
     await view.findByRole('region', { name: 'Subjects for Grade 6' });
-    assert.equal(window.location.pathname, '/shiza/home');
+  });
+
+  test('unknown routes are canonicalized to home URL', async () => {
+    window.history.replaceState(null, '', '/unknown-nonsense-route');
+    const view = render(React.createElement(App));
+
+    await view.findByRole('region', { name: 'Subjects for Grade 2' });
+    assert.equal(window.location.pathname, '/fazia/home');
   });
 });
 

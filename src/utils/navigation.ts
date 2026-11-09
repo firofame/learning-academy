@@ -64,7 +64,7 @@ export function findStudentBySlug(slug: string): StudentId | null {
   return match ? match.id : null;
 }
 
-export function parseRoute(pathname: string, hash = ''): ParsedRoute {
+export function parseRoute(pathname: string, hash = '', customBasePrefix?: string): ParsedRoute {
   let path = pathname || '/';
 
   // Support hash routing fallback (e.g. #/shiza/maths or #shiza/maths)
@@ -76,8 +76,9 @@ export function parseRoute(pathname: string, hash = ''): ParsedRoute {
   }
 
   // Strip base prefix if running under a subpath (e.g. /learning-academy)
-  const basePrefix = getBasePrefix();
-  if (basePrefix && path.startsWith(basePrefix)) {
+  // Ensure strict segment boundary to avoid stripping unintended prefix matches (e.g. /learning-academy-other)
+  const basePrefix = customBasePrefix !== undefined ? customBasePrefix : getBasePrefix();
+  if (basePrefix && (path === basePrefix || path.startsWith(`${basePrefix}/`))) {
     path = path.slice(basePrefix.length) || '/';
   }
 

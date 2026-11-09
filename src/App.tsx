@@ -19,7 +19,8 @@ import {
   resolveInitialRoute,
   updateRoute,
   updateDocumentTitle,
-  parseRoute
+  parseRoute,
+  buildRouteUrl
 } from './utils/navigation';
 
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
@@ -110,7 +111,12 @@ export default function App() {
       if (subject && !getAvailableSubjectsForGrade(profile.grade).some(available => available.id === subject.id)) {
         emitStorageError(`${subject.name} is not available for ${profile.gradeLabel}. Please choose another subject.`);
         targetView = 'home';
-        updateRoute(studentId, 'home', true);
+      }
+
+      // Canonicalize invalid or non-canonical URLs in browser address bar (e.g. /unknown-route or grade mismatch)
+      const canonicalUrl = buildRouteUrl(studentId, targetView);
+      if (window.location.pathname !== canonicalUrl) {
+        updateRoute(studentId, targetView, true);
       }
 
       if (studentId !== activeStudentRef.current) {
