@@ -76,6 +76,8 @@ export interface HindiPairQuestion extends HindiQuestionBase {
 export interface HindiChoiceQuestion extends HindiQuestionBase {
   kind: 'choice';
   options: string[];
+  clue?: string;
+  visualEmoji?: string;
 }
 
 export type HindiQuestion =
@@ -118,14 +120,18 @@ const choiceQuestion = (
   section: HindiSectionId,
   prompt: string,
   options: string[],
-  answer: string
+  answer: string,
+  clue?: string,
+  visualEmoji?: string
 ): HindiChoiceQuestion => ({
   id,
   section,
   kind: 'choice',
   prompt,
   options,
-  answer
+  answer,
+  clue,
+  visualEmoji
 });
 
 const writtenQuestion = (
@@ -524,16 +530,17 @@ const faziaCompleteWords: {
 ];
 
 const faziaChooseWords: {
-  name: string;
+  clue: string;
+  emoji: string;
   options: string[];
   answer: string;
 }[] = [
-  { name: 'हाथी (Elephant)', options: ['हाथी', 'राजा'], answer: 'हाथी' },
-  { name: 'दीपक (Clay Lamp)', options: ['दीपक', 'चिड़िया'], answer: 'दीपक' },
-  { name: 'किताब (Book)', options: ['किताब', 'किसान'], answer: 'किताब' },
-  { name: 'गिलास में पानी (Water)', options: ['पानी', 'नानी'], answer: 'पानी' },
-  { name: 'चिड़िया (Bird)', options: ['चिड़िया', 'नदिया'], answer: 'चिड़िया' },
-  { name: 'लड़की (Girl)', options: ['लड़की', 'मकड़ी'], answer: 'लड़की' }
+  { clue: 'Elephant', emoji: '🐘', options: ['हाथी', 'राजा'], answer: 'हाथी' },
+  { clue: 'Clay Lamp', emoji: '🪔', options: ['दीपक', 'चिड़िया'], answer: 'दीपक' },
+  { clue: 'Book', emoji: '📖', options: ['किताब', 'किसान'], answer: 'किताब' },
+  { clue: 'Water', emoji: '🥛', options: ['पानी', 'नानी'], answer: 'पानी' },
+  { clue: 'Bird', emoji: '🐦', options: ['चिड़िया', 'नदिया'], answer: 'चिड़िया' },
+  { clue: 'Girl', emoji: '👧', options: ['लड़की', 'मकड़ी'], answer: 'लड़की' }
 ];
 
 const faziaReadAndWrite: string[] = [
@@ -622,13 +629,15 @@ export const FAZIA_HINDI_LESSON: HindiLesson = {
         [fullWord]
       )
     ),
-    ...faziaChooseWords.map(({ name, options, answer }, index) =>
+    ...faziaChooseWords.map(({ clue, emoji, options, answer }, index) =>
       choiceQuestion(
         `g2-hin-choose-${index + 1}`,
         'choose-word',
-        `चित्र देखकर सही शब्द चुनिए: ${name}`,
+        `सही शब्द चुनिए: ${clue}`,
         options,
-        answer
+        answer,
+        clue,
+        emoji
       )
     ),
     ...faziaReadAndWrite.map((word, index) =>

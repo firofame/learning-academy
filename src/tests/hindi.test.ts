@@ -275,6 +275,16 @@ describe('Fazia Grade 2 Hindi exam portions', () => {
     assert.equal(elephant.kind, 'choice');
     assert.equal(checkHindiAnswer(elephant, 'हाथी'), true);
     assert.equal(checkHindiAnswer(elephant, 'राजा'), false);
+    assert.equal(elephant.prompt, 'सही शब्द चुनिए: Elephant');
+    assert.ok(!elephant.prompt.includes('हाथी'), 'Question prompt must not leak the correct Hindi answer');
+
+    const chooseQuestions = FAZIA_HINDI_LESSON.questions.filter(q => q.section === 'choose-word');
+    assert.equal(chooseQuestions.length, 6);
+    for (const q of chooseQuestions) {
+      assert.equal(q.kind, 'choice');
+      assert.ok(!q.prompt.includes(q.answer), `Prompt "${q.prompt}" must not reveal answer "${q.answer}"`);
+      assert.ok(q.prompt.startsWith('सही शब्द चुनिए:'), `Prompt "${q.prompt}" must use neutral prompt prefix`);
+    }
 
     const ray = FAZIA_HINDI_LESSON.questions.find(q => q.id === 'g2-hin-readwrite-1')!;
     assert.equal(checkHindiAnswer(ray, 'किरण'), true);

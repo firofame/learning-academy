@@ -351,6 +351,12 @@ function hindiQuestion(
     answer: question.answer,
     responseFormat: isChoice ? 'choice' : 'written',
     ...(isChoice ? { options: question.options } : {}),
+    promptContent: (question.kind === 'choice' && question.visualEmoji) ? (
+      <div className="my-3 flex flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-center">
+        <span className="text-6xl" role="img" aria-label={question.clue ?? 'clue'}>{question.visualEmoji}</span>
+        {question.clue && <span className="mt-2 text-sm font-semibold text-slate-700">{question.clue}</span>}
+      </div>
+    ) : undefined,
     explanation: markingCriteria,
     provenance: lesson.sourceNote,
     helpContent: (
