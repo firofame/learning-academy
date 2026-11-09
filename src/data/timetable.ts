@@ -151,6 +151,7 @@ export const GRADE_2_TIMETABLE: TimetableEntry[] = [
     displayDate: '11/11/26',
     dayOfWeek: 'Wednesday',
     subject: 'Hindi (हिन्दी)',
+    subjectId: 'hindi',
     sessionTime: '8:30 AM – 10:45 AM'
   },
   {

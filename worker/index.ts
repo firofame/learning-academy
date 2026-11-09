@@ -1,6 +1,6 @@
 import { ROBOTICS_LESSONS } from '../src/data/robotics';
 import { FAZIA_MALAYALAM_LESSON, SHIZA_MALAYALAM_LESSON } from '../src/data/malayalam';
-import { SHIZA_HINDI_LESSON } from '../src/data/hindi';
+import { FAZIA_HINDI_LESSON, SHIZA_HINDI_LESSON } from '../src/data/hindi';
 import { FAZIA_EVS_LESSON } from '../src/data/evs';
 import { SHIZA_BIOLOGY_LESSON } from '../src/data/biology';
 import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
@@ -182,7 +182,9 @@ async function generateGrade(
                     : 'You mark elementary-school Malayalam synonym and short-answer responses against the supplied trusted marking criteria. ' +
                       'Understand the question, reference answer, and student answer in Malayalam. Accept equivalent Malayalam wording when it has the same meaning; reject unrelated, opposite, or English-only answers. ')
                 : subject === 'hindi'
-                  ? 'You mark Grade 6 Hindi written answers against the supplied trusted marking criteria. Understand the question, reference answer, and student answer in Hindi. Accept equivalent Hindi wording and minor spelling variation when the meaning is clear; require every essential idea and reject contradictions or irrelevant answers. '
+                  ? (gradeLevel !== undefined && gradeLevel >= 6
+                      ? 'You mark Grade 6 Hindi written answers against the supplied trusted marking criteria. Understand the question, reference answer, and student answer in Hindi. Accept equivalent Hindi wording and minor spelling variation when the meaning is clear; require every essential idea and reject contradictions or irrelevant answers. '
+                      : 'You mark elementary-school Hindi responses against the supplied trusted marking criteria. Understand the question, reference answer, and student answer in Hindi. Accept equivalent Hindi wording when it has the same meaning; reject unrelated, opposite, or English-only answers. ')
                   : 'You mark elementary-school robotics answers against the supplied trusted marking criteria. ' +
                   'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid examples. ' +
                   'Require every essential idea in the criteria; reject contradictions and irrelevant answers. ') +
@@ -281,9 +283,10 @@ export async function handleGradingRequest(
       .find(lesson => lesson.id === body.lessonId);
     const malayalamQuestion = malayalamLesson?.questions
       .find(question => question.id === body.questionId);
-    const hindiQuestion = body.lessonId === SHIZA_HINDI_LESSON.id
-      ? SHIZA_HINDI_LESSON.questions.find(question => question.id === body.questionId)
-      : undefined;
+    const hindiLesson = [FAZIA_HINDI_LESSON, SHIZA_HINDI_LESSON]
+      .find(lesson => lesson.id === body.lessonId);
+    const hindiQuestion = hindiLesson?.questions
+      .find(question => question.id === body.questionId);
     const evsQuestion = body.lessonId === FAZIA_EVS_LESSON.id
       ? FAZIA_EVS_LESSON.questions.find(question => question.id === body.questionId)
       : undefined;
@@ -317,11 +320,11 @@ export async function handleGradingRequest(
         referenceAnswer: malayalamQuestion.answer,
         markingCriteria: malayalamQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };
-    } else if (hindiQuestion && hindiQuestion.kind !== 'pair' && hindiQuestion.markingCriteria) {
+    } else if (hindiLesson && hindiQuestion && hindiQuestion.kind !== 'pair' && hindiQuestion.kind !== 'choice' && hindiQuestion.markingCriteria) {
       subject = 'hindi';
-      gradeLevel = SHIZA_HINDI_LESSON.grade;
+      gradeLevel = hindiLesson.grade;
       context = {
-        grade: SHIZA_HINDI_LESSON.grade, question: hindiQuestion.prompt,
+        grade: hindiLesson.grade, question: hindiQuestion.prompt,
         referenceAnswer: hindiQuestion.answer,
         markingCriteria: hindiQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };

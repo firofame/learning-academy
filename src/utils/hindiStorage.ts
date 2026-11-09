@@ -44,7 +44,8 @@ function isValidHindiResult(value: unknown, mode: HindiRevisionMode, lesson: Ret
     if (!section || section === 'all') {
       expectedQuestionIds = new Set(lesson.questions.map(q => q.id));
     } else {
-      if (!HINDI_SECTIONS.some(s => s.id === section)) return false;
+      const availableSections = lesson.sections ?? HINDI_SECTIONS;
+      if (!availableSections.some(s => s.id === section)) return false;
       expectedQuestionIds = new Set(lesson.questions.filter(q => q.section === section).map(q => q.id));
       if (expectedQuestionIds.size === 0) return false;
     }

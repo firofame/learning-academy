@@ -8,13 +8,23 @@ export type HindiSectionId =
   | 'poem'
   | 'trees'
   | 'sreedharan'
-  | 'essay';
+  | 'essay'
+  | 'sentences'
+  | 'word-pairs'
+  | 'combine'
+  | 'word-making'
+  | 'complete-words'
+  | 'choose-word'
+  | 'read-and-write';
 
-export const HINDI_SECTIONS: {
+export interface HindiSection {
   id: HindiSectionId;
+  number?: string;
   label: string;
   nativeLabel: string;
-}[] = [
+}
+
+export const HINDI_SECTIONS: HindiSection[] = [
   { id: 'meanings', label: 'Word meanings', nativeLabel: 'अर्थ लिखो' },
   { id: 'translations', label: 'Translations', nativeLabel: 'हिन्दी / अंग्रेज़ी में लिखो' },
   { id: 'synonyms', label: 'Synonyms', nativeLabel: 'पर्यायवाची शब्द' },
@@ -22,6 +32,20 @@ export const HINDI_SECTIONS: {
   { id: 'trees', label: 'पेड़ questions', nativeLabel: 'उत्तर लिखो' },
   { id: 'sreedharan', label: 'श्रीधरन questions', nativeLabel: 'उत्तर लिखो' },
   { id: 'essay', label: 'Tree paragraph', nativeLabel: 'पेड़ पर अनुच्छेद' }
+];
+
+export const SHIZA_HINDI_SECTIONS = HINDI_SECTIONS;
+
+export const FAZIA_HINDI_SECTIONS: HindiSection[] = [
+  { id: 'meanings', number: 'I', label: 'Word meanings (Hindi to English)', nativeLabel: 'अर्थ लिखो' },
+  { id: 'translations', number: 'II', label: 'Word meanings (English to Hindi)', nativeLabel: 'अंग्रेज़ी शब्दों के अर्थ हिन्दी में लिखो' },
+  { id: 'sentences', number: 'III', label: 'Complete the sentences', nativeLabel: 'रिक्त स्थान भरकर वाक्य पूरा करो' },
+  { id: 'word-pairs', number: 'IV', label: 'Write two words for each letter', nativeLabel: 'दो-दो शब्द लिखो' },
+  { id: 'combine', number: 'V', label: 'Combine letters to form words', nativeLabel: 'अक्षरों को मिलाकर शब्द बनाइए' },
+  { id: 'word-making', number: 'VI', label: 'Frame the words', nativeLabel: 'शब्द बनाओ' },
+  { id: 'complete-words', number: 'VII', label: 'Complete picture name', nativeLabel: 'सही मात्रा वाला वर्ण लिखकर नाम पूरा करो' },
+  { id: 'choose-word', number: 'VIII', label: 'Choose the correct word', nativeLabel: 'चित्र देखकर सही शब्द चुनो' },
+  { id: 'read-and-write', number: 'IX', label: 'Read and write', nativeLabel: 'शब्दों को पढ़ो और सुंदर अक्षरों में लिखो' }
 ];
 
 interface HindiQuestionBase {
@@ -46,9 +70,21 @@ export interface HindiWrittenQuestion extends HindiQuestionBase {
 export interface HindiPairQuestion extends HindiQuestionBase {
   kind: 'pair';
   answerWords: readonly [string, string];
+  acceptedPairs?: readonly (readonly [string, string])[];
 }
 
-export type HindiQuestion = HindiTextQuestion | HindiWrittenQuestion | HindiPairQuestion;
+export interface HindiChoiceQuestion extends HindiQuestionBase {
+  kind: 'choice';
+  options: string[];
+  clue?: string;
+  visualEmoji?: string;
+}
+
+export type HindiQuestion =
+  | HindiTextQuestion
+  | HindiWrittenQuestion
+  | HindiPairQuestion
+  | HindiChoiceQuestion;
 
 export interface HindiLesson {
   id: string;
@@ -56,8 +92,9 @@ export interface HindiLesson {
   title: string;
   examDate: string;
   sourceNote: string;
-  poem: string[];
-  essay: string;
+  sections: HindiSection[];
+  poem?: string[];
+  essay?: string;
   questions: HindiQuestion[];
 }
 
@@ -76,6 +113,25 @@ const textQuestion = (
   answer,
   acceptedAnswers: [answer, ...acceptedAnswers],
   markingCriteria
+});
+
+const choiceQuestion = (
+  id: string,
+  section: HindiSectionId,
+  prompt: string,
+  options: string[],
+  answer: string,
+  clue?: string,
+  visualEmoji?: string
+): HindiChoiceQuestion => ({
+  id,
+  section,
+  kind: 'choice',
+  prompt,
+  options,
+  answer,
+  clue,
+  visualEmoji
 });
 
 const writtenQuestion = (
@@ -254,6 +310,7 @@ export const SHIZA_HINDI_LESSON: HindiLesson = {
   title: 'Grade 6 Hindi Exam Revision',
   examDate: '2026-11-05',
   sourceNote: 'Prepared from the notebook transcription. The page 39 “वचन बदलो” list and one unclear vocabulary entry were not complete, so they are not guessed.',
+  sections: SHIZA_HINDI_SECTIONS,
   poem: [
     'खड़े-खड़े मुसकाते पेड़।',
     'कहीं न आते-जाते पेड़॥',
@@ -326,8 +383,278 @@ export const SHIZA_HINDI_LESSON: HindiLesson = {
   ]
 };
 
+const faziaMeanings: {
+  word: string;
+  answer: string;
+  acceptedAnswers?: string[];
+}[] = [
+  { word: 'नल', answer: 'Tap', acceptedAnswers: ['tap'] },
+  { word: 'कमल', answer: 'Lotus', acceptedAnswers: ['lotus'] },
+  { word: 'घर', answer: 'House', acceptedAnswers: ['home'] },
+  { word: 'किसान', answer: 'Farmer' },
+  { word: 'मगर', answer: 'Crocodile', acceptedAnswers: ['alligator'] },
+  { word: 'बकरी', answer: 'Goat' },
+  { word: 'अनार', answer: 'Pomegranate' },
+  { word: 'लड़की', answer: 'Girl' },
+  { word: 'सुबह', answer: 'Morning', acceptedAnswers: ['dawn'] },
+  { word: 'सड़क', answer: 'Road', acceptedAnswers: ['street'] },
+  { word: 'इडली', answer: 'Idli' },
+  { word: 'शलगम', answer: 'Turnip' },
+  { word: 'वृषभ', answer: 'Bull', acceptedAnswers: ['ox'] },
+  { word: 'मृग', answer: 'Deer' },
+  { word: 'नाक', answer: 'Nose' },
+  { word: 'सवेरा', answer: 'Morning', acceptedAnswers: ['dawn'] }
+];
+
+const faziaTranslations: {
+  word: string;
+  answer: string;
+  acceptedAnswers?: string[];
+}[] = [
+  { word: 'Wool', answer: 'ऊन' },
+  { word: 'Tree', answer: 'वृक्ष', acceptedAnswers: ['पेड़', 'पेड'] },
+  { word: 'Beauty', answer: 'रूप', acceptedAnswers: ['सुंदरता'] },
+  { word: 'Saint', answer: 'ऋषि', acceptedAnswers: ['मुनि', 'साधु'] },
+  { word: 'Bear', answer: 'भालू', acceptedAnswers: ['रीछ'] },
+  { word: 'Flower', answer: 'फूल', acceptedAnswers: ['पुष्प'] },
+  { word: 'Sun', answer: 'सूरज', acceptedAnswers: ['सूर्य'] },
+  { word: 'Rose', answer: 'गुलाब' },
+  { word: 'Book', answer: 'किताब', acceptedAnswers: ['पुस्तक'] },
+  { word: 'Heel', answer: 'एड़ी', acceptedAnswers: ['एडी'] },
+  { word: 'Train', answer: 'रेल', acceptedAnswers: ['रेलगाड़ी', 'रेलगाडी'] },
+  { word: 'Water', answer: 'पानी', acceptedAnswers: ['जल'] },
+  { word: 'Fish', answer: 'मछली', acceptedAnswers: ['मत्स्य'] },
+  { word: 'Happy', answer: 'खुश', acceptedAnswers: ['प्रसन्न'] },
+  { word: 'Fire', answer: 'आग', acceptedAnswers: ['अग्नि'] },
+  { word: 'Umbrella', answer: 'छाता', acceptedAnswers: ['छतरी'] }
+];
+
+const faziaSentences: {
+  prompt: string;
+  answer: string;
+  acceptedAnswers?: string[];
+}[] = [
+  {
+    prompt: 'रिक्त स्थान भरकर वाक्य पूरा कीजिए: “नाक ______ साफ कर।”',
+    answer: 'कान',
+    acceptedAnswers: ['नाक कान साफ कर', 'नाक कान साफ कर।']
+  },
+  {
+    prompt: 'रिक्त स्थान भरकर वाक्य पूरा कीजिए: “अपना ______ याद कर।”',
+    answer: 'पाठ',
+    acceptedAnswers: ['अपना पाठ याद कर', 'अपना पाठ याद कर।']
+  },
+  {
+    prompt: 'रिक्त स्थान भरकर वाक्य पूरा कीजिए: “______ ला।”',
+    answer: 'छाता',
+    acceptedAnswers: ['छाता ला', 'छाता ला।']
+  },
+  {
+    prompt: 'रिक्त स्थान भरकर वाक्य पूरा कीजिए: “गीता ______ पढ़।”',
+    answer: 'किताब',
+    acceptedAnswers: ['गीता किताब पढ़', 'गीता किताब पढ़।', 'गीता किताब पढ', 'गीता किताब पढ।', 'किताब पढ']
+  },
+  {
+    prompt: 'रिक्त स्थान भरकर वाक्य पूरा कीजिए: “मृग ______ चर रहा है।”',
+    answer: 'तृण',
+    acceptedAnswers: ['मृग तृण चर रहा है', 'मृग तृण चर रहा है।']
+  },
+  {
+    prompt: 'रिक्त स्थान भरकर वाक्य पूरा कीजिए: “______ का आदर कर।”',
+    answer: 'ऋषि',
+    acceptedAnswers: ['ऋषि का आदर कर', 'ऋषि का आदर कर।']
+  }
+];
+
+const faziaLetterPairs: {
+  letter: string;
+  first: string;
+  second: string;
+  acceptedPairs?: readonly (readonly [string, string])[];
+}[] = [
+  { letter: 'ई', first: 'ईख', second: 'ईंट', acceptedPairs: [['ईंट', 'ईख']] },
+  { letter: 'रु', first: 'रुपया', second: 'रुकना', acceptedPairs: [['रुकना', 'रुपया']] },
+  { letter: 'उ', first: 'उल्लू', second: 'उपहार', acceptedPairs: [['उपहार', 'उल्लू']] },
+  { letter: 'ऋ', first: 'ऋषि', second: 'ऋषभ', acceptedPairs: [['ऋषभ', 'ऋषि']] },
+  { letter: 'ऊ', first: 'ऊँट', second: 'ऊन', acceptedPairs: [['ऊंट', 'ऊन'], ['ऊन', 'ऊँट'], ['ऊन', 'ऊंट']] },
+  { letter: 'ए', first: 'एड़ी', second: 'एक', acceptedPairs: [['एडी', 'एक'], ['एक', 'एड़ी'], ['एक', 'एडी']] }
+];
+
+const faziaCombineLetters: {
+  letters: string;
+  answer: string;
+  acceptedAnswers?: string[];
+}[] = [
+  { letters: 'ब + र + ग + द', answer: 'बरगद' },
+  { letters: 'अ + द + र + क', answer: 'अदरक' },
+  { letters: 'कि + सा + न', answer: 'किसान' },
+  { letters: 'म + छ + ली', answer: 'मछली' },
+  { letters: 'अ + ज + ग + र', answer: 'अजगर' },
+  { letters: 'रु + प + या', answer: 'रुपया' },
+  { letters: 'कृ + पा', answer: 'कृपा' },
+  { letters: 'ब + क + री', answer: 'बकरी' }
+];
+
+const faziaWordMaking: {
+  formula: string;
+  answer: string;
+  acceptedAnswers?: string[];
+}[] = [
+  { formula: 'कि + ताब', answer: 'किताब' },
+  { formula: 'कि + वाड़', answer: 'किवाड़', acceptedAnswers: ['किवाड़'] },
+  { formula: 'कि + नारा', answer: 'किनारा' },
+  { formula: 'मछ + ली', answer: 'मछली' },
+  { formula: 'बद + ली', answer: 'बदली' },
+  { formula: 'बिज + ली', answer: 'बिजली' },
+  { formula: 'भा + लू', answer: 'भालू' },
+  { formula: 'आ + लू', answer: 'आलू' },
+  { formula: 'शा + लू', answer: 'शालू' },
+  { formula: 'का + लू', answer: 'कालू' }
+];
+
+const faziaCompleteWords: {
+  incomplete: string;
+  letter: string;
+  fullWord: string;
+}[] = [
+  { incomplete: '...लाब', letter: 'गु', fullWord: 'गुलाब' },
+  { incomplete: '...रज', letter: 'सू', fullWord: 'सूरज' },
+  { incomplete: '...न', letter: 'ऊ', fullWord: 'ऊन' },
+  { incomplete: '...ल्लू', letter: 'उ', fullWord: 'उल्लू' },
+  { incomplete: 'भा...', letter: 'लू', fullWord: 'भालू' },
+  { incomplete: 'क...तर', letter: 'बू', fullWord: 'कबूतर' },
+  { incomplete: 'क...आ', letter: 'छु', fullWord: 'कछुआ' },
+  { incomplete: 'आ...', letter: 'लू', fullWord: 'आलू' },
+  { incomplete: 'ख...र', letter: 'जू', fullWord: 'खजूर' },
+  { incomplete: 'चू...', letter: 'हा', fullWord: 'चूहा' }
+];
+
+const faziaChooseWords: {
+  clue: string;
+  emoji: string;
+  options: string[];
+  answer: string;
+}[] = [
+  { clue: 'Elephant', emoji: '🐘', options: ['हाथी', 'राजा'], answer: 'हाथी' },
+  { clue: 'Clay Lamp', emoji: '🪔', options: ['दीपक', 'चिड़िया'], answer: 'दीपक' },
+  { clue: 'Book', emoji: '📖', options: ['किताब', 'किसान'], answer: 'किताब' },
+  { clue: 'Water', emoji: '💧', options: ['पानी', 'नानी'], answer: 'पानी' },
+  { clue: 'Bird', emoji: '🐦', options: ['चिड़िया', 'नदिया'], answer: 'चिड़िया' },
+  { clue: 'Girl', emoji: '👧', options: ['लड़की', 'मकड़ी'], answer: 'लड़की' }
+];
+
+const faziaReadAndWrite: string[] = [
+  'किरण',
+  'विमान',
+  'डाकिया',
+  'सितार',
+  'किताब',
+  'दिन',
+  'चीनी',
+  'दीवार',
+  'दीपक',
+  'सीटी',
+  'बकरी',
+  'झील'
+];
+
+export const FAZIA_HINDI_LESSON: HindiLesson = {
+  id: 'fazia-grade-2-hindi-sem1',
+  grade: 2,
+  title: 'Grade 2 Hindi Exam Revision',
+  examDate: '2026-11-11',
+  sourceNote: 'हिन्दी रीडर (भाग-2) • अभ्यास एवं परीक्षा कार्य · मॉडल प्रश्न-पत्र : प्रथम सत्र परीक्षा (I Sem Exam) · नोटबुक कार्य एवं पाठ्यपुस्तक अभ्यास (पृष्ठ 20, 21, 26)',
+  sections: FAZIA_HINDI_SECTIONS,
+  questions: [
+    ...faziaMeanings.map(({ word, answer, acceptedAnswers }, index) =>
+      textQuestion(
+        `g2-hin-meaning-${index + 1}`,
+        'meanings',
+        `“${word}” का अर्थ अंग्रेज़ी में लिखिए।`,
+        answer,
+        acceptedAnswers
+      )
+    ),
+    ...faziaTranslations.map(({ word, answer, acceptedAnswers }, index) =>
+      textQuestion(
+        `g2-hin-translation-${index + 1}`,
+        'translations',
+        `“${word}” का अर्थ हिन्दी में लिखिए।`,
+        answer,
+        acceptedAnswers
+      )
+    ),
+    ...faziaSentences.map(({ prompt, answer, acceptedAnswers }, index) =>
+      textQuestion(
+        `g2-hin-sentence-${index + 1}`,
+        'sentences',
+        prompt,
+        answer,
+        acceptedAnswers
+      )
+    ),
+    ...faziaLetterPairs.map(({ letter, first, second, acceptedPairs }, index) => ({
+      id: `g2-hin-pair-${index + 1}`,
+      section: 'word-pairs' as const,
+      kind: 'pair' as const,
+      prompt: `“${letter}” वर्ण से दो शब्द लिखिए।`,
+      answer: `${first}, ${second}`,
+      answerWords: [first, second] as const,
+      acceptedPairs
+    })),
+    ...faziaCombineLetters.map(({ letters, answer, acceptedAnswers }, index) =>
+      textQuestion(
+        `g2-hin-combine-${index + 1}`,
+        'combine',
+        `अक्षरों को मिलाकर शब्द बनाइए: “${letters}”`,
+        answer,
+        acceptedAnswers
+      )
+    ),
+    ...faziaWordMaking.map(({ formula, answer, acceptedAnswers }, index) =>
+      textQuestion(
+        `g2-hin-word-making-${index + 1}`,
+        'word-making',
+        `वर्ण जोड़कर शब्द बनाइए: “${formula}”`,
+        answer,
+        acceptedAnswers
+      )
+    ),
+    ...faziaCompleteWords.map(({ incomplete, letter, fullWord }, index) =>
+      textQuestion(
+        `g2-hin-complete-${index + 1}`,
+        'complete-words',
+        `सही मात्रा वाला वर्ण लिखकर नाम पूरा कीजिए: “${incomplete}”`,
+        letter,
+        [fullWord]
+      )
+    ),
+    ...faziaChooseWords.map(({ clue, emoji, options, answer }, index) =>
+      choiceQuestion(
+        `g2-hin-choose-${index + 1}`,
+        'choose-word',
+        `सही शब्द चुनिए: ${clue}`,
+        options,
+        answer,
+        clue,
+        emoji
+      )
+    ),
+    ...faziaReadAndWrite.map((word, index) =>
+      textQuestion(
+        `g2-hin-readwrite-${index + 1}`,
+        'read-and-write',
+        `पढ़कर सुंदर अक्षरों में लिखिए: “${word}”`,
+        word
+      )
+    )
+  ]
+};
+
 export function getHindiLessonForGrade(grade: number): HindiLesson | undefined {
-  return grade === SHIZA_HINDI_LESSON.grade ? SHIZA_HINDI_LESSON : undefined;
+  if (grade === FAZIA_HINDI_LESSON.grade) return FAZIA_HINDI_LESSON;
+  if (grade === SHIZA_HINDI_LESSON.grade) return SHIZA_HINDI_LESSON;
+  return undefined;
 }
 
 export function getHindiLesson(studentId: StudentId): HindiLesson {
@@ -351,16 +678,24 @@ export function normalizeHindiAnswer(answer: string): string {
 
 export function checkHindiAnswer(question: HindiQuestion, answer: string): boolean {
   if (!answer.trim()) return false;
+  if (question.kind === 'choice') {
+    return normalizeHindiAnswer(answer) === normalizeHindiAnswer(question.answer);
+  }
   if (question.kind === 'pair') {
     const submittedWords = answer
       .normalize('NFC')
       .split(/[,\s/;|،]+/u)
       .map(normalizeHindiAnswer)
       .filter(word => word && word !== 'और' && word !== 'तथा' && word !== 'and');
-    const expectedWords = question.answerWords.map(normalizeHindiAnswer);
-    return submittedWords.length === expectedWords.length &&
-      new Set(submittedWords).size === expectedWords.length &&
-      expectedWords.every(word => submittedWords.includes(word));
+    const pairMatches = (expectedPair: readonly [string, string]) => {
+      const expectedWords = expectedPair.map(normalizeHindiAnswer);
+      return submittedWords.length === expectedWords.length &&
+        new Set(submittedWords).size === expectedWords.length &&
+        expectedWords.every(word => submittedWords.includes(word));
+    };
+    if (pairMatches(question.answerWords)) return true;
+    if (question.acceptedPairs?.some(pairMatches)) return true;
+    return false;
   }
   const normalized = normalizeHindiAnswer(answer);
   return question.acceptedAnswers.some(
