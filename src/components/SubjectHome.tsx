@@ -371,6 +371,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                     <Dna className="w-8 h-8 text-emerald-700" aria-hidden="true" />
                   ) : subject.id === 'chemistry' ? (
                     <FlaskConical className="w-8 h-8 text-purple-700" aria-hidden="true" />
+                  ) : subject.id === 'english' ? (
+                    <BookOpen className="w-8 h-8 text-blue-700" aria-hidden="true" />
                   ) : (
                     <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
                   )}

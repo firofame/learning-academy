@@ -4,6 +4,7 @@ import { SHIZA_HINDI_LESSON } from '../src/data/hindi';
 import { FAZIA_EVS_LESSON } from '../src/data/evs';
 import { SHIZA_BIOLOGY_LESSON } from '../src/data/biology';
 import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
+import { SHIZA_ENGLISH_LESSON } from '../src/data/english';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/writtenGrading';
@@ -145,7 +146,7 @@ async function generateGrade(
   context: object,
   recheck: boolean,
   fetcher: typeof fetch,
-  subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry',
+  subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english',
   gradeLevel?: number
 ): Promise<{ verdict: string; feedback: string }> {
   let response: Response;
@@ -158,7 +159,11 @@ async function generateGrade(
         signal: AbortSignal.timeout(20_000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
-            (subject === 'chemistry'
+            (subject === 'english'
+              ? 'You mark Grade 6 English Literature and Language written answers against the supplied trusted marking criteria. ' +
+                'Judge understanding, not exact wording, spelling, or grammar. For sentence formation, accept any meaningful English sentence using the target word in proper context (the model answer is an example). ' +
+                'Require every essential idea in the criteria; reject contradictions and incorrect facts. '
+              : subject === 'chemistry'
               ? 'You mark Grade 6 Chemistry written answers against the supplied trusted marking criteria. ' +
                 'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid phrasing, chemical names, or formulas. ' +
                 'Require every essential idea in the criteria; reject contradictions and incorrect facts. '
@@ -288,7 +293,10 @@ export async function handleGradingRequest(
     const chemistryQuestion = body.lessonId === SHIZA_CHEMISTRY_LESSON.id
       ? SHIZA_CHEMISTRY_LESSON.questions.find(question => question.id === body.questionId)
       : undefined;
-    let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry';
+    const englishQuestion = body.lessonId === SHIZA_ENGLISH_LESSON.id
+      ? SHIZA_ENGLISH_LESSON.questions.find(question => question.id === body.questionId)
+      : undefined;
+    let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english';
     let context: object;
     let gradeLevel: number | undefined;
     if (roboticsLesson && roboticsQuestion?.kind === 'short') {
@@ -340,6 +348,14 @@ export async function handleGradingRequest(
         grade: SHIZA_CHEMISTRY_LESSON.grade, question: chemistryQuestion.prompt,
         referenceAnswer: chemistryQuestion.answer,
         markingCriteria: chemistryQuestion.markingCriteria, studentAnswer: body.answer.trim()
+      };
+    } else if (englishQuestion && englishQuestion.markingCriteria) {
+      subject = 'english';
+      gradeLevel = SHIZA_ENGLISH_LESSON.grade;
+      context = {
+        grade: SHIZA_ENGLISH_LESSON.grade, question: englishQuestion.prompt,
+        referenceAnswer: englishQuestion.answer,
+        markingCriteria: englishQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };
     } else {
       throw new GradingError(400, 'This question does not support written-answer checking.');

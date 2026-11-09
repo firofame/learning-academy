@@ -83,9 +83,10 @@ export type ActiveAppView =
   | 'evs'
   | 'biology'
   | 'chemistry'
+  | 'english'
   | 'timetable';
 
-export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry';
+export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english';
 
 export interface LearningSubject {
   id: LearningSubjectId;

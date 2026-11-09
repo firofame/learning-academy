@@ -20,7 +20,8 @@ export const ALL_SUBJECT_KEYS = [
   'hindi',
   'evs',
   'biology',
-  'chemistry'
+  'chemistry',
+  'english'
 ] as const;
 
 // ---------------------------------------------------------------------------
