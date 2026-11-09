@@ -16,7 +16,7 @@ Object.assign(globalThis, {
 Object.defineProperty(globalThis, 'navigator', { value: dom.window.navigator, configurable: true });
 Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true });
 
-const { render, fireEvent, cleanup, waitFor } = await import('@testing-library/react');
+const { render, fireEvent, cleanup, waitFor, act } = await import('@testing-library/react');
 const { default: App } = await import('../App');
 const { ExamRevisionView } = await import('../components/ExamRevisionView');
 const { SubjectRevisionView } = await import('../components/SubjectRevisionView');
@@ -86,6 +86,9 @@ describe('Shared exam-eve revision interactions', () => {
     localStorage.clear();
     localStorage.setItem(ACTIVE_PROFILE_KEY, 'fazia');
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    if (typeof window !== 'undefined' && window.history) {
+      window.history.replaceState(null, '', '/');
+    }
   });
 
   afterEach(cleanup);
@@ -878,6 +881,84 @@ describe('Shared exam-eve revision interactions', () => {
     fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
 
     await view.findByText('Correct. Keep going.');
+  });
+
+  test('browser refresh on subject URL keeps the learner on that page', async () => {
+    // Simulate browser refresh on /shiza/maths
+    window.history.replaceState(null, '', '/shiza/maths');
+    const view = render(React.createElement(App));
+
+    // Maths revision view renders directly without reverting to home
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.ok(view.getByRole('heading', { name: 'Exam-eve revision' }));
+    assert.ok(view.getByText(/Shiza \(Grade 6\)/));
+    assert.equal(window.location.pathname, '/shiza/maths');
+  });
+
+  test('browser refresh on Grade 2 EVS keeps Fazia on EVS revision', async () => {
+    // Simulate browser refresh on /fazia/evs
+    window.history.replaceState(null, '', '/fazia/evs');
+    const view = render(React.createElement(App));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.ok(view.getByText(/Fazia \(Grade 2\)/));
+    assert.equal(window.location.pathname, '/fazia/evs');
+  });
+
+  test('direct navigation to unavailable subject for grade falls back to home with warning', async () => {
+    // Fazia is Grade 2; Biology is Grade 6 only
+    window.history.replaceState(null, '', '/fazia/biology');
+    const view = render(React.createElement(App));
+
+    // Shows warning banner
+    const alert = await view.findByRole('alert');
+    assert.ok(alert.textContent?.includes('Biology is not available for Grade 2'));
+    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 2' }));
+    assert.equal(window.location.pathname, '/fazia/home');
+  });
+
+  test('switching student updates the URL and stays in compatible subject', async () => {
+    window.history.replaceState(null, '', '/fazia/maths');
+    const view = render(React.createElement(App));
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.equal(window.location.pathname, '/fazia/maths');
+
+    // Click switcher button to toggle from Fazia to Shiza
+    await act(async () => {
+      fireEvent.click(view.getByTitle(/Switch student/));
+    });
+
+    // URL updates to Shiza's Maths
+    assert.equal(window.location.pathname, '/shiza/maths');
+  });
+
+  test('actual browser history.back() restores previous view', async () => {
+    window.history.pushState(null, '', '/shiza/home');
+    const view = render(React.createElement(App));
+
+    assert.ok(view.getByRole('region', { name: 'Subjects for Grade 6' }));
+
+    // Navigate to Maths
+    fireEvent.click(view.getByRole('button', { name: 'Open Maths' }));
+    await view.findByRole('region', { name: 'Revision overview' });
+    assert.equal(window.location.pathname, '/shiza/maths');
+
+    // Exercise actual browser history stack with history.back()
+    await act(async () => {
+      window.history.back();
+    });
+
+    await waitFor(() => assert.equal(window.location.pathname, '/shiza/home'));
+    await view.findByRole('region', { name: 'Subjects for Grade 6' });
+  });
+
+  test('unknown routes are canonicalized to home URL', async () => {
+    window.history.replaceState(null, '', '/unknown-nonsense-route');
+    const view = render(React.createElement(App));
+
+    await view.findByRole('region', { name: 'Subjects for Grade 2' });
+    assert.equal(window.location.pathname, '/fazia/home');
   });
 });
 

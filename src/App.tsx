@@ -15,17 +15,29 @@ import { getStudentProfile } from './data/profiles';
 import { getAvailableSubjectsForGrade, getSubjectForView } from './data/subjects';
 import { audioService } from './utils/audio';
 import { syncProgress, flushPendingSync } from './utils/syncService';
+import {
+  resolveInitialRoute,
+  updateRoute,
+  updateDocumentTitle,
+  parseRoute,
+  buildRouteUrl
+} from './utils/navigation';
 
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<ActiveAppView>('home');
-  const [activeStudent, setActiveStudent] = useState<StudentId>(() => loadActiveStudent());
+  const initialRoute = useRef(resolveInitialRoute(loadActiveStudent()));
+  const [activeStudent, setActiveStudent] = useState<StudentId>(initialRoute.current.studentId);
+  const [currentView, setCurrentView] = useState<ActiveAppView>(initialRoute.current.view);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [refreshKey, setRefreshKey] = useState<number>(0);
-  const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(null);
+  const [storageErrorMessage, setStorageErrorMessage] = useState<string | null>(
+    initialRoute.current.invalidSubjectNotice ?? null
+  );
   const activeStudentRef = useRef<StudentId>(activeStudent);
   activeStudentRef.current = activeStudent;
+  const currentViewRef = useRef<ActiveAppView>(currentView);
+  currentViewRef.current = currentView;
 
   // Cross-device sync lifecycle hooks
   useEffect(() => {
@@ -82,6 +94,54 @@ export default function App() {
     if (!settings.speechAudio) audioService.stopAll();
   }, [settings.speechAudio, settings.slowSpeech]);
 
+  // Synchronize route in browser history and listen to browser navigation (Back / Forward buttons)
+  useEffect(() => {
+    updateRoute(activeStudent, currentView, true);
+    updateDocumentTitle(activeStudent, currentView);
+    saveActiveStudent(activeStudent);
+
+    const handlePopState = () => {
+      if (typeof window === 'undefined') return;
+      const parsed = parseRoute(window.location.pathname, window.location.hash);
+      const studentId = parsed.studentId ?? loadActiveStudent();
+      const profile = getStudentProfile(studentId);
+      let targetView = parsed.view ?? 'home';
+
+      const subject = getSubjectForView(targetView);
+      if (subject && !getAvailableSubjectsForGrade(profile.grade).some(available => available.id === subject.id)) {
+        emitStorageError(`${subject.name} is not available for ${profile.gradeLabel}. Please choose another subject.`);
+        targetView = 'home';
+      }
+
+      // Canonicalize invalid or non-canonical URLs in browser address bar (e.g. /unknown-route or grade mismatch)
+      const canonicalUrl = buildRouteUrl(studentId, targetView);
+      if (window.location.pathname !== canonicalUrl) {
+        updateRoute(studentId, targetView, true);
+      }
+
+      if (studentId !== activeStudentRef.current) {
+        audioService.stopAll();
+        flushPendingSync(activeStudentRef.current);
+        setActiveStudent(studentId);
+        saveActiveStudent(studentId);
+        void syncProgress(studentId);
+        setRefreshKey(prev => prev + 1);
+      }
+
+      if (targetView !== currentViewRef.current) {
+        audioService.stopAll();
+        setCurrentView(targetView);
+      }
+
+      updateDocumentTitle(studentId, targetView);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const currentProfile = getStudentProfile(activeStudent);
   const availableSubjects = getAvailableSubjectsForGrade(currentProfile.grade);
   const currentSubject = getSubjectForView(currentView);
@@ -98,9 +158,13 @@ export default function App() {
     if (subject && !availableSubjects.some(available => available.id === subject.id)) {
       emitStorageError(`${subject.name} is not available for ${currentProfile.gradeLabel}. Please choose another subject.`);
       setCurrentView('home');
+      updateRoute(activeStudent, 'home', false);
+      updateDocumentTitle(activeStudent, 'home');
       return;
     }
     setCurrentView(normalizedView);
+    updateRoute(activeStudent, normalizedView, false);
+    updateDocumentTitle(activeStudent, normalizedView);
   };
 
   const handleUpdateSettings = (newSettings: AppSettings) => {
@@ -127,9 +191,13 @@ export default function App() {
 
     const nextGrade = getStudentProfile(newStudent).grade;
     const subject = getSubjectForView(currentView);
+    let nextView = currentView;
     if (subject && !getAvailableSubjectsForGrade(nextGrade).some(available => available.id === subject.id)) {
+      nextView = 'home';
       setCurrentView('home');
     }
+    updateRoute(newStudent, nextView, false);
+    updateDocumentTitle(newStudent, nextView);
     setRefreshKey(prev => prev + 1);
   };
 
