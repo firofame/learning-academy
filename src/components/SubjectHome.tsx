@@ -28,8 +28,46 @@ function outcomeLabel(attempt: LearningAttempt): string {
 export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavigate, initialShowTimetable }) => {
   const profile = getStudentProfile(activeStudent);
   const subjects = getAvailableSubjectsForGrade(profile.grade);
-  const nextExam = getNextExam(profile.grade);
-  const nextActualExam = getNextActualExam(profile.grade);
+
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  useEffect(() => {
+    const updateDateIfChanged = () => {
+      setCurrentDate(prev => {
+        const now = new Date();
+        if (
+          prev.getHours() === now.getHours() &&
+          prev.getMinutes() === now.getMinutes() &&
+          prev.getDate() === now.getDate() &&
+          prev.getMonth() === now.getMonth() &&
+          prev.getFullYear() === now.getFullYear()
+        ) {
+          return prev;
+        }
+        return now;
+      });
+    };
+
+    // Check every 10 seconds to automatically advance past exam hours (e.g. 11:00 AM dispersal)
+    const timer = setInterval(updateDateIfChanged, 10000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        updateDateIfChanged();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', updateDateIfChanged);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', updateDateIfChanged);
+    };
+  }, []);
+
+  const nextExam = getNextExam(profile.grade, currentDate);
+  const nextActualExam = getNextActualExam(profile.grade, currentDate);
   const timetable = getTimetableForGrade(profile.grade);
 
   const [showAllAttempts, setShowAllAttempts] = useState(false);
@@ -207,7 +245,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               </div>
               <div className="divide-y divide-slate-100">
                 {timetable.map((entry: TimetableEntry) => {
-                  const status = getExamStatus(entry.date);
+                  const status = getExamStatus(entry, currentDate);
                   const isRevisableInApp = entry.subjectId && subjects.some(s => s.id === entry.subjectId);
                   const targetSub = isRevisableInApp ? LEARNING_SUBJECTS.find(s => s.id === entry.subjectId) : undefined;
 
