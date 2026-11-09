@@ -8,7 +8,7 @@ export const STUDENT_PROFILES: StudentProfile[] = [
     grade: 2,
     gradeLabel: 'Grade 2',
     avatarEmoji: '🌸',
-    description: 'Grade 2 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, and EVS'
+    description: 'Grade 2 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, and EVS'
   },
   {
     id: 'shiza',

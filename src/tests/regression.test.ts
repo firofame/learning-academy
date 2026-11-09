@@ -9,7 +9,12 @@ import {
   getMalayalamLessonForGrade,
   SHIZA_MALAYALAM_LESSON
 } from '../data/malayalam';
-import { getHindiLesson, getHindiLessonForGrade, SHIZA_HINDI_LESSON } from '../data/hindi';
+import {
+  FAZIA_HINDI_LESSON,
+  getHindiLesson,
+  getHindiLessonForGrade,
+  SHIZA_HINDI_LESSON
+} from '../data/hindi';
 import { getEvsLesson, getEvsLessonForGrade, FAZIA_EVS_LESSON } from '../data/evs';
 import { getBiologyLesson, getBiologyLessonForGrade, SHIZA_BIOLOGY_LESSON } from '../data/biology';
 import { getChemistryLesson, getChemistryLessonForGrade, SHIZA_CHEMISTRY_LESSON } from '../data/chemistry';
@@ -103,8 +108,13 @@ describe('Learning Academy subject catalog', () => {
             assert.equal(SHIZA_MALAYALAM_LESSON.questions.length, 176);
           }
         } else if (subject.id === 'hindi') {
-          assert.equal(grade, 6);
-          assert.equal(SHIZA_HINDI_LESSON.grade, grade);
+          if (grade === 2) {
+            assert.equal(getHindiLessonForGrade(grade), FAZIA_HINDI_LESSON);
+            assert.equal(FAZIA_HINDI_LESSON.questions.length, 90);
+          } else {
+            assert.equal(getHindiLessonForGrade(grade), SHIZA_HINDI_LESSON);
+            assert.equal(SHIZA_HINDI_LESSON.questions.length, 74);
+          }
         } else if (subject.id === 'evs') {
           assert.equal(grade, 2);
           assert.equal(getEvsLessonForGrade(grade), FAZIA_EVS_LESSON);
@@ -126,7 +136,7 @@ describe('Learning Academy subject catalog', () => {
     }
     for (const profile of STUDENT_PROFILES) {
       const expectedSubjectIds = profile.grade === 2
-        ? ['spell-bee', 'robotics', 'maths', 'malayalam', 'evs']
+        ? ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs']
         : ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'biology', 'chemistry', 'english'];
       assert.deepEqual(getAvailableSubjectsForGrade(profile.grade).map(subject => subject.id), expectedSubjectIds);
       assert.ok(getWordsForStudent(profile.id).every(word => word.studentGrade === profile.grade));
@@ -135,7 +145,7 @@ describe('Learning Academy subject catalog', () => {
       assert.equal(getMalayalamLesson(profile.id).grade, profile.grade);
       if (profile.grade === 2) {
         assert.equal(getEvsLesson(profile.id).grade, profile.grade);
-        assert.throws(() => getHindiLesson(profile.id), /not available/);
+        assert.equal(getHindiLesson(profile.id).grade, profile.grade);
         assert.throws(() => getBiologyLesson(profile.id), /not available/);
         assert.throws(() => getChemistryLesson(profile.id), /not available/);
         assert.throws(() => getEnglishLesson(profile.id), /not available/);

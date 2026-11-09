@@ -37,7 +37,7 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     id: 'hindi',
     name: 'Hindi',
     description: 'Revise school Hindi portions with native-script answers, feedback, and same-day rechecks.',
-    availableGrades: [6],
+    availableGrades: [2, 6],
     startView: 'hindi',
     views: ['hindi']
   },

@@ -45,7 +45,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       { date: '2026-11-06', displayDate: '06/11/26', day: 'Friday', subject: 'English I', isLeave: false },
       { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'EVS', subjectId: 'evs', isLeave: false },
       { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'Study Leave', isLeave: true },
-      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Hindi (हिन्दी)', isLeave: false },
+      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Hindi (हिन्दी)', subjectId: 'hindi', isLeave: false },
       { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'Study Leave', isLeave: true },
       { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'SUPW / Moral Science / Regular class', isLeave: false }
     ];

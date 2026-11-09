@@ -12,7 +12,7 @@ import {
   checkMalayalamAnswer, getMalayalamLesson, type MalayalamQuestion, type MalayalamSection
 } from '../data/malayalam';
 import {
-  checkHindiAnswer, getHindiLesson, HINDI_SECTIONS, type HindiQuestion
+  checkHindiAnswer, getHindiLesson, HINDI_SECTIONS, type HindiQuestion, type HindiSection
 } from '../data/hindi';
 import {
   checkEvsAnswer, getEvsLesson, EVS_SECTIONS, type EvsLesson, type EvsQuestion
@@ -325,25 +325,32 @@ function malayalamQuestion(
   };
 }
 
+function hindiSectionLabel(section: HindiSection): string {
+  return section.number ? `${section.number} · ${section.label}` : section.label;
+}
+
 function hindiQuestion(
   question: HindiQuestion,
   lesson: ReturnType<typeof getHindiLesson>,
   gradingApiUrl: string
 ): RevisionQuestion {
-  const section = HINDI_SECTIONS.find(item => item.id === question.section);
-  const markingCriteria = question.kind === 'pair' ? undefined : question.markingCriteria;
-  const referenceContent = question.section === 'poem'
+  const section = lesson.sections?.find(item => item.id === question.section)
+    ?? HINDI_SECTIONS.find(item => item.id === question.section);
+  const isChoice = question.kind === 'choice';
+  const markingCriteria = question.kind === 'pair' || question.kind === 'choice' ? undefined : question.markingCriteria;
+  const referenceContent = question.section === 'poem' && lesson.poem
     ? <ol className="list-decimal space-y-1 pl-5 font-devanagari" lang="hi">{lesson.poem.map((line, index) => <li key={index}>{line}</li>)}</ol>
-    : question.section === 'essay'
+    : question.section === 'essay' && lesson.essay
       ? <p className="font-devanagari" lang="hi">{lesson.essay}</p>
       : null;
   return {
     id: question.id,
     section: question.section,
-    sectionLabel: section?.label ?? question.section,
+    sectionLabel: section ? hindiSectionLabel(section) : question.section,
     prompt: question.prompt,
     answer: question.answer,
-    responseFormat: 'written',
+    responseFormat: isChoice ? 'choice' : 'written',
+    ...(isChoice ? { options: question.options } : {}),
     explanation: markingCriteria,
     provenance: lesson.sourceNote,
     helpContent: (
@@ -365,7 +372,7 @@ function hindiQuestion(
       if (checkHindiAnswer(question, answer)) {
         return { correct: true, source: 'deterministic' };
       }
-      if (!markingCriteria) return { correct: false, source: 'deterministic' };
+      if (!markingCriteria || isChoice) return { correct: false, source: 'deterministic' };
       if (!gradingApiUrl) {
         throw new Error('Automatic Hindi checking is not configured. Your answer has not been marked; try again when checking is available.');
       }
@@ -809,9 +816,10 @@ export function buildSubjectRevision(
       const lesson = getHindiLesson(learnerId);
       return {
         lessonId: lesson.id,
-        title: 'Hindi Exam Revision',
+        title: lesson.title,
         description: `Grade ${lesson.grade} portions · Based on ${lesson.sourceNote}.`,
         questions: lesson.questions.map(question => hindiQuestion(question, lesson, gradingApiUrl)),
+        allowSectionAssessment: true,
         onComplete: result => saveHindiSession(learnerId, result)
       };
     }
