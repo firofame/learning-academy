@@ -154,35 +154,40 @@ export const Header: React.FC<HeaderProps> = ({
             )}
           </div>
 
-          {/* Turtle Mode (Slow speech) */}
-          <button
-            onClick={() => onUpdateSettings({ ...settings, slowSpeech: !settings.slowSpeech })}
-            aria-pressed={settings.slowSpeech}
-            title={settings.slowSpeech ? 'Slow speech (Turtle mode) is ON' : 'Normal speech speed'}
-            className={`px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 border transition-colors ${
-              settings.slowSpeech 
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            <span className="text-sm">🐢</span>
-            <span className="hidden lg:inline">{settings.slowSpeech ? 'Slow' : 'Normal'}</span>
-          </button>
+          {/* Audio and Turtle controls only in Spell Bee */}
+          {currentView === 'spell-bee' && (
+            <>
+              {/* Turtle Mode (Slow speech) */}
+              <button
+                onClick={() => onUpdateSettings({ ...settings, slowSpeech: !settings.slowSpeech })}
+                aria-pressed={settings.slowSpeech}
+                title={settings.slowSpeech ? 'Slow speech (Turtle mode) is ON' : 'Normal speech speed'}
+                className={`px-2 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 border transition-colors ${
+                  settings.slowSpeech 
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                <span className="text-sm">🐢</span>
+                <span className="hidden lg:inline">{settings.slowSpeech ? 'Slow' : 'Normal'}</span>
+              </button>
 
-          {/* Audio Sound Toggle */}
-          <button
-            onClick={() => onUpdateSettings({ ...settings, speechAudio: !settings.speechAudio })}
-            title={settings.speechAudio ? 'Voice audio is ON' : 'Voice audio is OFF'}
-            className={`p-2 rounded-lg border text-slate-600 transition-colors ${
-              settings.speechAudio 
-                ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-800' 
-                : 'bg-rose-50 border-rose-200 text-rose-700'
-            }`}
-            aria-label="Toggle audio"
-            aria-pressed={settings.speechAudio}
-          >
-            {settings.speechAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-          </button>
+              {/* Audio Sound Toggle */}
+              <button
+                onClick={() => onUpdateSettings({ ...settings, speechAudio: !settings.speechAudio })}
+                title={settings.speechAudio ? 'Voice audio is ON' : 'Voice audio is OFF'}
+                className={`p-2 rounded-lg border text-slate-600 transition-colors ${
+                  settings.speechAudio 
+                    ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-800' 
+                    : 'bg-rose-50 border-rose-200 text-rose-700'
+                }`}
+                aria-label="Toggle audio"
+                aria-pressed={settings.speechAudio}
+              >
+                {settings.speechAudio ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </header>
