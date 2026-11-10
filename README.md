@@ -7,7 +7,7 @@ Evidence-based revision web app designed for school children preparing on exam e
 ## Key Features
 
 - **Evidence-Based Learning:** Active retrieval practice, immediate explanations, instant corrections, and lagged error rechecks.
-- **Subjects & Grades:** Tailored curricula for Grade 2 and Grade 6, with subject availability varying by grade across Spell Bee, Robotics, Maths, Malayalam, Hindi, EVS, Biology, and Chemistry.
+- **Subjects & Grades:** Tailored curricula for Grade 2 and Grade 6, with subject availability varying by grade across Spell Bee, Robotics, Maths, Malayalam, Hindi, EVS, Biology, Chemistry, English, and History.
 - **Dual Grading Engine:** Deterministic local checks for exact answers and server-side AI evaluation for meaning-based written answers.
 - **Offline Access:** Previously accessed content can be available offline after initial online access, but AI-assisted grading requires an internet connection.
 - **Multi-Device Support:** Touch-first interface optimized for phones, tablets, and laptops with native Malayalam and Hindi script input.
@@ -41,5 +41,10 @@ Reuse [helpers/storage.ts](src/tests/helpers/storage.ts) for non-DOM storage tes
 JSDOM's storage. Prefer a representative case for each distinct behavior or failure
 path over lists of equivalent inputs, export-alias checks, or decorative metadata
 assertions. Keep source-backed curriculum and timetable checks.
+
+Grade 6 History is checked against the teacher's own notes in
+[fixtures/social-science-revision-notes.txt](src/tests/fixtures/social-science-revision-notes.txt):
+every prompt and every answer line must appear in that file, and the grading
+rubric must stay identical to the teacher's answer.
 
 Deployment to GitHub Pages and Cloudflare Workers runs automatically via GitHub Actions on push to `main`.
