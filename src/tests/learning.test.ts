@@ -264,6 +264,78 @@ describe('Same-day revision rechecks', () => {
       []
     );
   });
+
+  test('when all questions in the round have been checked, pending rechecks are scheduled even if gapCount < 2', () => {
+    // 56 of 56 questions checked, with mistakes occurring on the last two questions (q55, q56)
+    const allIds = Array.from({ length: 56 }, (_, i) => `q${i + 1}`);
+    const attempts = allIds.map((id, index) => {
+      const outcome = (id === 'q55' || id === 'q56') ? 'incorrect' : 'correct';
+      return revisionAttempt(id, 'initial', outcome, index + 1);
+    });
+
+    const progress = deriveRevisionProgress(allIds, attempts);
+    const q55 = progress.find(p => p.questionId === 'q55')!;
+    const q56 = progress.find(p => p.questionId === 'q56')!;
+    assert.equal(q55.gapCount, 1, 'q55 only had 1 subsequent question');
+    assert.equal(q56.gapCount, 0, 'q56 had 0 subsequent questions');
+    assert.equal(q55.pendingRecheck, true);
+    assert.equal(q56.pendingRecheck, true);
+
+    // selectRevisionBatch must schedule both rechecks rather than returning an empty batch
+    const batch = selectRevisionBatch(allIds, attempts, 'batch-next', 5, allIds);
+    assert.deepEqual(batch, [
+      { questionId: 'q55', attemptKind: 'recheck' },
+      { questionId: 'q56', attemptKind: 'recheck' }
+    ]);
+  });
+
+  test('failed rechecks are NOT immediately eligible again and strictly preserve the spacing rule', () => {
+    const allIds = Array.from({ length: 56 }, (_, i) => `q${i + 1}`);
+    const initialAttempts = allIds.map((id, index) => {
+      const outcome = (id === 'q55' || id === 'q56') ? 'incorrect' : 'correct';
+      return revisionAttempt(id, 'initial', outcome, index + 1);
+    });
+
+    // Both q55 and q56 are initial mistakes and eligible for the first recheck batch
+    const firstBatch = selectRevisionBatch(allIds, initialAttempts, 'batch-recheck-1', 5, allIds);
+    assert.deepEqual(firstBatch, [
+      { questionId: 'q55', attemptKind: 'recheck' },
+      { questionId: 'q56', attemptKind: 'recheck' }
+    ]);
+
+    // Now learner attempts recheck on q55 and answers incorrectly
+    const attemptsWithFailedRecheck = [
+      ...initialAttempts,
+      revisionAttempt('q55', 'recheck', 'incorrect', 57, [], 'batch-recheck-1')
+    ];
+
+    const progressAfterFail = deriveRevisionProgress(allIds, attemptsWithFailedRecheck);
+    const q55AfterFail = progressAfterFail.find(p => p.questionId === 'q55')!;
+    assert.equal(q55AfterFail.pendingRecheck, true);
+    assert.equal(q55AfterFail.recheckAttempted, true);
+    assert.equal(q55AfterFail.gapCount, 0);
+
+    // Starting another batch must NOT allow q55 to be immediately retried
+    const secondBatch = selectRevisionBatch(allIds, attemptsWithFailedRecheck, 'batch-recheck-2', 5, allIds);
+    assert.deepEqual(secondBatch, [
+      { questionId: 'q56', attemptKind: 'recheck' }
+    ], 'Failed recheck q55 must not be eligible; only un-rechecked initial mistake q56 is scheduled');
+
+    // After q56 is rechecked and another question intervenes, q55 reaches gapCount >= 2 and becomes eligible
+    const attemptsWithGap = [
+      ...attemptsWithFailedRecheck,
+      revisionAttempt('q56', 'recheck', 'correct', 58, [], 'batch-recheck-2'),
+      revisionAttempt('q1', 'exam', 'correct', 59, [])
+    ];
+    const progressWithGap = deriveRevisionProgress(allIds, attemptsWithGap);
+    const q55WithGap = progressWithGap.find(p => p.questionId === 'q55')!;
+    assert.equal(q55WithGap.gapCount, 2);
+
+    const thirdBatch = selectRevisionBatch(allIds, attemptsWithGap, 'batch-recheck-3', 5, allIds);
+    assert.deepEqual(thirdBatch, [
+      { questionId: 'q55', attemptKind: 'recheck' }
+    ], 'q55 becomes eligible again only after 2 intervening questions');
+  });
 });
 
 

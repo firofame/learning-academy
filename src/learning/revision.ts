@@ -21,6 +21,7 @@ export interface RevisionQuestionProgress {
   initialAssisted: boolean;
   pendingRecheck: boolean;
   successfulRecheck: boolean;
+  recheckAttempted: boolean;
   gapCount: number;
   examReady: boolean;
 }
@@ -85,6 +86,7 @@ export function deriveRevisionProgress(
       initialAssisted: false,
       pendingRecheck: false,
       successfulRecheck: false,
+      recheckAttempted: false,
       gapCount: 0,
       examReady: false
     }])
@@ -118,6 +120,7 @@ export function deriveRevisionProgress(
         item.initialAssisted = attempt.assistance.length > 0;
         item.pendingRecheck = attempt.outcome !== 'correct' || item.initialAssisted;
         item.successfulRecheck = false;
+        item.recheckAttempted = false;
         interveningQuestions.get(attempt.questionId)?.clear();
         item.gapCount = 0;
         item.examReady = item.initialOutcome === 'correct' && !item.initialAssisted;
@@ -125,6 +128,7 @@ export function deriveRevisionProgress(
       case 'correction':
         break;
       case 'recheck':
+        item.recheckAttempted = true;
         item.successfulRecheck = attempt.outcome === 'correct' && attempt.assistance.length === 0;
         item.pendingRecheck = !item.successfulRecheck;
         interveningQuestions.get(attempt.questionId)?.clear();
@@ -155,9 +159,18 @@ export function selectRevisionBatch(
     .filter(attempt => attempt.revisionBatchId === batchId && attempt.revisionAttemptKind === 'recheck')
     .map(attempt => attempt.questionId));
 
+  const allRoundChecked = !progress.some(item => !item.checked);
+
   let candidateRechecks = progress
     .filter(item => allowedIds.has(item.questionId) && item.pendingRecheck &&
-      item.gapCount >= 2 && !alreadyRechecked.has(item.questionId));
+      (item.gapCount >= 2 || (allRoundChecked && !item.recheckAttempted)) &&
+      !alreadyRechecked.has(item.questionId));
+
+  candidateRechecks.sort((a, b) => {
+    const aMet = a.gapCount >= 2 ? 1 : 0;
+    const bMet = b.gapCount >= 2 ? 1 : 0;
+    return bMet - aMet;
+  });
 
   if (options?.interleave && options.categoryByQuestionId) {
     candidateRechecks = interleaveItems(
