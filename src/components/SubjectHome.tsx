@@ -9,7 +9,7 @@ import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade, LEARNING_SUBJECTS } from '../data/subjects';
 import {
   EXAM_GENERAL_INFO, getNextExam, getNextActualExam,
-  getTimetableForGrade, getExamStatus, type TimetableEntry
+  getTimetableForGrade, getExamStatus, isSubjectUpcomingOrToday, type TimetableEntry
 } from '../data/timetable';
 import { useSubjectProgress } from '../learning/useSubjectProgress';
 
@@ -87,8 +87,9 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
     totalQuestions,
     totalChecked,
     totalPending,
-    overallPercentage
-  } = useSubjectProgress(activeStudent);
+    overallPercentage,
+    hasUpcomingExams
+  } = useSubjectProgress(activeStudent, currentDate);
 
   const targetEntry = nextExam?.isStudyLeave ? nextActualExam : nextExam;
   const targetSubject = targetEntry?.subjectId && subjects.some(s => s.id === targetEntry.subjectId)
@@ -361,9 +362,11 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               {loading ? (
                 'Loading revision coverage…'
               ) : totalQuestions > 0 ? (
-                `${totalChecked} of ${totalQuestions} questions checked across all subjects (${overallPercentage}%)`
+                `${totalChecked} of ${totalQuestions} questions checked across upcoming exams (${overallPercentage}%)`
+              ) : hasUpcomingExams ? (
+                'No revision questions scheduled for upcoming exams'
               ) : (
-                'No revision questions scheduled'
+                'All scheduled exams completed'
               )}
             </p>
           </div>
@@ -376,10 +379,12 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
         </div>
         <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
           <div
-            className="bg-amber-500 h-2.5 rounded-full transition-all duration-500 ease-out"
-            style={{ width: `${overallPercentage}%` }}
+            className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
+              !loading && !hasUpcomingExams ? 'bg-emerald-500' : 'bg-amber-500'
+            }`}
+            style={{ width: `${!loading && !hasUpcomingExams ? 100 : overallPercentage}%` }}
             role="progressbar"
-            aria-valuenow={overallPercentage}
+            aria-valuenow={!loading && !hasUpcomingExams ? 100 : overallPercentage}
             aria-valuemin={0}
             aria-valuemax={100}
           />
@@ -392,6 +397,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
           const summary = summaryMap.get(subject.id);
           const isComplete = summary && summary.questionCount > 0 && summary.checkedCount === summary.questionCount;
           const subjectPct = summary && summary.questionCount > 0 ? Math.round((summary.checkedCount / summary.questionCount) * 100) : 0;
+          const isPastExam = !isSubjectUpcomingOrToday(subject.id, profile.grade, currentDate);
 
           return (
             <article key={subject.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col justify-between gap-5 transition-all hover:border-slate-300">
@@ -416,19 +422,26 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                   )}
 
                   {summary && (
-                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
-                      isComplete
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : summary.checkedCount > 0
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : 'bg-slate-50 text-slate-500 border-slate-200'
-                    }`}>
-                      {isComplete
-                        ? 'Completed'
-                        : summary.checkedCount > 0
-                        ? `${summary.checkedCount}/${summary.questionCount} checked`
-                        : 'Not started'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {isPastExam && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                          Exam completed
+                        </span>
+                      )}
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        isComplete
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : summary.checkedCount > 0
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}>
+                        {isComplete
+                          ? 'Completed'
+                          : summary.checkedCount > 0
+                          ? `${summary.checkedCount}/${summary.questionCount} checked`
+                          : 'Not started'}
+                      </span>
+                    </div>
                   )}
                 </div>
 

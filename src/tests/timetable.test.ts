@@ -13,7 +13,9 @@ import {
   parseReferenceDateTime,
   getExamEndCutoffTime,
   isExamPast,
-  normalizeTimeString
+  normalizeTimeString,
+  getSubjectExamStatus,
+  isSubjectUpcomingOrToday
 } from '../data/timetable';
 import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 
@@ -305,5 +307,53 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     const afternoonDate = new Date(2026, 10, 9, 14, 0);
     assert.equal(getNextExam(2, afternoonDate)?.date, '2026-11-10');
     assert.equal(getNextActualExam(2, afternoonDate)?.date, '2026-11-11');
+  });
+
+  test('determines subject exam status and filters out past exams for revision coverage', () => {
+    // 1. Before exam period starts (2026-10-25)
+    assert.equal(getSubjectExamStatus('spell-bee', 2, '2026-10-25'), 'upcoming');
+    assert.equal(getSubjectExamStatus('maths', 2, '2026-10-25'), 'upcoming');
+    assert.equal(isSubjectUpcomingOrToday('maths', 2, '2026-10-25'), true);
+    assert.equal(isSubjectUpcomingOrToday('hindi', 2, '2026-10-25'), true);
+
+    // 2. Midway through exam cycle (2026-11-04 - Study leave for Grade 2, Physics for Grade 6)
+    // Grade 2 completed: Robotics (10-29), Spell Bee (10-30), Maths (11-02)
+    assert.equal(getSubjectExamStatus('robotics', 2, '2026-11-04'), 'past');
+    assert.equal(getSubjectExamStatus('spell-bee', 2, '2026-11-04'), 'past');
+    assert.equal(getSubjectExamStatus('maths', 2, '2026-11-04'), 'past');
+    assert.equal(isSubjectUpcomingOrToday('robotics', 2, '2026-11-04'), false);
+    assert.equal(isSubjectUpcomingOrToday('spell-bee', 2, '2026-11-04'), false);
+    assert.equal(isSubjectUpcomingOrToday('maths', 2, '2026-11-04'), false);
+
+    // Grade 2 upcoming: Malayalam (11-05), EVS (11-09), Hindi (11-11)
+    assert.equal(getSubjectExamStatus('malayalam', 2, '2026-11-04'), 'upcoming');
+    assert.equal(getSubjectExamStatus('evs', 2, '2026-11-04'), 'upcoming');
+    assert.equal(getSubjectExamStatus('hindi', 2, '2026-11-04'), 'upcoming');
+    assert.equal(isSubjectUpcomingOrToday('malayalam', 2, '2026-11-04'), true);
+    assert.equal(isSubjectUpcomingOrToday('evs', 2, '2026-11-04'), true);
+    assert.equal(isSubjectUpcomingOrToday('hindi', 2, '2026-11-04'), true);
+
+    // 3. On exam day before vs after 11:00 AM cutoff (2026-11-09: EVS for Grade 2, Chemistry for Grade 6)
+    // Morning before 11:00 AM -> status 'today', isSubjectUpcomingOrToday is true
+    assert.equal(getSubjectExamStatus('evs', 2, '2026-11-09', '09:00'), 'today');
+    assert.equal(isSubjectUpcomingOrToday('evs', 2, '2026-11-09', '09:00'), true);
+    assert.equal(getSubjectExamStatus('chemistry', 6, '2026-11-09', '09:00'), 'today');
+    assert.equal(isSubjectUpcomingOrToday('chemistry', 6, '2026-11-09', '09:00'), true);
+
+    // Afternoon after 11:00 AM -> status 'past', isSubjectUpcomingOrToday is false
+    assert.equal(getSubjectExamStatus('evs', 2, '2026-11-09', '11:30'), 'past');
+    assert.equal(isSubjectUpcomingOrToday('evs', 2, '2026-11-09', '11:30'), false);
+    assert.equal(getSubjectExamStatus('chemistry', 6, '2026-11-09', '11:30'), 'past');
+    assert.equal(isSubjectUpcomingOrToday('chemistry', 6, '2026-11-09', '11:30'), false);
+
+    // 4. After all exams completed (2026-11-15)
+    assert.equal(getSubjectExamStatus('hindi', 2, '2026-11-15'), 'past');
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-15'), 'past');
+    assert.equal(isSubjectUpcomingOrToday('hindi', 2, '2026-11-15'), false);
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-15'), false);
+
+    // 5. Unscheduled subject fallback
+    assert.equal(getSubjectExamStatus('nonexistent' as any, 2, '2026-11-04'), 'unscheduled');
+    assert.equal(isSubjectUpcomingOrToday('nonexistent' as any, 2, '2026-11-04'), true);
   });
 });

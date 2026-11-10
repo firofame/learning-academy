@@ -3,6 +3,7 @@ import type { LearningSubjectId, StudentId } from '../types';
 import type { LearningAttempt } from './contracts';
 import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
+import { isSubjectUpcomingOrToday } from '../data/timetable';
 import { deriveRevisionProgress } from './revision';
 import {
   getDefaultLearningRepository,
@@ -34,10 +35,15 @@ export interface UseSubjectProgressResult {
   totalChecked: number;
   totalPending: number;
   overallPercentage: number;
+  hasUpcomingExams: boolean;
+  upcomingSubjectsCount: number;
   refresh: () => void;
 }
 
-export function useSubjectProgress(activeStudent: StudentId): UseSubjectProgressResult {
+export function useSubjectProgress(
+  activeStudent: StudentId,
+  referenceDate?: string | Date
+): UseSubjectProgressResult {
   const [attempts, setAttempts] = useState<LearningAttempt[]>([]);
   const [summaries, setSummaries] = useState<SubjectRevisionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -145,22 +151,28 @@ export function useSubjectProgress(activeStudent: StudentId): UseSubjectProgress
     return new Map(summaries.map(s => [s.subjectId, s]));
   }, [summaries]);
 
-  const { totalQuestions, totalChecked, totalPending } = useMemo(() => {
+  const { totalQuestions, totalChecked, totalPending, upcomingSubjectsCount } = useMemo(() => {
     let questions = 0;
     let checked = 0;
     let pending = 0;
+    let upcomingCount = 0;
     for (const s of summaries) {
-      questions += s.questionCount;
-      checked += s.checkedCount;
-      pending += s.pendingCount;
+      if (isSubjectUpcomingOrToday(s.subjectId, profile.grade, referenceDate)) {
+        upcomingCount += 1;
+        questions += s.questionCount;
+        checked += s.checkedCount;
+        pending += s.pendingCount;
+      }
     }
     return {
       totalQuestions: questions,
       totalChecked: checked,
-      totalPending: pending
+      totalPending: pending,
+      upcomingSubjectsCount: upcomingCount
     };
-  }, [summaries]);
+  }, [summaries, profile.grade, referenceDate]);
 
+  const hasUpcomingExams = upcomingSubjectsCount > 0;
   const overallPercentage = totalQuestions > 0 ? Math.round((totalChecked / totalQuestions) * 100) : 0;
 
   return {
@@ -173,6 +185,8 @@ export function useSubjectProgress(activeStudent: StudentId): UseSubjectProgress
     totalChecked,
     totalPending,
     overallPercentage,
+    hasUpcomingExams,
+    upcomingSubjectsCount,
     refresh
   };
 }
