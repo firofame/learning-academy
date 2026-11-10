@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Landmark,
-  Calendar, RotateCw, ChevronDown, ChevronUp, Clock, Bus, AlertCircle, Sparkles
+  Calendar, RotateCw, ChevronDown, ChevronUp, Clock, Bus, AlertCircle, Sparkles,
+  Star, Flame, Trophy
 } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { LearningAttempt } from '../learning/contracts';
@@ -13,6 +14,7 @@ import {
 } from '../data/timetable';
 import { localCalendarDate } from '../learning/domain';
 import { useSubjectProgress } from '../learning/useSubjectProgress';
+import { MILESTONES } from '../learning/rewards';
 
 interface SubjectHomeProps {
   activeStudent: StudentId;
@@ -85,6 +87,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
     error,
     summaryMap,
     attempts,
+    rewardState,
     nextAppExam,
     totalQuestions,
     totalChecked,
@@ -103,9 +106,44 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
   const todayStr = localCalendarDate(currentDate);
   const isHolidayActive = Boolean(nextExam?.isHoliday);
 
+  const hour = currentDate.getHours();
+  const timeOfDayGreeting =
+    hour < 5
+      ? 'Time to rest'
+      : hour < 12
+      ? 'Good morning'
+      : hour < 17
+      ? 'Good afternoon'
+      : hour < 21
+      ? 'Good evening'
+      : 'Time to rest';
+
+  const tomorrow = new Date(currentDate);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const studyNudge = (() => {
+    if (!nextExam) return 'All exams complete! Well done for all your hard work!';
+    if (nextActualExam?.date === localCalendarDate(tomorrow)) {
+      return `Tomorrow's exam is ${nextActualExam.subject}! A little revision can help you feel ready.`;
+    }
+    if (hour < 5 || hour >= 21) return 'Rest helps your brain remember. You can revise again tomorrow.';
+    if (rewardState.todayCorrectCount === 0) {
+      return rewardState.currentStreak > 0
+        ? 'A quick revision round can keep your study streak going. One step at a time!'
+        : 'Start with a short revision round. Every little bit of practice helps!';
+    }
+    if (targetEntry && !targetEntry.isHoliday) {
+      return `Next exam: ${targetEntry.subject} on ${targetEntry.displayDate}. Stay confident!`;
+    }
+    return `Awesome job today! ${rewardState.todayCorrectCount} questions answered correctly.`;
+  })();
+  const nextStarMilestone = MILESTONES.find(milestone =>
+    milestone.starTarget !== undefined && milestone.starTarget > rewardState.totalStars
+  );
+  const earnedMilestones = MILESTONES.filter(milestone => rewardState.unlockedMilestoneIds.includes(milestone.id));
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
-      {/* Screen-reader accessible heading; visual space saved for mobile */}
+      {/* Screen-reader accessible heading */}
       <h1 className="sr-only">What would you like to learn?</h1>
 
       {error && (
@@ -113,6 +151,108 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
           {error}
         </p>
       )}
+
+      {/* Hero Welcome Banner */}
+      <section
+        aria-label={`Welcome ${profile.name}`}
+        className={`relative overflow-hidden rounded-2xl sm:rounded-3xl bg-gradient-to-r ${profile.theme.gradient} p-5 sm:p-7 text-white shadow-md animate-slide-up`}
+      >
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <span className="text-4xl sm:text-5xl select-none filter drop-shadow-md animate-gentle-bounce">
+              {profile.avatarEmoji}
+            </span>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wider font-extrabold text-white/80">
+                  {timeOfDayGreeting}
+                </span>
+                <span className="inline-block w-1 h-1 rounded-full bg-white/60" />
+                <span className="text-xs font-semibold text-white/90">
+                  {profile.gradeLabel}
+                </span>
+              </div>
+              <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white drop-shadow-xs">
+                {profile.theme.greeting}
+              </h2>
+              <p className="text-xs sm:text-sm text-white/90 font-medium">
+                {studyNudge}
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Stats Pill Row */}
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 shrink-0">
+            {/* Stars Pill */}
+            <div className="flex flex-col items-center gap-1 px-2 py-3 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 shadow-xs">
+              <Star className="w-4 h-4 fill-amber-300 text-amber-300 shrink-0" aria-hidden="true" />
+              <div className="text-center">
+                <p className="text-sm sm:text-base font-extrabold leading-tight text-white">
+                  {rewardState.totalStars}
+                </p>
+                <p className="text-xs text-white font-semibold">
+                  Stars
+                </p>
+              </div>
+            </div>
+
+            {/* Streak Pill */}
+            <div className="flex flex-col items-center gap-1 px-2 py-3 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 shadow-xs">
+              <Flame className="w-4 h-4 text-amber-300 fill-amber-300 shrink-0" aria-hidden="true" />
+              <div className="text-center">
+                <p className="text-sm sm:text-base font-extrabold leading-tight text-white">
+                  {rewardState.currentStreak}
+                </p>
+                <p className="text-xs text-white font-semibold">
+                  Streak
+                </p>
+              </div>
+            </div>
+
+            {/* Coverage Pill */}
+            <div className="flex flex-col items-center gap-1 px-2 py-3 rounded-xl bg-white/15 backdrop-blur-md border border-white/20 shadow-xs">
+              <Trophy className="w-4 h-4 text-amber-300 shrink-0" aria-hidden="true" />
+              <div className="text-center">
+                <p className="text-sm sm:text-base font-extrabold leading-tight text-white">
+                  {overallPercentage}%
+                </p>
+                <p className="text-xs text-white font-semibold">
+                  Coverage
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-label="Rewards summary" className={`rounded-2xl border ${profile.theme.accentBorder} ${profile.theme.accentBg} p-5 space-y-3`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className={`font-bold ${profile.theme.accentText}`}>Your star journey</h2>
+          <p className="text-sm text-slate-700">{rewardState.totalStars} stars · Best streak: {rewardState.longestStreak} {rewardState.longestStreak === 1 ? 'day' : 'days'}</p>
+        </div>
+        {nextStarMilestone?.starTarget !== undefined ? (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-700">
+              Next milestone: <strong>{nextStarMilestone.title}</strong> · {rewardState.totalStars}/{nextStarMilestone.starTarget} stars
+            </p>
+            <progress
+              aria-label={`Progress to ${nextStarMilestone.title}`}
+              value={rewardState.totalStars}
+              max={nextStarMilestone.starTarget}
+              className="reward-progress h-2 w-full"
+            />
+          </div>
+        ) : <p className="text-sm text-slate-700">All star milestones unlocked! Keep learning at your own pace.</p>}
+        {earnedMilestones.length > 0 && (
+          <ul aria-label="Earned milestones" className="flex flex-wrap gap-2">
+            {earnedMilestones.map(milestone => (
+              <li key={milestone.id} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-800">
+                <span aria-hidden="true">{milestone.emoji}</span> {milestone.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Exam Timetable Spotlight & Expandable Schedule */}
       <section aria-label="First Semester Exam Schedule" className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden transition-all">
@@ -418,28 +558,33 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
           const isPastExam = !isSubjectUpcomingOrToday(subject.id, profile.grade, currentDate);
 
           return (
-            <article key={subject.id} className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col justify-between gap-5 transition-all hover:border-slate-300">
+            <article
+              key={subject.id}
+              className={`bg-white border ${profile.theme.accentBorder} rounded-2xl p-6 shadow-xs ${profile.theme.cardGlow} flex flex-col justify-between gap-5 transition-all duration-200 motion-safe:hover:-translate-y-1 hover:shadow-md animate-slide-up`}
+            >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  {subject.id === 'robotics' ? (
-                    <Bot className="w-8 h-8 text-teal-700" aria-hidden="true" />
-                  ) : subject.id === 'maths' ? (
-                    <Calculator className="w-8 h-8 text-indigo-700" aria-hidden="true" />
-                  ) : subject.id === 'malayalam' || subject.id === 'hindi' ? (
-                    <Languages className="w-8 h-8 text-amber-700" aria-hidden="true" />
-                  ) : subject.id === 'evs' ? (
-                    <Leaf className="w-8 h-8 text-emerald-700" aria-hidden="true" />
-                  ) : subject.id === 'biology' ? (
-                    <Dna className="w-8 h-8 text-emerald-700" aria-hidden="true" />
-                  ) : subject.id === 'chemistry' ? (
-                    <FlaskConical className="w-8 h-8 text-purple-700" aria-hidden="true" />
-                  ) : subject.id === 'english' ? (
-                    <BookOpen className="w-8 h-8 text-blue-700" aria-hidden="true" />
-                  ) : subject.id === 'history' ? (
-                    <Landmark className="w-8 h-8 text-amber-800" aria-hidden="true" />
-                  ) : (
-                    <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
-                  )}
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${subject.iconBg ?? 'bg-amber-100 text-amber-700'} shadow-2xs`}>
+                    {subject.id === 'robotics' ? (
+                      <Bot className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'maths' ? (
+                      <Calculator className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'malayalam' || subject.id === 'hindi' ? (
+                      <Languages className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'evs' ? (
+                      <Leaf className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'biology' ? (
+                      <Dna className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'chemistry' ? (
+                      <FlaskConical className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'english' ? (
+                      <BookOpen className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'history' ? (
+                      <Landmark className="w-6 h-6" aria-hidden="true" />
+                    ) : (
+                      <BookOpen className="w-6 h-6" aria-hidden="true" />
+                    )}
+                  </div>
 
                   {summary && (
                     <div className="flex items-center gap-1.5">
@@ -465,8 +610,11 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <h2 className="text-2xl font-bold text-slate-900">{subject.name}</h2>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    {subject.emoji && <span className="text-xl select-none">{subject.emoji}</span>}
+                    <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">{subject.name}</h2>
+                  </div>
                   <p className="text-sm text-slate-600 leading-relaxed">{subject.description}</p>
                 </div>
 
@@ -476,10 +624,10 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                       <span>Coverage</span>
                       <span className="font-semibold text-slate-700">{subjectPct}%</span>
                     </div>
-                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div
-                        className={`h-1.5 rounded-full transition-all duration-500 ${
-                          isComplete ? 'bg-emerald-500' : 'bg-amber-500'
+                        className={`h-2 rounded-full transition-all duration-500 ${
+                          isComplete ? 'bg-emerald-500' : subject.progressBg
                         }`}
                         style={{ width: `${subjectPct}%` }}
                       />
@@ -495,10 +643,10 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
 
               <button
                 onClick={() => onNavigate(subject.startView)}
-                className="w-full min-h-11 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-white font-semibold inline-flex items-center justify-center gap-2 cursor-pointer transition-colors shadow-xs"
+                className={`w-full min-h-12 px-4 py-2.5 rounded-xl ${subject.buttonBg} active:scale-[0.99] text-white font-semibold inline-flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs group`}
               >
                 <span>Open {subject.name}</span>
-                <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
               </button>
             </article>
           );

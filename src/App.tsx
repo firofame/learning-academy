@@ -22,6 +22,8 @@ import {
   parseRoute,
   buildRouteUrl
 } from './utils/navigation';
+import { useSubjectProgress } from './learning/useSubjectProgress';
+import { RewardCelebrations } from './components/RewardToast';
 
 const SubjectRevisionView = lazy(() => import('./components/SubjectRevisionView').then(module => ({ default: module.SubjectRevisionView })));
 
@@ -38,6 +40,8 @@ export default function App() {
   activeStudentRef.current = activeStudent;
   const currentViewRef = useRef<ActiveAppView>(currentView);
   currentViewRef.current = currentView;
+  const { rewardState, loading: rewardsLoading } = useSubjectProgress(activeStudent);
+  const [examActive, setExamActive] = useState(false);
 
   // Cross-device sync lifecycle hooks
   useEffect(() => {
@@ -202,7 +206,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-slate-800 flex flex-col font-sans">
+    <div
+      className="app-shell min-h-screen text-slate-800 flex flex-col font-sans"
+      style={{ '--student-page-tint': currentProfile.theme.pageTint } as React.CSSProperties}
+    >
       {storageErrorMessage && (
         <div role="alert" className="bg-rose-50 border-b border-rose-200 text-rose-800 px-4 py-2.5 text-xs font-semibold flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -227,6 +234,12 @@ export default function App() {
         onSwitchStudent={handleSwitchStudent}
         settings={settings}
         onUpdateSettings={handleUpdateSettings}
+        rewardState={examActive ? null : rewardState}
+      />
+      <RewardCelebrations
+        key={activeStudent}
+        state={rewardState}
+        enabled={!examActive && !rewardsLoading}
       />
 
       {/* Main View Container */}
@@ -248,6 +261,7 @@ export default function App() {
             subjectId={currentSubject.id}
             settings={settings}
             onSessionSizeChange={handleSessionSizeChange}
+            onExamActiveChange={setExamActive}
           />
         )}
         </Suspense>

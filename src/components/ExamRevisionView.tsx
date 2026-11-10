@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, Volume2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Volume2, Star, Sparkles } from 'lucide-react';
 import type { AssistanceKind, AttemptOutcome, LearningAttempt, RevisionAttemptKind, RevisionResponseFormat } from '../learning/contracts';
 import { canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, isRevisionRecheckReady, selectRevisionBatch, type RevisionStep } from '../learning/revision';
 import { createRevisionAttempts, recordRevisionAnswerAttempt } from '../learning/attemptRecords';
@@ -8,6 +8,8 @@ import {
   type RevisionRoundRecord
 } from '../learning/persistence';
 import { getStudentProfile } from '../data/profiles';
+import { LEARNING_SUBJECTS } from '../data/subjects';
+import { deriveRewardState, getNewlyUnlockedMilestones, starsForAttempt } from '../learning/rewards';
 import { isPortionExamReady, localCalendarDate } from '../learning/domain';
 import { createSessionId } from '../learning/revision';
 import { emitStorageError } from '../utils/appStorage';
@@ -90,10 +92,32 @@ export interface ExamRevisionViewProps {
   allowSectionAssessment?: boolean;
   speechAudio: boolean;
   onComplete?: (result: RevisionSessionResult) => boolean | Promise<boolean>;
+  onExamActiveChange?: (active: boolean) => void;
 }
 
 const buttonPrimary = 'min-h-12 rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50';
 const buttonSecondary = 'min-h-12 rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
+
+const ENCOURAGING_CORRECT_MESSAGES = [
+  "Brilliant! You nailed it! 🌟",
+  "That's right! You're on fire! 🔥",
+  "Perfect answer! Keep going! ✨",
+  "Spot on! Excellent recall! 💪",
+  "Awesome work! You've got this! 🎯"
+];
+const SUPPORTIVE_REVIEW_MESSAGES = [
+  "Good try! Let's look at this together.",
+  "Not quite yet. Each practice helps you remember.",
+  "Let's strengthen this one. You've got this!"
+];
+const SUPPORTIVE_SKIP_MESSAGES = [
+  "No worries. We'll revisit this one together.",
+  "It's okay not to know yet. There's time to practise."
+];
+
+function getEncouragement(index: number): string {
+  return ENCOURAGING_CORRECT_MESSAGES[index % ENCOURAGING_CORRECT_MESSAGES.length];
+}
 
 const CONFETTI_PIECES = Array.from({ length: 28 }, (_, i) => ({
   id: i,
@@ -156,13 +180,16 @@ function isRevisionResponse(value: unknown): value is RevisionResponse {
 
 export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   learnerId, subjectId, lessonId, title, description, questions, sessionSize, onSessionSizeChange,
-  allowSectionAssessment = false, speechAudio, onComplete
+  allowSectionAssessment = false, speechAudio, onComplete, onExamActiveChange
 }) => {
   const profile = getStudentProfile(learnerId);
+  const subject = LEARNING_SUBJECTS.find(item => item.id === subjectId);
   const [selectedSection, setSelectedSection] = useState('all');
   const [round, setRound] = useState<RevisionRoundRecord | null>(null);
   const [attempts, setAttempts] = useState<LearningAttempt[]>([]);
   const attemptsRef = useRef<LearningAttempt[]>([]);
+  const rewardAttemptsRef = useRef<LearningAttempt[]>([]);
+  const [batchMilestonesBefore, setBatchMilestonesBefore] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [screen, setScreen] = useState<'overview' | 'session' | 'summary'>('overview');
   const [session, setSession] = useState<RevisionDraft | null>(null);
@@ -212,6 +239,21 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const summaryAnswers = session?.answers.filter(answer => answer.outcome !== 'ungraded') ?? [];
   const summaryCorrectCount = session?.answers.filter(answer => answer.outcome === 'correct').length ?? 0;
   const isBatchPerfect = summaryAnswers.length > 0 && summaryCorrectCount === summaryAnswers.length;
+  const completedSteps = session ? session.index + (session.phase === 'feedback' ? 1 : 0) : 0;
+  const batchStars = session?.answers.reduce((total, answer) => total + starsForAttempt(answer), 0) ?? 0;
+  const batchMilestones = screen === 'summary'
+    ? getNewlyUnlockedMilestones(
+        deriveRewardState(learnerId, rewardAttemptsRef.current, localCalendarDate(new Date())),
+        batchMilestonesBefore
+      )
+    : [];
+  const hasHiddenExam = session?.mode === 'exam' && screen === 'session';
+
+  useEffect(() => {
+    onExamActiveChange?.(hasHiddenExam);
+  }, [hasHiddenExam, onExamActiveChange]);
+
+  useEffect(() => () => onExamActiveChange?.(false), [onExamActiveChange]);
 
   const priorAssistance = (
     questionId: string,
@@ -260,6 +302,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       const currentAttempts = savedAttempts.filter(attempt =>
         attempt.subjectId === subjectId && attempt.lessonId === lessonId
       );
+      rewardAttemptsRef.current = savedAttempts;
       attemptsRef.current = currentAttempts;
       setAttempts(currentAttempts);
     }).catch(cause => {
@@ -364,6 +407,9 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       activeAttemptId: null,
       scheduledRechecks: steps.filter(step => step.attemptKind === 'recheck').map(step => step.questionId)
     };
+    setBatchMilestonesBefore(
+      deriveRewardState(learnerId, rewardAttemptsRef.current, localCalendarDate(new Date())).unlockedMilestoneIds
+    );
     setSession(next);
     setShowHelp(false);
     setSavedResult(null);
@@ -452,6 +498,11 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     ].sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp) ||
       (a.revisionSequence ?? 0) - (b.revisionSequence ?? 0));
     attemptsRef.current = nextAttempts;
+    rewardAttemptsRef.current = [
+      ...rewardAttemptsRef.current.filter(attempt => attempt.attemptId !== attemptId),
+      learningAttempt
+    ];
+    window.dispatchEvent(new window.CustomEvent('academy-reward-attempt', { detail: { attempt: learningAttempt } }));
     setAttempts(nextAttempts);
     setSession(previous => previous ? {
       ...previous,
@@ -528,6 +579,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
         moveToNext(response);
       } else {
         if (response) {
+          if (speechAudio) void audioService.playFeedback(grade.correct ? 'correct' : 'review');
           setSession(previous => previous ? {
             ...previous, phase: 'feedback', feedback: response, activeAttemptId: null
           } : previous);
@@ -552,6 +604,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     setScreen('summary');
     setShowHelp(false);
     setSavedResult(null);
+    if (speechAudio) void audioService.playFeedback('complete');
     try {
       const outcome = onComplete?.({
         mode: completedSession.mode,
@@ -806,7 +859,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                       : 'Rechecks need two other completed questions first. Once rechecked unaided, questions are exam-ready for tomorrow.'}
                   </p>
                 )}
-                {isPortionExamReady(progress) && <p>All questions are exam-ready for tomorrow! Start a new round to practise them again.</p>}
+                {isPortionExamReady(progress) && <p className="rounded-xl bg-emerald-50 p-3 text-emerald-900 animate-glow-pulse">All questions are exam-ready for tomorrow! Start a new round to practise them again.</p>}
               </div>
             )}
           </section>
@@ -821,7 +874,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                   onClick={() => setSelectedSection(option.id)}
                   aria-pressed={selectedSection === option.id}
                   className={`min-h-12 rounded-xl border p-3 text-left text-sm font-semibold ${
-                    selectedSection === option.id ? 'border-slate-800 bg-slate-100' : 'border-slate-200 bg-white'
+                    selectedSection === option.id ? `border-current ${subject?.lightBg} ${subject?.darkText}` : 'border-slate-200 bg-white'
                   }`}
                 >
                   {option.label} · {option.count} question(s)
@@ -839,16 +892,43 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       )}
 
       {screen === 'session' && session && currentQuestion && currentStep && (
-        <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="font-bold text-slate-700">
+        <section className="space-y-5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-6 animate-slide-up">
+          <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl p-3 ${subject?.lightBg}`}>
+            <p className={`font-bold ${subject?.darkText}`}>
+              <span aria-hidden="true">{subject?.emoji} </span>
               {session.mode === 'exam' ? 'Mock exam' : currentStep.attemptKind === 'recheck' ? 'Recheck after other questions' : 'Revision'} · Question {session.index + 1} of {session.steps.length}
             </p>
             <button type="button" className={buttonSecondary} onClick={() => { setScreen('overview'); setError(''); }}>
               <ArrowLeft className="mr-1 inline h-4 w-4" aria-hidden="true" /> Save and exit
             </button>
           </div>
-          <progress className="h-2 w-full accent-slate-800" value={session.index + 1} max={session.steps.length} aria-label="Revision progress" />
+
+          {/* Dynamic Progress Bar */}
+          <div className="space-y-1">
+            <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden border border-slate-200/60">
+              <div
+                className={`h-2.5 rounded-full transition-all duration-300 ease-out ${subject?.progressBg}`}
+                style={{ width: `${Math.round((completedSteps / session.steps.length) * 100)}%` }}
+                role="progressbar"
+                aria-valuenow={completedSteps}
+                aria-valuemin={0}
+                aria-valuemax={session.steps.length}
+                aria-label="Revision progress"
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5 pt-1" aria-hidden="true">
+              {session.steps.map((step, index) => (
+                <span
+                  key={`${step.questionId}-${index}`}
+                  className={`h-2 w-2 rounded-full ${
+                    index < completedSteps ? subject?.progressBg
+                      : index === session.index ? `${subject?.progressBg} animate-glow-pulse`
+                      : 'bg-slate-200'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{currentQuestion.sectionLabel}</p>
           <div className="flex items-start justify-between gap-3">
             <div className={`min-w-0 flex-1 text-lg font-bold leading-relaxed text-slate-900 sm:text-xl ${currentQuestion.languageClass ?? ''}`}>
@@ -943,15 +1023,36 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
           {session.phase === 'feedback' && session.feedback && (
             <div
               role="status"
-              className={`space-y-3 rounded-xl border p-4 transition-colors duration-150 ${
+              className={`relative overflow-hidden space-y-3 rounded-xl border p-4 sm:p-5 transition-all duration-200 animate-pop-in ${
                 session.feedback.outcome === 'correct'
-                  ? 'border-emerald-300 bg-emerald-50/80 shadow-xs'
-                  : 'border-slate-200 bg-slate-50'
+                  ? 'border-emerald-300 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50/80 shadow-xs'
+                  : session.feedback.outcome === 'skipped'
+                  ? 'border-sky-200 bg-sky-50/80 text-sky-950'
+                  : 'border-amber-200 bg-amber-50/80 text-amber-950'
               }`}
             >
-              <p
-                className={`font-bold flex items-center gap-2 ${
-                  session.feedback.outcome === 'correct' ? 'text-emerald-950' : 'text-slate-900'
+              {/* Floating Star Badge on Correct */}
+              {session.feedback.outcome === 'correct' && (
+                <div key={session.feedback.attemptId} aria-hidden="true" className="animate-star-float w-fit pointer-events-none flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-amber-950 font-black text-xs sm:text-sm shadow-md">
+                  <Star className="w-3.5 h-3.5 fill-amber-950" />
+                  <span>+{starsForAttempt(session.feedback)} ⭐</span>
+                </div>
+              )}
+              <p className="text-sm font-semibold">
+                {session.feedback.outcome === 'correct'
+                  ? `+${starsForAttempt(session.feedback)} ${starsForAttempt(session.feedback) === 1 ? 'star' : 'stars'} earned`
+                  : session.feedback.outcome === 'skipped'
+                    ? SUPPORTIVE_SKIP_MESSAGES[session.index % SUPPORTIVE_SKIP_MESSAGES.length]
+                    : SUPPORTIVE_REVIEW_MESSAGES[session.index % SUPPORTIVE_REVIEW_MESSAGES.length]}
+              </p>
+
+              <div
+                className={`font-extrabold text-base flex flex-wrap items-center gap-2 ${
+                  session.feedback.outcome === 'correct'
+                    ? 'text-emerald-950'
+                    : session.feedback.outcome === 'skipped'
+                    ? 'text-sky-950'
+                    : 'text-amber-950'
                 }`}
               >
                 {session.feedback.outcome === 'correct' && (
@@ -964,9 +1065,14 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                       ? 'We’ll come back to this after other questions.'
                       : 'Let’s review this answer.'}
                 </span>
-              </p>
+                {session.feedback.outcome === 'correct' && (
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-200/80 px-2.5 py-0.5 rounded-full shadow-2xs">
+                    {getEncouragement(session.index)}
+                  </span>
+                )}
+              </div>
               {session.feedback.feedback && (
-                <p className={session.feedback.outcome === 'correct' ? 'text-emerald-900' : undefined}>
+                <p className={session.feedback.outcome === 'correct' ? 'text-emerald-900 font-medium' : 'text-slate-800'}>
                   {session.feedback.feedback}
                 </p>
               )}
@@ -984,7 +1090,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 </button>
               )}
               {(session.feedback.outcome !== 'correct' || session.feedback.assistance.length > 0) && currentStep.attemptKind === 'recheck' && (
-                <p className="text-sm text-slate-600">This still needs another recheck after more questions.</p>
+                <p className="text-sm text-amber-800 font-medium">This still needs another recheck after more questions.</p>
               )}
               <button type="button" className={buttonPrimary} onClick={() => moveToNext()}>
                 {session.index + 1 === session.steps.length ? 'Finish this batch' : 'Continue'}
@@ -997,7 +1103,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
 
       {screen === 'summary' && session && (
         <section className="relative overflow-hidden space-y-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-label="Revision summary">
-          <CelebrationConfetti />
+          {isBatchPerfect && <CelebrationConfetti />}
           <div>
             <h2 className="text-xl font-bold text-slate-900">{session.mode === 'exam' ? 'Mock exam complete' : 'Revision batch complete'}</h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -1019,7 +1125,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-xl" role="img" aria-label="Celebration">
               🎉
             </span>
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="font-bold text-sm sm:text-base">
                 {isBatchPerfect
                   ? `Fantastic effort, ${profile.name}! All ${summaryCorrectCount} correct in this batch!`
@@ -1032,6 +1138,35 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
               </p>
             </div>
           </div>
+
+          {/* Batch Stars Celebratory Pill */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 text-amber-900 border border-amber-300 font-extrabold text-xs sm:text-sm shadow-2xs">
+              <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+              <span>
+                +{batchStars}{' '}
+                Stars earned in this batch!
+              </span>
+            </span>
+            {isBatchPerfect && (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-200 font-extrabold text-xs shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Perfect Score 🎯</span>
+              </span>
+            )}
+          </div>
+          {batchMilestones.length > 0 && (
+            <div className="space-y-2" aria-label="Milestones unlocked this batch" role="region">
+              <h3 className="font-bold text-amber-900">New milestones!</h3>
+              <ul className="flex flex-wrap gap-2">
+                {batchMilestones.map(milestone => (
+                  <li key={milestone.id} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950">
+                    <span aria-hidden="true">{milestone.emoji}</span> {milestone.title}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {session.mode === 'exam' && (
             <p className="text-lg font-semibold">

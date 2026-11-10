@@ -5,6 +5,8 @@ import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
 import { getNextAppExam, isSubjectUpcomingOrToday, type TimetableEntry } from '../data/timetable';
 import { deriveRevisionProgress, isRevisionRecheckReady } from './revision';
+import { deriveRewardState, type RewardState } from './rewards';
+import { localCalendarDate } from './domain';
 import {
   getDefaultLearningRepository,
   listLearningAttempts,
@@ -31,6 +33,7 @@ export interface UseSubjectProgressResult {
   summaries: SubjectRevisionSummary[];
   summaryMap: Map<LearningSubjectId, SubjectRevisionSummary>;
   attempts: LearningAttempt[];
+  rewardState: RewardState;
   nextAppExam?: TimetableEntry;
   totalQuestions: number;
   totalChecked: number;
@@ -50,6 +53,18 @@ export function useSubjectProgress(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+
+  useEffect(() => {
+    if (referenceDate !== undefined) return;
+    const updateDate = () => setCurrentDate(new Date());
+    const timer = window.setInterval(updateDate, 30000);
+    window.addEventListener('focus', updateDate);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', updateDate);
+    };
+  }, [referenceDate]);
 
   const profile = getStudentProfile(activeStudent);
   const availableSubjects = useMemo(
@@ -63,6 +78,14 @@ export function useSubjectProgress(
 
   // Reactive update when cross-device sync merges new progress
   useEffect(() => {
+    const handleAttempt = (event: Event) => {
+      const { attempt } = (event as CustomEvent<{ attempt: LearningAttempt }>).detail;
+      if (attempt.learnerId !== activeStudent) return;
+      setAttempts(previous => [
+        ...previous.filter(item => item.attemptId !== attempt.attemptId),
+        attempt
+      ]);
+    };
     const handleProgressSynced = (event: Event) => {
       const customEvent = event as CustomEvent<{ studentId?: StudentId }>;
       if (!customEvent.detail?.studentId || customEvent.detail.studentId === activeStudent) {
@@ -70,8 +93,10 @@ export function useSubjectProgress(
       }
     };
     window.addEventListener('academy-progress-synced', handleProgressSynced);
+    window.addEventListener('academy-reward-attempt', handleAttempt);
     return () => {
       window.removeEventListener('academy-progress-synced', handleProgressSynced);
+      window.removeEventListener('academy-reward-attempt', handleAttempt);
     };
   }, [activeStudent]);
 
@@ -156,8 +181,8 @@ export function useSubjectProgress(
   }, [summaries]);
 
   const nextAppExam = useMemo(() => {
-    return getNextAppExam(profile.grade, referenceDate);
-  }, [profile.grade, referenceDate]);
+    return getNextAppExam(profile.grade, referenceDate ?? currentDate);
+  }, [profile.grade, referenceDate, currentDate]);
 
   const { totalQuestions, totalChecked, totalPending } = useMemo(() => {
     if (nextAppExam?.subjectId) {
@@ -179,12 +204,22 @@ export function useSubjectProgress(
   const upcomingSubjectsCount = hasUpcomingExams ? 1 : 0;
   const overallPercentage = totalQuestions > 0 ? Math.round((totalChecked / totalQuestions) * 100) : 0;
 
+  const todayStr = useMemo(() => {
+    if (typeof referenceDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(referenceDate)) return referenceDate;
+    return localCalendarDate(typeof referenceDate === 'string' ? new Date(referenceDate) : referenceDate ?? currentDate);
+  }, [referenceDate, currentDate]);
+
+  const rewardState = useMemo(() => {
+    return deriveRewardState(activeStudent, attempts, todayStr);
+  }, [activeStudent, attempts, todayStr]);
+
   return {
     loading,
     error,
     summaries,
     summaryMap,
     attempts,
+    rewardState,
     nextAppExam,
     totalQuestions,
     totalChecked,

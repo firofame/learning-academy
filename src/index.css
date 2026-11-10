@@ -28,6 +28,31 @@
   font-family: 'Noto Sans Devanagari', 'Outfit', sans-serif;
 }
 
+.app-shell {
+  background: linear-gradient(160deg, var(--student-page-tint), #faf9f6 60%);
+}
+
+.reward-progress {
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: 9999px;
+  background: white;
+}
+
+.reward-progress::-webkit-progress-bar {
+  background: white;
+}
+
+.reward-progress::-webkit-progress-value {
+  background: #b45309;
+  border-radius: 9999px;
+}
+
+.reward-progress::-moz-progress-bar {
+  background: #b45309;
+}
+
 /* Feedback micro-animations */
 @keyframes gentle-bounce {
   0% {
@@ -69,9 +94,94 @@
   animation-fill-mode: forwards;
 }
 
+/* Star float celebration micro-animation */
+@keyframes star-float {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(0) scale(1.15);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-24px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.85);
+  }
+}
+
+.animate-star-float {
+  animation: star-float 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Card entrance */
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.35s ease-out both;
+}
+
+/* Subtle attention pulse for streaks and readiness */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 14px 4px rgba(245, 158, 11, 0.2);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pop-in {
+  animation: pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+
   .animate-gentle-bounce,
-  .animate-confetti {
+  .animate-confetti,
+  .animate-star-float,
+  .animate-slide-up,
+  .animate-glow-pulse,
+  .animate-pop-in {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
