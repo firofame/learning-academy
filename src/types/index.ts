@@ -4,12 +4,24 @@
 
 export type StudentId = 'fazia' | 'shiza';
 
+export interface StudentTheme {
+  primary: string;
+  gradient: string;
+  accentBg: string;
+  accentText: string;
+  accentBorder: string;
+  cardGlow: string;
+  greeting: string;
+  pageTint: string;
+}
+
 export interface StudentProfile {
   id: StudentId;
   name: string;
   grade: number;
   gradeLabel: string;
   avatarEmoji: string;
+  theme: StudentTheme;
   description: string;
 }
 
@@ -96,6 +108,13 @@ export interface LearningSubject {
   availableGrades: number[];
   startView: ActiveAppView;
   views: ActiveAppView[];
+  emoji?: string;
+  color?: string;
+  lightBg?: string;
+  darkText?: string;
+  iconBg?: string;
+  buttonBg?: string;
+  progressBg?: string;
 }
 
 export interface PracticeSessionState {

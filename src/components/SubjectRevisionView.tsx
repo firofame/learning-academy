@@ -10,10 +10,11 @@ interface SubjectRevisionViewProps {
   settings: AppSettings;
   onSessionSizeChange: (size: number) => void;
   gradingApiUrl?: string;
+  onExamActiveChange?: (active: boolean) => void;
 }
 
 export const SubjectRevisionView: React.FC<SubjectRevisionViewProps> = ({
-  activeStudent, subjectId, settings, onSessionSizeChange, gradingApiUrl
+  activeStudent, subjectId, settings, onSessionSizeChange, gradingApiUrl, onExamActiveChange
 }) => {
   const definition = useMemo(
     () => buildSubjectRevision(subjectId, activeStudent, gradingApiUrl),
@@ -27,6 +28,7 @@ export const SubjectRevisionView: React.FC<SubjectRevisionViewProps> = ({
       sessionSize={settings.sessionSize}
       onSessionSizeChange={onSessionSizeChange}
       speechAudio={subjectId === 'spell-bee' && settings.speechAudio}
+      onExamActiveChange={onExamActiveChange}
     />
   );
 };

@@ -8,6 +8,16 @@ export const STUDENT_PROFILES: StudentProfile[] = [
     grade: 2,
     gradeLabel: 'Grade 2',
     avatarEmoji: '🌸',
+    theme: {
+      primary: 'rose',
+      gradient: 'from-rose-900 via-pink-800 to-orange-900',
+      accentBg: 'bg-rose-50',
+      accentText: 'text-rose-700',
+      accentBorder: 'border-rose-200',
+      cardGlow: 'shadow-rose-100/60',
+      greeting: 'Hello Fazia! 🌸 Ready to explore?',
+      pageTint: '#fff1f2'
+    },
     description: 'Grade 2 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, and EVS'
   },
   {
@@ -16,6 +26,16 @@ export const STUDENT_PROFILES: StudentProfile[] = [
     grade: 6,
     gradeLabel: 'Grade 6',
     avatarEmoji: '⭐',
+    theme: {
+      primary: 'violet',
+      gradient: 'from-violet-900 via-purple-900 to-indigo-800',
+      accentBg: 'bg-violet-50',
+      accentText: 'text-violet-700',
+      accentBorder: 'border-violet-200',
+      cardGlow: 'shadow-violet-100/60',
+      greeting: 'Hey Shiza! ⭐ Ready to master your exams?',
+      pageTint: '#f5f3ff'
+    },
     description: 'Grade 6 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, Biology, Chemistry, English, and History'
   }
 ];

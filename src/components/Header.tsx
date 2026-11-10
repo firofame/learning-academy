@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Cloud, CloudOff, RefreshCw } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, ArrowRightLeft, Cloud, CloudOff, RefreshCw, Star } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { AppSettings } from '../utils/appStorage';
+import type { RewardState } from '../learning/rewards';
 import { getStudentProfile, STUDENT_PROFILES } from '../data/profiles';
 import { getSyncStatus, subscribeSyncStatus, type SyncStatus } from '../utils/syncService';
+import { StreakBadge } from './StreakBadge';
 
 interface HeaderProps {
   currentView: ActiveAppView;
@@ -12,6 +14,7 @@ interface HeaderProps {
   onSwitchStudent: (studentId: StudentId) => void;
   settings: AppSettings;
   onUpdateSettings: (settings: AppSettings) => void;
+  rewardState?: RewardState | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,7 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
   activeStudent,
   onSwitchStudent,
   settings,
-  onUpdateSettings
+  onUpdateSettings,
+  rewardState
 }) => {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus(activeStudent));
 
@@ -41,7 +45,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="border-b border-slate-200 bg-white/95 sm:sticky top-0 z-40 backdrop-blur-sm no-print">
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-3">
+      <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex flex-wrap items-center justify-between gap-3">
         {/* Zone 1: Brand & Profile Switcher */}
         <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           <button
@@ -49,7 +53,7 @@ export const Header: React.FC<HeaderProps> = ({
             aria-label="Learning Academy home"
             className="flex items-center gap-2 cursor-pointer group select-none"
           >
-            <span className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center font-bold text-base shadow-xs group-hover:bg-amber-600 transition-colors">
+            <span className={`w-8 h-8 rounded-lg bg-gradient-to-br ${currentProfile.theme.gradient} text-white flex items-center justify-center font-bold text-base shadow-xs group-hover:scale-105 transition-transform`}>
               <BookOpen className="w-5 h-5" />
             </span>
             <span className="text-base font-bold tracking-tight text-slate-900 group-hover:text-amber-700 transition-colors whitespace-nowrap">
@@ -61,17 +65,39 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={toggleStudent}
             title={`Switch student (currently ${currentProfile.name})`}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 transition-all cursor-pointer whitespace-nowrap active:scale-95"
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${currentProfile.theme.accentBg} ${currentProfile.theme.accentText} border ${currentProfile.theme.accentBorder} transition-colors duration-300 cursor-pointer whitespace-nowrap active:scale-95 shadow-2xs`}
           >
             <span>{currentProfile.avatarEmoji}</span>
             <span className="font-bold text-slate-900">{currentProfile.name}</span>
             <span className="text-slate-500 font-normal">({currentProfile.gradeLabel})</span>
             <ArrowRightLeft className="w-3 h-3 text-slate-400 ml-0.5" />
           </button>
+          <span className={`hidden xl:inline text-xs font-semibold ${currentProfile.theme.accentText}`}>
+            {currentProfile.theme.greeting}
+          </span>
         </div>
 
         {/* Zone 2: Navigation & Controls */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          {/* Rewards & Streak status */}
+          {rewardState && (
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <StreakBadge
+                streak={rewardState.currentStreak}
+                todayActive={rewardState.todayCorrectCount > 0}
+              />
+              <div
+                role="status"
+                className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200 select-none shadow-2xs"
+                title={`${rewardState.totalStars} total stars earned (${rewardState.todayStars} today)`}
+                aria-label={`${rewardState.todayStars} stars earned today`}
+              >
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                <span>{rewardState.todayStars}</span>
+              </div>
+            </div>
+          )}
+
           <nav aria-label="Main navigation" className="flex items-center">
             <button
               onClick={() => onNavigate('home')}
@@ -142,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Audio Sound Toggle */}
               <button
                 onClick={() => onUpdateSettings({ ...settings, speechAudio: !settings.speechAudio })}
-                title={settings.speechAudio ? 'Voice audio is ON' : 'Voice audio is OFF'}
+                title={settings.speechAudio ? 'Voice and celebration audio are ON' : 'Voice and celebration audio are OFF'}
                 className={`p-2 rounded-lg border text-slate-600 transition-colors ${
                   settings.speechAudio 
                     ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-800' 
