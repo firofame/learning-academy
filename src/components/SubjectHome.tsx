@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Landmark,
   Calendar, RotateCw, ChevronDown, ChevronUp, Clock, Bus, AlertCircle, Sparkles,
-  Star, Flame, Trophy
+  Star, Flame, Trophy, HeartHandshake
 } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
 import type { LearningAttempt } from '../learning/contracts';
@@ -581,6 +581,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                       <BookOpen className="w-6 h-6" aria-hidden="true" />
                     ) : subject.id === 'history' ? (
                       <Landmark className="w-6 h-6" aria-hidden="true" />
+                    ) : subject.id === 'moral-science' ? (
+                      <HeartHandshake className="w-6 h-6" aria-hidden="true" />
                     ) : (
                       <BookOpen className="w-6 h-6" aria-hidden="true" />
                     )}

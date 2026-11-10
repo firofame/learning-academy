@@ -150,6 +150,21 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     availableGrades: [6],
     startView: 'history',
     views: ['history']
+  },
+  {
+    id: 'moral-science',
+    name: 'Moral Science',
+    emoji: '💛',
+    color: 'cyan',
+    buttonBg: 'bg-cyan-700 hover:bg-cyan-800',
+    progressBg: 'bg-cyan-500',
+    lightBg: 'bg-cyan-50',
+    darkText: 'text-cyan-800',
+    iconBg: 'bg-cyan-100 text-cyan-700',
+    description: 'Revise school Moral Values lessons with recall, feedback, and same-day rechecks.',
+    availableGrades: [2],
+    startView: 'moral-science',
+    views: ['moral-science']
   }
 ];
 

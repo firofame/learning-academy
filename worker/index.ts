@@ -6,6 +6,7 @@ import { SHIZA_BIOLOGY_LESSON } from '../src/data/biology';
 import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
 import { SHIZA_ENGLISH_LESSON } from '../src/data/english';
 import { SHIZA_HISTORY_LESSON } from '../src/data/history';
+import { FAZIA_MORAL_SCIENCE_LESSON } from '../src/data/moralScience';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/writtenGrading';
@@ -147,7 +148,7 @@ async function generateGrade(
   context: object,
   recheck: boolean,
   fetcher: typeof fetch,
-  subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history',
+  subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history' | 'moral-science',
   gradeLevel?: number
 ): Promise<{ verdict: string; feedback: string }> {
   let response: Response;
@@ -160,7 +161,11 @@ async function generateGrade(
         signal: AbortSignal.timeout(20_000),
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
-            (subject === 'history'
+            (subject === 'moral-science'
+              ? 'You mark Grade 2 Moral Science written answers against the supplied trusted marking criteria. ' +
+                'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid phrasing. ' +
+                'Require every essential idea in the criteria; reject contradictions and irrelevant answers. '
+              : subject === 'history'
               ? 'You mark Grade 6 History and Civics written answers against the supplied trusted marking criteria. ' +
                 'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid phrasing or historical terms. ' +
                 'Require every essential idea in the criteria; reject contradictions and incorrect facts. '
@@ -307,7 +312,10 @@ export async function handleGradingRequest(
     const historyQuestion = body.lessonId === SHIZA_HISTORY_LESSON.id
       ? SHIZA_HISTORY_LESSON.questions.find(question => question.id === body.questionId)
       : undefined;
-    let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history';
+    const moralScienceQuestion = body.lessonId === FAZIA_MORAL_SCIENCE_LESSON.id
+      ? FAZIA_MORAL_SCIENCE_LESSON.questions.find(question => question.id === body.questionId)
+      : undefined;
+    let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history' | 'moral-science';
     let context: object;
     let gradeLevel: number | undefined;
     if (roboticsLesson && roboticsQuestion?.kind === 'short') {
@@ -375,6 +383,14 @@ export async function handleGradingRequest(
         grade: SHIZA_HISTORY_LESSON.grade, question: historyQuestion.prompt,
         referenceAnswer: historyQuestion.answer,
         markingCriteria: historyQuestion.markingCriteria, studentAnswer: body.answer.trim()
+      };
+    } else if (moralScienceQuestion && moralScienceQuestion.kind === 'written' && moralScienceQuestion.markingCriteria) {
+      subject = 'moral-science';
+      gradeLevel = FAZIA_MORAL_SCIENCE_LESSON.grade;
+      context = {
+        grade: FAZIA_MORAL_SCIENCE_LESSON.grade, question: moralScienceQuestion.prompt,
+        referenceAnswer: moralScienceQuestion.answer,
+        markingCriteria: moralScienceQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };
     } else {
       throw new GradingError(400, 'This question does not support written-answer checking.');
