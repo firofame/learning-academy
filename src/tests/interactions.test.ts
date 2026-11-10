@@ -205,6 +205,9 @@ describe('Shared exam-eve revision interactions', () => {
     // Initial state: Spotlight card is visible, timetable details are collapsed
     const spotlight = await view.findByRole('region', { name: 'First Semester Exam Schedule' });
     assert.ok(spotlight);
+    // Focus remains on next actual exam rather than shouting Holiday as main headline
+    assert.ok(view.getByText(/Next Exam: Hindi \(हिन्दी\) \(11\/11\/26\)/));
+    assert.ok(view.getByText(/holiday \(self-revision day\)/i));
     const viewButton = view.getByRole('button', { name: 'View Full Timetable' });
     assert.ok(viewButton);
     assert.equal(view.queryByText('Reporting & Assembly'), null);

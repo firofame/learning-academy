@@ -11,6 +11,7 @@ import {
   EXAM_GENERAL_INFO, getNextExam, getNextActualExam,
   getTimetableForGrade, getExamStatus, isSubjectUpcomingOrToday, type TimetableEntry
 } from '../data/timetable';
+import { localCalendarDate } from '../learning/domain';
 import { useSubjectProgress } from '../learning/useSubjectProgress';
 
 interface SubjectHomeProps {
@@ -92,13 +93,15 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
     hasUpcomingExams
   } = useSubjectProgress(activeStudent, currentDate);
 
-  const targetEntry = nextExam?.isHoliday ? nextActualExam : nextExam;
+  const targetEntry = nextActualExam ?? nextExam;
   const targetSubject = targetEntry?.subjectId && subjects.some(s => s.id === targetEntry.subjectId)
     ? LEARNING_SUBJECTS.find(s => s.id === targetEntry.subjectId)
     : undefined;
 
   const subjectNames = new Map(LEARNING_SUBJECTS.map(subject => [subject.id, subject.name]));
   const recentAttempts = [...attempts].reverse().slice(0, 15);
+  const todayStr = localCalendarDate(currentDate);
+  const isHolidayActive = Boolean(nextExam?.isHoliday);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-4 sm:py-8 space-y-6 sm:space-y-8">
@@ -122,27 +125,31 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                 <span>{EXAM_GENERAL_INFO.examName} · {EXAM_GENERAL_INFO.schoolName}</span>
               </div>
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-                {nextExam ? (
-                  nextExam.isHoliday ? (
-                    <span>Holiday ({nextExam.displayDate})</span>
+                {targetEntry ? (
+                  targetEntry.isHoliday ? (
+                    <span>Holiday ({targetEntry.displayDate})</span>
                   ) : (
-                    <span>Next Exam: {nextExam.subject} ({nextExam.displayDate})</span>
+                    <span>Next Exam: {targetEntry.subject} ({targetEntry.displayDate})</span>
                   )
                 ) : (
                   <span>First Semester Exam Timetable</span>
                 )}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600">
-                {nextExam?.isHoliday ? (
-                  nextActualExam ? (
+                {nextActualExam ? (
+                  isHolidayActive ? (
                     <span>
-                      Holiday. Next exam is <strong className="text-slate-800 font-semibold">{nextActualExam.subject}</strong> on {nextActualExam.displayDate} ({nextActualExam.dayOfWeek}).
+                      {nextExam?.date === todayStr ? 'Today is a holiday' : `${nextExam?.displayDate} is a holiday`} (self-revision day). Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} on {nextActualExam.dayOfWeek} (reach by {EXAM_GENERAL_INFO.reportingTime}).
                     </span>
                   ) : (
-                    <span>Holiday (no school attendance).</span>
+                    <span>
+                      {nextActualExam.notes ? `${nextActualExam.notes} · ` : ''}Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} (reach by {EXAM_GENERAL_INFO.reportingTime}).
+                    </span>
                   )
                 ) : nextExam ? (
-                  <span>{nextExam.notes ? `${nextExam.notes} · ` : ''}Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} (reach by {EXAM_GENERAL_INFO.reportingTime}).</span>
+                  <span>
+                    {nextExam.isHoliday ? 'Holiday (no school attendance).' : `${nextExam.notes ? `${nextExam.notes} · ` : ''}Regular classes.`}
+                  </span>
                 ) : (
                   <span>View full exam schedule, timings, and dispersal notes for {profile.name}.</span>
                 )}
