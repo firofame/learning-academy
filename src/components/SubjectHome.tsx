@@ -114,66 +114,112 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
       {/* Exam Timetable Spotlight & Expandable Schedule */}
       <section aria-label="First Semester Exam Schedule" className="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden transition-all">
         {/* Spotlight Top Banner */}
-        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50/50 p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
-              <Calendar className="w-4 h-4 text-amber-700" />
-              <span>{EXAM_GENERAL_INFO.examName} · {EXAM_GENERAL_INFO.schoolName}</span>
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-50/50 p-5 sm:p-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
+                <Calendar className="w-4 h-4 text-amber-700" />
+                <span>{EXAM_GENERAL_INFO.examName} · {EXAM_GENERAL_INFO.schoolName}</span>
+              </div>
+              <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
+                {nextExam ? (
+                  nextExam.isStudyLeave ? (
+                    <span>Study Leave ({nextExam.displayDate})</span>
+                  ) : (
+                    <span>Next Exam: {nextExam.subject} ({nextExam.displayDate})</span>
+                  )
+                ) : (
+                  <span>First Semester Exam Timetable</span>
+                )}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600">
+                {nextExam?.isStudyLeave ? (
+                  nextActualExam ? (
+                    <span>Self revision day. Next exam is <strong className="text-slate-800 font-semibold">{nextActualExam.subject}</strong> on {nextActualExam.displayDate} ({nextActualExam.dayOfWeek}).</span>
+                  ) : (
+                    <span>Self revision day (no school attendance).</span>
+                  )
+                ) : nextExam ? (
+                  <span>{nextExam.notes ? `${nextExam.notes} · ` : ''}Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} (reach by {EXAM_GENERAL_INFO.reportingTime}).</span>
+                ) : (
+                  <span>View full exam schedule, timings, and dispersal notes for {profile.name}.</span>
+                )}
+              </p>
             </div>
-            <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
-              {nextExam ? (
-                nextExam.isStudyLeave ? (
-                  <span>Study Leave ({nextExam.displayDate})</span>
-                ) : (
-                  <span>Next Exam: {nextExam.subject} ({nextExam.displayDate})</span>
-                )
-              ) : (
-                <span>First Semester Exam Timetable</span>
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+              {targetSubject && (
+                <button
+                  onClick={() => onNavigate(targetSubject.startView)}
+                  className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <span>Revise {targetSubject.name} Now</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               )}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600">
-              {nextExam?.isStudyLeave ? (
-                nextActualExam ? (
-                  <span>Self revision day. Next exam is <strong className="text-slate-800 font-semibold">{nextActualExam.subject}</strong> on {nextActualExam.displayDate} ({nextActualExam.dayOfWeek}).</span>
-                ) : (
-                  <span>Self revision day (no school attendance).</span>
-                )
-              ) : nextExam ? (
-                <span>{nextExam.notes ? `${nextExam.notes} · ` : ''}Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} (reach by {EXAM_GENERAL_INFO.reportingTime}).</span>
-              ) : (
-                <span>View full exam schedule, timings, and dispersal notes for {profile.name}.</span>
-              )}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            {targetSubject && (
               <button
-                onClick={() => onNavigate(targetSubject.startView)}
-                className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                onClick={() => setShowTimetable(prev => !prev)}
+                aria-expanded={showTimetable}
+                className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ${
+                  showTimetable
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
+                    : targetSubject
+                    ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white'
+                }`}
               >
-                <span>Revise {targetSubject.name} Now</span>
-                <ArrowRight className="w-4 h-4" />
+                <Calendar className="w-4 h-4 text-amber-700" />
+                <span>{showTimetable ? 'Hide Timetable' : 'View Full Timetable'}</span>
+                {showTimetable ? (
+                  <ChevronUp className="w-4 h-4 text-slate-500" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                )}
               </button>
-            )}
-            <button
-              onClick={() => setShowTimetable(prev => !prev)}
-              aria-expanded={showTimetable}
-              className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ${
-                showTimetable
-                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
-                  : targetSubject
-                  ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
-                  : 'bg-amber-600 hover:bg-amber-700 text-white'
-              }`}
-            >
-              <Calendar className="w-4 h-4 text-amber-700" />
-              <span>{showTimetable ? 'Hide Timetable' : 'View Full Timetable'}</span>
-              {showTimetable ? (
-                <ChevronUp className="w-4 h-4 text-slate-500" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-slate-500" />
+            </div>
+          </div>
+
+          {/* Integrated Revision Coverage Row */}
+          <div
+            role="region"
+            aria-label="Current revision coverage"
+            className="pt-4 border-t border-amber-200/60 space-y-2"
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                  Revision Coverage{nextAppExam ? ` · ${nextAppExam.subject}` : ''}
+                </span>
+                <span className="text-xs text-slate-600">
+                  {loading ? (
+                    'Loading revision coverage…'
+                  ) : nextAppExam && totalQuestions > 0 ? (
+                    `${totalChecked} of ${totalQuestions} questions checked (${overallPercentage}%)`
+                  ) : nextAppExam ? (
+                    `No revision questions scheduled for ${nextAppExam.subject}`
+                  ) : (
+                    'All scheduled exams completed'
+                  )}
+                </span>
+              </div>
+              {totalPending > 0 && (
+                <span className="self-start sm:self-auto inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-white text-amber-800 border border-amber-300/80 shadow-2xs">
+                  <RotateCw className="w-3 h-3 text-amber-700" />
+                  {totalPending} question{totalPending > 1 ? 's' : ''} to recheck
+                </span>
               )}
-            </button>
+            </div>
+            <div className="w-full bg-white/80 rounded-full h-2 overflow-hidden border border-amber-200/50">
+              <div
+                className={`h-2 rounded-full transition-all duration-500 ease-out ${
+                  !loading && !hasUpcomingExams ? 'bg-emerald-500' : 'bg-amber-500'
+                }`}
+                style={{ width: `${!loading && !hasUpcomingExams ? 100 : overallPercentage}%` }}
+                role="progressbar"
+                aria-valuenow={!loading && !hasUpcomingExams ? 100 : overallPercentage}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              />
+            </div>
           </div>
         </div>
 
@@ -352,46 +398,6 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
             </div>
           </div>
         )}
-      </section>
-
-      {/* Overall Revision Coverage Bar */}
-      <section aria-label="Current revision coverage" className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">
-              Revision Coverage{nextAppExam ? ` · ${nextAppExam.subject}` : ''}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600">
-              {loading ? (
-                'Loading revision coverage…'
-              ) : nextAppExam && totalQuestions > 0 ? (
-                `${totalChecked} of ${totalQuestions} questions checked (${overallPercentage}%)`
-              ) : nextAppExam ? (
-                `No revision questions scheduled for ${nextAppExam.subject}`
-              ) : (
-                'All scheduled exams completed'
-              )}
-            </p>
-          </div>
-          {totalPending > 0 && (
-            <span className="self-start sm:self-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-              <RotateCw className="w-3 h-3 text-amber-700" />
-              {totalPending} question{totalPending > 1 ? 's' : ''} to recheck
-            </span>
-          )}
-        </div>
-        <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-          <div
-            className={`h-2.5 rounded-full transition-all duration-500 ease-out ${
-              !loading && !hasUpcomingExams ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
-            style={{ width: `${!loading && !hasUpcomingExams ? 100 : overallPercentage}%` }}
-            role="progressbar"
-            aria-valuenow={!loading && !hasUpcomingExams ? 100 : overallPercentage}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          />
-        </div>
       </section>
 
       {/* Subjects Grid */}
