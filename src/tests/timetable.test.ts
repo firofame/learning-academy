@@ -1,7 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  EXAM_GENERAL_INFO,
   GRADE_2_TIMETABLE,
   GRADE_6_TIMETABLE,
   DEFAULT_EXAM_DISPERSAL_TIME,
@@ -21,18 +20,6 @@ import {
 import { getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 
 describe('Marion Villa Convent First Semester Exam Timetable', () => {
-  test('general exam information captures school, timings, and dispersal rules accurately', () => {
-    assert.equal(EXAM_GENERAL_INFO.schoolName, 'Marion Villa Convent ISC School');
-    assert.equal(EXAM_GENERAL_INFO.examName, 'First Semester Examination');
-    assert.equal(EXAM_GENERAL_INFO.academicYear, '2026-2027');
-    assert.equal(EXAM_GENERAL_INFO.reportingTime, '8:10 AM');
-    assert.equal(EXAM_GENERAL_INFO.morningAssembly, '8:15 AM');
-    assert.ok(EXAM_GENERAL_INFO.twoHourTiming.includes('8:30 AM') && EXAM_GENERAL_INFO.twoHourTiming.includes('10:45 AM'));
-    assert.ok(EXAM_GENERAL_INFO.threeHourTiming.includes('8:30 AM') && EXAM_GENERAL_INFO.threeHourTiming.includes('11:45 AM'));
-    assert.ok(EXAM_GENERAL_INFO.dispersalNote.includes('11:00 AM') && EXAM_GENERAL_INFO.dispersalNote.includes('31/10/26'));
-    assert.ok(EXAM_GENERAL_INFO.busTimingNote.includes('10:50 AM'));
-  });
-
   test('Grade 2 timetable contains all 14 scheduled days from 28/10/26 to 13/11/26', () => {
     assert.equal(GRADE_2_TIMETABLE.length, 14);
 

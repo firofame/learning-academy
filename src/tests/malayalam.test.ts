@@ -16,35 +16,9 @@ import {
   saveMalayalamResult
 } from '../utils/malayalamStorage';
 
-class MockLocalStorage {
-  private store = new Map<string, string>();
+import { installMockLocalStorage } from './helpers/storage';
 
-  getItem(key: string): string | null {
-    return this.store.get(key) ?? null;
-  }
-
-  setItem(key: string, value: string): void {
-    this.store.set(key, value);
-  }
-
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-
-  clear(): void {
-    this.store.clear();
-  }
-}
-
-const mockStorage = new MockLocalStorage();
-Object.defineProperty(globalThis, 'window', {
-  value: { localStorage: mockStorage },
-  configurable: true
-});
-Object.defineProperty(globalThis, 'localStorage', {
-  value: mockStorage,
-  configurable: true
-});
+const mockStorage = installMockLocalStorage();
 
 describe('Fazia Grade 2 Malayalam exam portions', () => {
   beforeEach(() => mockStorage.clear());

@@ -22,4 +22,18 @@ npm run lint      # Type check
 npm run build     # Production build
 ```
 
+## Tests
+
+The suite focuses on curriculum completeness, answer matching (including Malayalam
+and Hindi), learner-facing interactions, grading failures, and learning rules.
+Cross-device regressions live in [sync.test.ts](src/tests/sync.test.ts): both merge engines run
+the same behavioral checks, and client sync is exercised against the real Worker
+and Durable Object code using in-memory storage. These are local tests, not a
+Cloudflare runtime integration test.
+
+Reuse [helpers/storage.ts](src/tests/helpers/storage.ts) for non-DOM storage tests; component tests use
+JSDOM's storage. Prefer a representative case for each distinct behavior or failure
+path over lists of equivalent inputs, export-alias checks, or decorative metadata
+assertions. Keep source-backed curriculum and timetable checks.
+
 Deployment to GitHub Pages and Cloudflare Workers runs automatically via GitHub Actions on push to `main`.
