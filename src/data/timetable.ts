@@ -104,9 +104,9 @@ export const GRADE_2_TIMETABLE: TimetableEntry[] = [
     date: '2026-11-04',
     displayDate: '04/11/26',
     dayOfWeek: 'Wednesday',
-    subject: 'Study Leave',
+    subject: 'Holiday',
     isHoliday: true,
-    notes: 'Study Leave (-)'
+    notes: 'Holiday'
   },
   {
     id: 'g2-2026-11-05',
@@ -141,9 +141,9 @@ export const GRADE_2_TIMETABLE: TimetableEntry[] = [
     date: '2026-11-10',
     displayDate: '10/11/26',
     dayOfWeek: 'Tuesday',
-    subject: 'Study Leave',
+    subject: 'Holiday',
     isHoliday: true,
-    notes: 'Study Leave (-)'
+    notes: 'Holiday'
   },
   {
     id: 'g2-2026-11-11',
@@ -159,9 +159,9 @@ export const GRADE_2_TIMETABLE: TimetableEntry[] = [
     date: '2026-11-12',
     displayDate: '12/11/26',
     dayOfWeek: 'Thursday',
-    subject: 'Study Leave',
+    subject: 'Holiday',
     isHoliday: true,
-    notes: 'Study Leave (-)'
+    notes: 'Holiday'
   },
   {
     id: 'g2-2026-11-13',
@@ -421,7 +421,7 @@ export function isExamPast(
     return false;
   }
 
-  // Holidays (including study leave days) are whole-day self-revision days with no exam hours or dispersal
+  // Holidays are whole-day self-revision days with no exam hours or dispersal
   if (entry.isHoliday) {
     return false;
   }
