@@ -29,6 +29,10 @@ import {
 import {
   checkHistoryAnswer, getHistoryLesson, HISTORY_SECTIONS, type HistoryLesson, type HistoryQuestion
 } from '../data/history';
+import {
+  checkMoralScienceAnswer, getMoralScienceLesson, MORAL_SCIENCE_SECTIONS,
+  type MoralScienceLesson, type MoralScienceQuestion
+} from '../data/moralScience';
 import { MathsDiagram } from '../components/MathsDiagram';
 import type {
   RevisionQuestion, RevisionResponse,
@@ -47,6 +51,7 @@ import { saveBiologyResult } from '../utils/biologyStorage';
 import { saveChemistryResult } from '../utils/chemistryStorage';
 import { saveEnglishResult } from '../utils/englishStorage';
 import { saveHistoryResult } from '../utils/historyStorage';
+import { saveMoralScienceResult } from '../utils/moralScienceStorage';
 import { getDefaultLearningRepository, saveLearningAttempts } from './persistence';
 import { createRevisionAttempts } from './attemptRecords';
 
@@ -637,6 +642,51 @@ function historyQuestion(
   };
 }
 
+function moralScienceQuestion(
+  question: MoralScienceQuestion,
+  lesson: MoralScienceLesson,
+  gradingApiUrl: string
+): RevisionQuestion {
+  const section = MORAL_SCIENCE_SECTIONS.find(item => item.id === question.section);
+  const isChoice = question.kind === 'true-false' || question.kind === 'match';
+  const markingCriteria = question.kind === 'written' ? question.markingCriteria : undefined;
+  return {
+    id: question.id,
+    section: question.section,
+    sectionLabel: section?.label ?? question.section,
+    groupLabel: question.groupLabel,
+    prompt: question.prompt,
+    answer: question.answer,
+    responseFormat: isChoice ? 'choice' : 'written',
+    ...(isChoice ? { options: question.options } : {}),
+    explanation: question.explanation,
+    provenance: lesson.sourceName,
+    helpContent: (
+      <div className="space-y-2 text-sm text-slate-800">
+        <p><strong>From your notes:</strong> {question.sourceLine}</p>
+        {markingCriteria && <p><strong>What to include:</strong> {markingCriteria}</p>}
+      </div>
+    ),
+    language: 'en',
+    languageCode: 'en-US',
+    maxLength: MAX_WRITTEN_ANSWER_LENGTH,
+    grade: async (answer, signal) => {
+      if (answer.length > MAX_WRITTEN_ANSWER_LENGTH) {
+        throw new Error(`Keep your answer to ${MAX_WRITTEN_ANSWER_LENGTH} characters or fewer.`);
+      }
+      if (checkMoralScienceAnswer(question, answer)) {
+        return { correct: true, source: 'deterministic' };
+      }
+      if (!markingCriteria) return { correct: false, source: 'deterministic' };
+      if (!gradingApiUrl) {
+        throw new Error('Automatic written-answer checking is not configured. Your answer has not been marked; try again when checking is available.');
+      }
+      const grade = await gradeWrittenAnswer(gradingApiUrl, lesson.id, question.id, answer, signal);
+      return { correct: grade.correct, source: 'ai', feedback: grade.feedback };
+    }
+  };
+}
+
 function saveRoboticsSession(
   learnerId: StudentId,
   result: RevisionSessionResult
@@ -836,6 +886,29 @@ function saveHistorySession(
   }, { mirrorAttempts: false }) !== null;
 }
 
+function saveMoralScienceSession(
+  learnerId: StudentId,
+  result: RevisionSessionResult
+): boolean {
+  const responses = finalResponses(result);
+  if (!canSave(responses)) return false;
+  return saveMoralScienceResult(learnerId, {
+    mode: result.mode,
+    completedAt: result.completedAt,
+    section: result.section,
+    answers: responses.map(response => ({
+      questionId: response.questionId,
+      answer: response.answer,
+      correct: response.outcome === 'correct',
+      ...(response.outcome === 'skipped' ? { skipped: true } : {}),
+      ...(response.assistance.length ? { assistance: response.assistance } : {}),
+      ...(response.aiChecked ? { aiChecked: true, aiFeedback: response.aiFeedback } : {}),
+      attemptId: response.attemptId,
+      attemptedAt: response.attemptedAt
+    }))
+  }, { mirrorAttempts: false }) !== null;
+}
+
 export function buildSubjectRevision(
   subjectId: LearningSubjectId,
   learnerId: StudentId,
@@ -949,6 +1022,17 @@ export function buildSubjectRevision(
         questions: lesson.questions.map(question => historyQuestion(question, lesson, gradingApiUrl)),
         allowSectionAssessment: true,
         onComplete: result => saveHistorySession(learnerId, result)
+      };
+    }
+    case 'moral-science': {
+      const lesson = getMoralScienceLesson(learnerId);
+      return {
+        lessonId: lesson.id,
+        title: lesson.title,
+        description: `Exam-eve revision · Based on ${lesson.sourceName}.`,
+        questions: lesson.questions.map(question => moralScienceQuestion(question, lesson, gradingApiUrl)),
+        allowSectionAssessment: true,
+        onComplete: result => saveMoralScienceSession(learnerId, result)
       };
     }
   }

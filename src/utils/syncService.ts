@@ -22,7 +22,8 @@ export const ALL_SUBJECT_KEYS = [
   'biology',
   'chemistry',
   'english',
-  'history'
+  'history',
+  'moral-science'
 ] as const;
 
 // ---------------------------------------------------------------------------

@@ -169,6 +169,7 @@ export const GRADE_2_TIMETABLE: TimetableEntry[] = [
     displayDate: '13/11/26',
     dayOfWeek: 'Friday',
     subject: 'SUPW / Moral Science / Regular class',
+    subjectId: 'moral-science',
     notes: 'Supw//ms/ regular class'
   }
 ];

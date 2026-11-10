@@ -97,9 +97,10 @@ export type ActiveAppView =
   | 'chemistry'
   | 'english'
   | 'history'
+  | 'moral-science'
   | 'timetable';
 
-export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history';
+export type LearningSubjectId = 'spell-bee' | 'robotics' | 'maths' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history' | 'moral-science';
 
 export interface LearningSubject {
   id: LearningSubjectId;

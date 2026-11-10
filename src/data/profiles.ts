@@ -18,7 +18,7 @@ export const STUDENT_PROFILES: StudentProfile[] = [
       greeting: 'Hello Fazia! 🌸 Ready to explore?',
       pageTint: '#fff1f2'
     },
-    description: 'Grade 2 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, and EVS'
+    description: 'Grade 2 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, EVS, and Moral Science'
   },
   {
     id: 'shiza',
