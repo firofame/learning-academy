@@ -181,8 +181,13 @@ describe('Shared exam-eve revision interactions', () => {
     // Subjects tab includes both subjects and revision coverage
     const heading = await view.findByRole('heading', { name: 'What would you like to learn?' });
     assert.ok(heading);
-    assert.ok(await view.findByRole('region', { name: 'Current revision coverage' }));
+    const coverageRegion = await view.findByRole('region', { name: 'Current revision coverage' });
+    assert.ok(coverageRegion);
     assert.ok(await view.findByRole('region', { name: 'Recent learning history' }));
+
+    // Finished exams are tagged with 'Exam completed' badge on their cards
+    const completedBadges = view.queryAllByText('Exam completed');
+    assert.ok(completedBadges.length > 0, 'Past exam subjects should show Exam completed badge');
   });
 
   test('the subjects home view merges timetable with expandable schedule and preserves native scripts', async () => {

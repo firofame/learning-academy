@@ -496,3 +496,29 @@ export function getNextActualExam(
   const upcoming = getUpcomingExams(grade, reference, referenceTime);
   return upcoming.find(entry => !entry.isStudyLeave);
 }
+
+export function getSubjectExamStatus(
+  subjectId: LearningSubjectId,
+  grade: number,
+  reference?: string | Date | ParsedReferenceDateTime,
+  referenceTime?: string
+): 'past' | 'today' | 'upcoming' | 'unscheduled' {
+  const entries = getTimetableForGrade(grade).filter(e => e.subjectId === subjectId);
+  if (entries.length === 0) return 'unscheduled';
+  const parsedRef = parseReferenceDateTime(reference, referenceTime);
+  const statuses = entries.map(entry => getExamStatus(entry, parsedRef));
+  if (statuses.includes('today')) return 'today';
+  if (statuses.includes('upcoming')) return 'upcoming';
+  return 'past';
+}
+
+export function isSubjectUpcomingOrToday(
+  subjectId: LearningSubjectId,
+  grade: number,
+  reference?: string | Date | ParsedReferenceDateTime,
+  referenceTime?: string
+): boolean {
+  const status = getSubjectExamStatus(subjectId, grade, reference, referenceTime);
+  if (status === 'unscheduled') return true;
+  return status === 'upcoming' || status === 'today';
+}
