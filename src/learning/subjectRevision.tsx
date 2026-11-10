@@ -26,6 +26,9 @@ import {
 import {
   checkEnglishAnswer, getEnglishLesson, ENGLISH_SECTIONS, type EnglishLesson, type EnglishQuestion
 } from '../data/english';
+import {
+  checkHistoryAnswer, getHistoryLesson, HISTORY_SECTIONS, type HistoryLesson, type HistoryQuestion
+} from '../data/history';
 import { MathsDiagram } from '../components/MathsDiagram';
 import type {
   RevisionQuestion, RevisionResponse,
@@ -43,6 +46,7 @@ import { saveEvsResult } from '../utils/evsStorage';
 import { saveBiologyResult } from '../utils/biologyStorage';
 import { saveChemistryResult } from '../utils/chemistryStorage';
 import { saveEnglishResult } from '../utils/englishStorage';
+import { saveHistoryResult } from '../utils/historyStorage';
 import { getDefaultLearningRepository, saveLearningAttempts } from './persistence';
 import { createRevisionAttempts } from './attemptRecords';
 
@@ -593,6 +597,56 @@ function englishQuestion(
   };
 }
 
+function historyQuestion(
+  question: HistoryQuestion,
+  lesson: HistoryLesson,
+  gradingApiUrl: string
+): RevisionQuestion {
+  const section = HISTORY_SECTIONS.find(item => item.id === question.section);
+  const cards = lesson.cards.filter(card => card.section === question.section);
+  return {
+    id: question.id,
+    section: question.section,
+    sectionLabel: section?.label ?? question.section,
+    prompt: question.prompt,
+    answer: question.answer,
+    responseFormat: 'written',
+    explanation: question.explanation,
+    provenance: lesson.sourceName,
+    helpContent: (
+      <div className="space-y-3 text-sm text-slate-800">
+        {question.markingCriteria && (
+          <p><strong>What to include:</strong> {question.markingCriteria}</p>
+        )}
+        {cards.map(card => (
+          <article key={card.id} className="space-y-1">
+            <h3 className="font-bold">{card.title}</h3>
+            <p>{card.prompt}</p>
+            <p><strong>Summary:</strong> {card.answer}</p>
+            {card.examples && <p><strong>Examples:</strong> {card.examples}</p>}
+          </article>
+        ))}
+      </div>
+    ),
+    language: 'en',
+    languageCode: 'en-US',
+    maxLength: MAX_WRITTEN_ANSWER_LENGTH,
+    grade: async (answer, signal) => {
+      if (answer.length > MAX_WRITTEN_ANSWER_LENGTH) {
+        throw new Error(`Keep your answer to ${MAX_WRITTEN_ANSWER_LENGTH} characters or fewer.`);
+      }
+      if (checkHistoryAnswer(question, answer)) {
+        return { correct: true, source: 'deterministic' };
+      }
+      if (!gradingApiUrl) {
+        throw new Error('Automatic written-answer checking is not configured. Your answer has not been marked; try again when checking is available.');
+      }
+      const grade = await gradeWrittenAnswer(gradingApiUrl, lesson.id, question.id, answer, signal);
+      return { correct: grade.correct, source: 'ai', feedback: grade.feedback };
+    }
+  };
+}
+
 function saveRoboticsSession(
   learnerId: StudentId,
   result: RevisionSessionResult
@@ -769,6 +823,29 @@ function saveEnglishSession(
   }, { mirrorAttempts: false }) !== null;
 }
 
+function saveHistorySession(
+  learnerId: StudentId,
+  result: RevisionSessionResult
+): boolean {
+  const responses = finalResponses(result);
+  if (!canSave(responses)) return false;
+  return saveHistoryResult(learnerId, {
+    mode: result.mode,
+    completedAt: result.completedAt,
+    section: result.section,
+    answers: responses.map(response => ({
+      questionId: response.questionId,
+      answer: response.answer,
+      correct: response.outcome === 'correct',
+      ...(response.outcome === 'skipped' ? { skipped: true } : {}),
+      ...(response.assistance.length ? { assistance: response.assistance } : {}),
+      ...(response.aiChecked ? { aiChecked: true, aiFeedback: response.aiFeedback } : {}),
+      attemptId: response.attemptId,
+      attemptedAt: response.attemptedAt
+    }))
+  }, { mirrorAttempts: false }) !== null;
+}
+
 export function buildSubjectRevision(
   subjectId: LearningSubjectId,
   learnerId: StudentId,
@@ -871,6 +948,17 @@ export function buildSubjectRevision(
         questions: lesson.questions.map(question => englishQuestion(question, lesson, gradingApiUrl)),
         allowSectionAssessment: true,
         onComplete: result => saveEnglishSession(learnerId, result)
+      };
+    }
+    case 'history': {
+      const lesson = getHistoryLesson(learnerId);
+      return {
+        lessonId: lesson.id,
+        title: lesson.title,
+        description: `Exam-eve revision · Based on ${lesson.sourceName}.`,
+        questions: lesson.questions.map(question => historyQuestion(question, lesson, gradingApiUrl)),
+        allowSectionAssessment: true,
+        onComplete: result => saveHistorySession(learnerId, result)
       };
     }
   }

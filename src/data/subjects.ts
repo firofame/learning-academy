@@ -72,6 +72,14 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     availableGrades: [6],
     startView: 'english',
     views: ['english']
+  },
+  {
+    id: 'history',
+    name: 'History',
+    description: 'Revise school History and Civics portions with recall, feedback, and same-day rechecks.',
+    availableGrades: [6],
+    startView: 'history',
+    views: ['history']
   }
 ];
 

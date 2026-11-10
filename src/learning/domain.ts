@@ -89,7 +89,8 @@ export const SUBJECT_REVIEW_POLICIES = {
   evs: 'practice-or-exam-correct',
   biology: 'practice-or-exam-correct',
   chemistry: 'practice-or-exam-correct',
-  english: 'practice-or-exam-correct'
+  english: 'practice-or-exam-correct',
+  history: 'practice-or-exam-correct'
 } as const satisfies Record<string, ReviewClearingPolicy>;
 
 export function shouldClearMissedQuestion(

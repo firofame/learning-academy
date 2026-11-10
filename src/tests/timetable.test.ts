@@ -85,7 +85,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'Chemistry', subjectId: 'chemistry' },
       { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'English II', subjectId: 'english', isHoliday: false },
       { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Holiday', isHoliday: true },
-      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History / MS', isHoliday: false },
+      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History / MS', subjectId: 'history', isHoliday: false },
       { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'Biology / SUPW', subjectId: 'biology', isHoliday: false }
     ];
 
@@ -365,15 +365,15 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subjectId, 'english');
     assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subject, 'English II');
 
-    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Holiday (11/11), next actual exam is History / MS (11/12), next app exam is Biology / SUPW (11/13)
+    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Holiday (11/11), next actual exam is History / MS (11/12), next app exam is History / MS (11/12)
     assert.equal(getNextExam(6, '2026-11-10', '11:30')?.subject, 'Holiday');
     assert.equal(getNextActualExam(6, '2026-11-10', '11:30')?.subject, 'History / MS');
-    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.subjectId, 'biology');
-    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.date, '2026-11-13');
+    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.subjectId, 'history');
+    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.date, '2026-11-12');
 
-    // Grade 6 on 2026-11-11 11:30 AM (Holiday) -> Next app exam remains Biology / SUPW (11/13)
-    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.subjectId, 'biology');
-    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.date, '2026-11-13');
+    // Grade 6 on 2026-11-11 11:30 AM (Holiday) -> Next app exam remains History / MS (11/12)
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.subjectId, 'history');
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.date, '2026-11-12');
 
     // Grade 6 on 2026-11-12 11:30 AM (after History / MS) -> Next app exam is Biology / SUPW (11/13)
     assert.equal(getNextAppExam(6, '2026-11-12', '11:30')?.subjectId, 'biology');
@@ -423,6 +423,6 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     // 4. Excluded from getNextAppExam
     assert.equal(getNextAppExam(2, '2026-11-04')?.subjectId, 'malayalam');
     assert.equal(getNextAppExam(2, '2026-11-10')?.subjectId, 'hindi');
-    assert.equal(getNextAppExam(6, '2026-11-11')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-11')?.subjectId, 'history');
   });
 });
