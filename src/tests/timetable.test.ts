@@ -10,6 +10,7 @@ import {
   getUpcomingExams,
   getNextExam,
   getNextActualExam,
+  getNextAppExam,
   parseReferenceDateTime,
   getExamEndCutoffTime,
   isExamPast,
@@ -355,5 +356,19 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     // 5. Unscheduled subject fallback
     assert.equal(getSubjectExamStatus('nonexistent' as any, 2, '2026-11-04'), 'unscheduled');
     assert.equal(isSubjectUpcomingOrToday('nonexistent' as any, 2, '2026-11-04'), true);
+
+    // 6. Next App Exam lookup (skips study leave and non-app exams)
+    // Grade 6 on 2026-11-10 07:00 AM -> English II
+    assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subjectId, 'english');
+    assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subject, 'English II');
+
+    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Biology (11/11)
+    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.subjectId, 'biology');
+
+    // Grade 6 on 2026-11-11 11:30 AM (after Biology, non-app exams History/SUPW follow) -> undefined
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30'), undefined);
+
+    // Grade 2 on 2026-11-10 (Study Leave) -> Hindi (11/11)
+    assert.equal(getNextAppExam(2, '2026-11-10')?.subjectId, 'hindi');
   });
 });

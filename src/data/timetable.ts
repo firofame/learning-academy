@@ -497,6 +497,15 @@ export function getNextActualExam(
   return upcoming.find(entry => !entry.isStudyLeave);
 }
 
+export function getNextAppExam(
+  grade: number,
+  reference?: string | Date | ParsedReferenceDateTime,
+  referenceTime?: string
+): TimetableEntry | undefined {
+  const upcoming = getUpcomingExams(grade, reference, referenceTime);
+  return upcoming.find(entry => !entry.isStudyLeave && Boolean(entry.subjectId));
+}
+
 export function getSubjectExamStatus(
   subjectId: LearningSubjectId,
   grade: number,
