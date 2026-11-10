@@ -177,6 +177,22 @@ for (const [name, merge] of [
       assert.deepEqual(merged.learningRecords, [first, second, record('attempt-c')]);
     });
 
+    test('allows graded attempts to supersede in-flight ungraded attempts', () => {
+      const ungraded = { ...record('attempt-x'), data: { outcome: 'ungraded', answer: '' } };
+      const graded = { ...record('attempt-x'), updatedAt: later, data: { outcome: 'correct', answer: 'verified' } };
+      const mergedLocalUngraded = merge(
+        snapshot({ learningRecords: [ungraded] }),
+        snapshot({ learningRecords: [graded] })
+      );
+      assert.deepEqual(mergedLocalUngraded.learningRecords, [graded]);
+
+      const mergedLocalGraded = merge(
+        snapshot({ learningRecords: [graded] }),
+        snapshot({ learningRecords: [ungraded] })
+      );
+      assert.deepEqual(mergedLocalGraded.learningRecords, [graded]);
+    });
+
     test('keeps the newest draft and revision state, retaining the existing value on ties', () => {
       for (const kind of ['draft', 'revision-state'] as const) {
         const old = record(kind, { kind });

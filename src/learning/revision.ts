@@ -129,6 +129,7 @@ export function deriveRevisionProgress(
       case 'correction':
         break;
       case 'recheck':
+        item.checked = true;
         item.recheckAttempted = true;
         item.successfulRecheck = attempt.outcome === 'correct' && attempt.assistance.length === 0;
         item.pendingRecheck = !item.successfulRecheck;
@@ -140,6 +141,23 @@ export function deriveRevisionProgress(
   }
 
   return questionIds.map(questionId => progress.get(questionId)!);
+}
+
+export function isRevisionRecheckReady(
+  item: RevisionQuestionProgress,
+  allProgress: readonly RevisionQuestionProgress[],
+  allRoundChecked: boolean
+): boolean {
+  if (!item.pendingRecheck) return false;
+  if (item.gapCount >= 2) return true;
+  if (allRoundChecked) {
+    if (!item.recheckAttempted) return true;
+    const hasPreferredRecheck = allProgress.some(
+      p => p.pendingRecheck && (p.gapCount >= 2 || !p.recheckAttempted)
+    );
+    if (!hasPreferredRecheck) return true;
+  }
+  return false;
 }
 
 export function selectRevisionBatch(
@@ -163,8 +181,8 @@ export function selectRevisionBatch(
   const allRoundChecked = !progress.some(item => !item.checked);
 
   let candidateRechecks = progress
-    .filter(item => allowedIds.has(item.questionId) && item.pendingRecheck &&
-      (item.gapCount >= 2 || (allRoundChecked && !item.recheckAttempted)) &&
+    .filter(item => allowedIds.has(item.questionId) &&
+      isRevisionRecheckReady(item, progress, allRoundChecked) &&
       !alreadyRechecked.has(item.questionId));
 
   candidateRechecks.sort((a, b) => {
@@ -209,8 +227,10 @@ export function canScheduleRevisionRecheck(
   attempts: readonly RevisionAttemptEvidence[],
   batchId: string
 ): boolean {
-  const item = deriveRevisionProgress(questionIds, attempts).find(progress => progress.questionId === questionId);
-  return item?.pendingRecheck === true && item.gapCount >= 2 &&
+  const allProgress = deriveRevisionProgress(questionIds, attempts);
+  const item = allProgress.find(progress => progress.questionId === questionId);
+  const allRoundChecked = !allProgress.some(progress => !progress.checked);
+  return item !== undefined && isRevisionRecheckReady(item, allProgress, allRoundChecked) &&
     !attempts.some(attempt => attempt.questionId === questionId &&
       attempt.revisionBatchId === batchId && attempt.revisionAttemptKind === 'recheck');
 }

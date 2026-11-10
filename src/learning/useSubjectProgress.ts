@@ -4,7 +4,7 @@ import type { LearningAttempt } from './contracts';
 import { getStudentProfile } from '../data/profiles';
 import { getAvailableSubjectsForGrade } from '../data/subjects';
 import { getNextAppExam, isSubjectUpcomingOrToday, type TimetableEntry } from '../data/timetable';
-import { deriveRevisionProgress } from './revision';
+import { deriveRevisionProgress, isRevisionRecheckReady } from './revision';
 import {
   getDefaultLearningRepository,
   listLearningAttempts,
@@ -132,7 +132,7 @@ export function useSubjectProgress(
           checkedCount: progress.filter(item => item.checked).length,
           pendingCount: progress.filter(item => item.pendingRecheck).length,
           readyCount: progress.filter(item =>
-            item.pendingRecheck && (item.gapCount >= 2 || (allChecked && !item.recheckAttempted))
+            isRevisionRecheckReady(item, progress, allChecked)
           ).length
         };
       });

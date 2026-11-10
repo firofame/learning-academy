@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Volume2 } from 'lucide-react';
 import type { AssistanceKind, AttemptOutcome, LearningAttempt, RevisionAttemptKind, RevisionResponseFormat } from '../learning/contracts';
-import { canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch, type RevisionStep } from '../learning/revision';
+import { canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, isRevisionRecheckReady, selectRevisionBatch, type RevisionStep } from '../learning/revision';
 import { createRevisionAttempts, recordRevisionAnswerAttempt } from '../learning/attemptRecords';
 import {
   getDefaultLearningRepository, listLearningAttempts, loadRevisionRound, saveRevisionRound,
@@ -204,7 +204,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const allRoundChecked = remainingCount === 0;
   const canStartNewRound = Boolean(round && remainingCount === 0 && pendingCount === 0);
   const readyRecheckCount = progress.filter(item =>
-    item.pendingRecheck && (item.gapCount >= 2 || (allRoundChecked && !item.recheckAttempted))
+    isRevisionRecheckReady(item, progress, allRoundChecked)
   ).length;
   const waitingRecheckCount = pendingCount - readyRecheckCount;
   const currentStep = session?.steps[session.index];

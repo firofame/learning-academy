@@ -336,6 +336,39 @@ describe('Same-day revision rechecks', () => {
       { questionId: 'q55', attemptKind: 'recheck' }
     ], 'q55 becomes eligible again only after 2 intervening questions');
   });
+
+  test('does not deadlock a sole remaining failed recheck when all round questions are checked', () => {
+    const allIds = ['q1', 'q2', 'q3'];
+    const attempts = [
+      revisionAttempt('q1', 'initial', 'correct', 1),
+      revisionAttempt('q2', 'initial', 'correct', 2),
+      revisionAttempt('q3', 'initial', 'incorrect', 3),
+      // Learner rechecks q3 and skips or misses it
+      revisionAttempt('q3', 'recheck', 'incorrect', 4, [], 'batch-recheck-1')
+    ];
+
+    const progress = deriveRevisionProgress(allIds, attempts);
+    const q3 = progress.find(p => p.questionId === 'q3')!;
+    assert.equal(q3.pendingRecheck, true);
+    assert.equal(q3.recheckAttempted, true);
+    assert.equal(q3.gapCount, 0);
+
+    // Because all questions are checked and no other questions can build a gap, q3 must remain recheckable
+    const batch = selectRevisionBatch(allIds, attempts, 'batch-recheck-2', 5, allIds);
+    assert.deepEqual(batch, [
+      { questionId: 'q3', attemptKind: 'recheck' }
+    ]);
+  });
+
+  test('marks questions as checked when rechecked even if initial attempt was filtered out or ungraded', () => {
+    const allIds = ['q1'];
+    const attempts = [
+      revisionAttempt('q1', 'recheck', 'correct', 1)
+    ];
+    const progress = deriveRevisionProgress(allIds, attempts);
+    assert.equal(progress[0].checked, true);
+    assert.equal(progress[0].examReady, true);
+  });
 });
 
 

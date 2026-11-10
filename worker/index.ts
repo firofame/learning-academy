@@ -422,6 +422,14 @@ export function mergeLearningRecords(
     }
 
     if (rec.kind === 'attempt') {
+      const existingOutcome = (existing as { data?: { outcome?: string } }).data?.outcome;
+      const remoteOutcome = (rec as { data?: { outcome?: string } }).data?.outcome;
+      // If an in-flight attempt was saved as 'ungraded' (e.g. assistance requested or AI pending),
+      // allow a graded version of the attempt to supersede it.
+      if (existingOutcome === 'ungraded' && remoteOutcome !== 'ungraded') {
+        recordMap.set(rec.id, rec);
+        continue;
+      }
       continue;
     }
 

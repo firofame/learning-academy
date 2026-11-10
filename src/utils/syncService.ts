@@ -84,7 +84,15 @@ export function mergeLearningRecords(
     }
 
     if (record.kind === 'attempt') {
-      // Attempts are immutable event logs with unique IDs; keep existing
+      const existingOutcome = (existing as { data?: { outcome?: string } }).data?.outcome;
+      const remoteOutcome = (record as { data?: { outcome?: string } }).data?.outcome;
+      // If an in-flight attempt was saved as 'ungraded' (e.g. assistance requested or AI pending),
+      // allow a graded version of the attempt to supersede it.
+      if (existingOutcome === 'ungraded' && remoteOutcome !== 'ungraded') {
+        map.set(record.id, record);
+        continue;
+      }
+      // Attempts are immutable event logs once graded; keep existing
       continue;
     }
 
