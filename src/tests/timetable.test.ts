@@ -37,20 +37,20 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(GRADE_2_TIMETABLE.length, 14);
 
     const expectedEntries = [
-      { date: '2026-10-28', displayDate: '28/10/26', day: 'Wednesday', subject: 'Regular class / G.K', isLeave: false },
-      { date: '2026-10-29', displayDate: '29/10/26', day: 'Thursday', subject: 'Robotics', subjectId: 'robotics', isLeave: false },
-      { date: '2026-10-30', displayDate: '30/10/26', day: 'Friday', subject: 'Spell Bee / Reading', subjectId: 'spell-bee', isLeave: false },
-      { date: '2026-10-31', displayDate: '31/10/26', day: 'Saturday', subject: 'Computer', isLeave: false },
-      { date: '2026-11-02', displayDate: '02/11/26', day: 'Monday', subject: 'Maths', subjectId: 'maths', isLeave: false },
-      { date: '2026-11-03', displayDate: '03/11/26', day: 'Tuesday', subject: 'English II', isLeave: false },
-      { date: '2026-11-04', displayDate: '04/11/26', day: 'Wednesday', subject: 'Study Leave', isLeave: true },
-      { date: '2026-11-05', displayDate: '05/11/26', day: 'Thursday', subject: 'Malayalam (മലയാളം)', subjectId: 'malayalam', isLeave: false },
-      { date: '2026-11-06', displayDate: '06/11/26', day: 'Friday', subject: 'English I', isLeave: false },
-      { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'EVS', subjectId: 'evs', isLeave: false },
-      { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'Study Leave', isLeave: true },
-      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Hindi (हिन्दी)', subjectId: 'hindi', isLeave: false },
-      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'Study Leave', isLeave: true },
-      { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'SUPW / Moral Science / Regular class', isLeave: false }
+      { date: '2026-10-28', displayDate: '28/10/26', day: 'Wednesday', subject: 'Regular class / G.K', isHoliday: false },
+      { date: '2026-10-29', displayDate: '29/10/26', day: 'Thursday', subject: 'Robotics', subjectId: 'robotics', isHoliday: false },
+      { date: '2026-10-30', displayDate: '30/10/26', day: 'Friday', subject: 'Spell Bee / Reading', subjectId: 'spell-bee', isHoliday: false },
+      { date: '2026-10-31', displayDate: '31/10/26', day: 'Saturday', subject: 'Computer', isHoliday: false },
+      { date: '2026-11-02', displayDate: '02/11/26', day: 'Monday', subject: 'Maths', subjectId: 'maths', isHoliday: false },
+      { date: '2026-11-03', displayDate: '03/11/26', day: 'Tuesday', subject: 'English II', isHoliday: false },
+      { date: '2026-11-04', displayDate: '04/11/26', day: 'Wednesday', subject: 'Holiday', isHoliday: true },
+      { date: '2026-11-05', displayDate: '05/11/26', day: 'Thursday', subject: 'Malayalam (മലയാളം)', subjectId: 'malayalam', isHoliday: false },
+      { date: '2026-11-06', displayDate: '06/11/26', day: 'Friday', subject: 'English I', isHoliday: false },
+      { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'EVS', subjectId: 'evs', isHoliday: false },
+      { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'Holiday', isHoliday: true },
+      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Hindi (हिन्दी)', subjectId: 'hindi', isHoliday: false },
+      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'Holiday', isHoliday: true },
+      { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'SUPW / Moral Science / Regular class', isHoliday: false }
     ];
 
     expectedEntries.forEach((expected, i) => {
@@ -59,7 +59,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       assert.equal(entry.displayDate, expected.displayDate);
       assert.equal(entry.dayOfWeek, expected.day);
       assert.equal(entry.subject, expected.subject);
-      assert.equal(Boolean(entry.isStudyLeave), expected.isLeave);
+      assert.equal(Boolean(entry.isHoliday), expected.isHoliday);
       if (expected.subjectId) {
         assert.equal(entry.subjectId, expected.subjectId);
       }
@@ -83,10 +83,10 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       { date: '2026-11-05', displayDate: '05/11/26', day: 'Thursday', subject: 'Hindi (हिन्दी)', subjectId: 'hindi' },
       { date: '2026-11-06', displayDate: '06/11/26', day: 'Friday', subject: 'Malayalam (മലയാളം)', subjectId: 'malayalam' },
       { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'Chemistry', subjectId: 'chemistry' },
-      { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'English II', subjectId: 'english' },
-      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Biology', subjectId: 'biology' },
-      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History' },
-      { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'SUPW / Moral Science / Regular class' }
+      { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'English II', subjectId: 'english', isHoliday: false },
+      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Holiday', isHoliday: true },
+      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History / MS', isHoliday: false },
+      { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'Biology / SUPW', subjectId: 'biology', isHoliday: false }
     ];
 
     expectedEntries.forEach((expected, i) => {
@@ -95,6 +95,9 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       assert.equal(entry.displayDate, expected.displayDate);
       assert.equal(entry.dayOfWeek, expected.day);
       assert.equal(entry.subject, expected.subject);
+      if (expected.isHoliday !== undefined) {
+        assert.equal(Boolean(entry.isHoliday), expected.isHoliday);
+      }
       if (expected.subjectId) {
         assert.equal(entry.subjectId, expected.subjectId);
       }
@@ -153,7 +156,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
 
     // Upcoming exams from mid-exam period (e.g. 2026-11-07)
     const upcomingG2 = getUpcomingExams(2, '2026-11-07');
-    assert.equal(upcomingG2.length, 5); // 09/11 EVS, 10/11 Study Leave, 11/11 Hindi, 12/11 Study Leave, 13/11 SUPW
+    assert.equal(upcomingG2.length, 5); // 09/11 EVS, 10/11 Holiday, 11/11 Hindi, 12/11 Holiday, 13/11 SUPW
     assert.equal(upcomingG2[0].date, '2026-11-09');
     assert.equal(upcomingG2[0].subject, 'EVS');
 
@@ -167,11 +170,11 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(nextG6?.subject, 'Chemistry');
     assert.equal(getNextActualExam(6, '2026-11-07')?.date, '2026-11-09');
 
-    // Study leave day edge case (e.g. 2026-11-04 is study leave for Grade 2)
+    // Holiday / non-exam day edge case (e.g. 2026-11-04 is holiday for Grade 2)
     const onStudyLeaveDay = getNextExam(2, '2026-11-04');
     assert.equal(onStudyLeaveDay?.date, '2026-11-04');
-    assert.equal(onStudyLeaveDay?.isStudyLeave, true);
-    // getNextActualExam correctly identifies the upcoming exam after study leave
+    assert.equal(onStudyLeaveDay?.isHoliday, true);
+    // getNextActualExam correctly identifies the upcoming exam after holiday
     const actualAfterLeave = getNextActualExam(2, '2026-11-04');
     assert.equal(actualAfterLeave?.date, '2026-11-05');
     assert.equal(actualAfterLeave?.subject, 'Malayalam (മലയാളം)');
@@ -261,11 +264,11 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '11:00'), true);
     assert.equal(isExamPast(regular2HourEntry, '2026-11-09', '11:00 AM'), true);
     assert.equal(getExamStatus('2026-11-09', '2026-11-09', '11:00'), 'past');
-    // Grade 2 advances to Study Leave (10/11) and next actual exam is Hindi (11/11)
+    // Grade 2 advances to Holiday (10/11) and next actual exam is Hindi (11/11)
     const g2At11 = getNextExam(2, '2026-11-09', '11:00');
     assert.equal(g2At11?.date, '2026-11-10');
-    assert.equal(g2At11?.subject, 'Study Leave');
-    assert.equal(g2At11?.isStudyLeave, true);
+    assert.equal(g2At11?.subject, 'Holiday');
+    assert.equal(g2At11?.isHoliday, true);
     const g2ActualAt11 = getNextActualExam(2, '2026-11-09', '11:00');
     assert.equal(g2ActualAt11?.date, '2026-11-11');
     assert.equal(g2ActualAt11?.subject, 'Hindi (हिन्दी)');
@@ -283,14 +286,14 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(getNextActualExam(2, '2026-11-09', '14:11')?.subject, 'Hindi (हिन्दी)');
     assert.equal(getNextExam(6, '2026-11-09', '14:11')?.subject, 'English II');
 
-    // 5. Study Leave day handling (2026-11-04 for Grade 2 vs Grade 6)
-    // Grade 2 has Study Leave on 2026-11-04:
+    // 5. Holiday day handling (2026-11-04 for Grade 2 vs Grade 6)
+    // Grade 2 has Holiday on 2026-11-04:
     // It remains a full-day self-revision day and does NOT get treated as past at 11 AM
     assert.equal(isExamPast(GRADE_2_TIMETABLE.find(e => e.date === '2026-11-04')!, '2026-11-04', '09:00'), false);
     assert.equal(isExamPast(GRADE_2_TIMETABLE.find(e => e.date === '2026-11-04')!, '2026-11-04', '14:00'), false);
     assert.equal(getExamStatus(GRADE_2_TIMETABLE.find(e => e.date === '2026-11-04')!, '2026-11-04', '14:00'), 'today');
     assert.equal(getExamStatus('2026-11-04', '2026-11-04 14:00', 2), 'today');
-    assert.equal(getNextExam(2, '2026-11-04', '14:00')?.subject, 'Study Leave');
+    assert.equal(getNextExam(2, '2026-11-04', '14:00')?.subject, 'Holiday');
     assert.equal(getNextActualExam(2, '2026-11-04', '14:00')?.subject, 'Malayalam (മലയാളം)');
 
     // Grade 6 has Physics exam on 2026-11-04:
@@ -317,7 +320,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(isSubjectUpcomingOrToday('maths', 2, '2026-10-25'), true);
     assert.equal(isSubjectUpcomingOrToday('hindi', 2, '2026-10-25'), true);
 
-    // 2. Midway through exam cycle (2026-11-04 - Study leave for Grade 2, Physics for Grade 6)
+    // 2. Midway through exam cycle (2026-11-04 - Holiday for Grade 2, Physics for Grade 6)
     // Grade 2 completed: Robotics (10-29), Spell Bee (10-30), Maths (11-02)
     assert.equal(getSubjectExamStatus('robotics', 2, '2026-11-04'), 'past');
     assert.equal(getSubjectExamStatus('spell-bee', 2, '2026-11-04'), 'past');
@@ -357,18 +360,69 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(getSubjectExamStatus('nonexistent' as any, 2, '2026-11-04'), 'unscheduled');
     assert.equal(isSubjectUpcomingOrToday('nonexistent' as any, 2, '2026-11-04'), true);
 
-    // 6. Next App Exam lookup (skips study leave and non-app exams)
+    // 6. Next App Exam lookup (skips holidays and non-app exams)
     // Grade 6 on 2026-11-10 07:00 AM -> English II
     assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subjectId, 'english');
     assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subject, 'English II');
 
-    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Biology (11/11)
+    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Holiday (11/11), next actual exam is History / MS (11/12), next app exam is Biology / SUPW (11/13)
+    assert.equal(getNextExam(6, '2026-11-10', '11:30')?.subject, 'Holiday');
+    assert.equal(getNextActualExam(6, '2026-11-10', '11:30')?.subject, 'History / MS');
     assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.date, '2026-11-13');
 
-    // Grade 6 on 2026-11-11 11:30 AM (after Biology, non-app exams History/SUPW follow) -> undefined
-    assert.equal(getNextAppExam(6, '2026-11-11', '11:30'), undefined);
+    // Grade 6 on 2026-11-11 11:30 AM (Holiday) -> Next app exam remains Biology / SUPW (11/13)
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.date, '2026-11-13');
 
-    // Grade 2 on 2026-11-10 (Study Leave) -> Hindi (11/11)
+    // Grade 6 on 2026-11-12 11:30 AM (after History / MS) -> Next app exam is Biology / SUPW (11/13)
+    assert.equal(getNextAppExam(6, '2026-11-12', '11:30')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-12', '11:30')?.date, '2026-11-13');
+
+    // Grade 6 on 2026-11-13 11:30 AM (after Biology / SUPW) -> all app exams completed
+    assert.equal(getNextAppExam(6, '2026-11-13', '11:30'), undefined);
+
+    // Biology status on Grade 6:
+    // On 2026-11-11: upcoming
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-11'), 'upcoming');
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-11'), true);
+
+    // On 2026-11-13 before 11:00 AM: today
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-13', '09:00'), 'today');
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-13', '09:00'), true);
+
+    // On 2026-11-13 after 11:00 AM: past
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-13', '11:30'), 'past');
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-13', '11:30'), false);
+
+    // Grade 2 on 2026-11-10 (Holiday) -> Hindi (11/11)
     assert.equal(getNextAppExam(2, '2026-11-10')?.subjectId, 'hindi');
+  });
+
+  test('treats all non-exam days consistently as Holiday (isHoliday)', () => {
+    // 1. Grade 2 holiday entries are unified under subject: 'Holiday' and isHoliday: true
+    const g2LeaveDates = ['2026-11-04', '2026-11-10', '2026-11-12'];
+    for (const d of g2LeaveDates) {
+      const entry = GRADE_2_TIMETABLE.find(e => e.date === d)!;
+      assert.equal(entry.subject, 'Holiday');
+      assert.equal(entry.isHoliday, true, `Expected ${d} to have isHoliday: true`);
+      assert.equal(isExamPast(entry, d, '14:00'), false);
+    }
+
+    // 2. Grade 6 November 11 Holiday entry has subject: 'Holiday', isHoliday: true, and is not marked past during afternoon
+    const g6Nov11 = GRADE_6_TIMETABLE.find(e => e.date === '2026-11-11')!;
+    assert.equal(g6Nov11.subject, 'Holiday');
+    assert.equal(g6Nov11.isHoliday, true);
+    assert.equal(isExamPast(g6Nov11, '2026-11-11', '14:00'), false);
+
+    // 3. Both Grade 2 and Grade 6 holiday days are excluded from getNextActualExam
+    assert.equal(getNextActualExam(2, '2026-11-04')?.subject, 'Malayalam (മലയാളം)');
+    assert.equal(getNextActualExam(2, '2026-11-10')?.subject, 'Hindi (हिन्दी)');
+    assert.equal(getNextActualExam(6, '2026-11-11')?.subject, 'History / MS');
+
+    // 4. Excluded from getNextAppExam
+    assert.equal(getNextAppExam(2, '2026-11-04')?.subjectId, 'malayalam');
+    assert.equal(getNextAppExam(2, '2026-11-10')?.subjectId, 'hindi');
+    assert.equal(getNextAppExam(6, '2026-11-11')?.subjectId, 'biology');
   });
 });
