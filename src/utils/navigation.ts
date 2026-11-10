@@ -25,6 +25,7 @@ const VALID_VIEWS: ReadonlySet<ActiveAppView> = new Set([
   'biology',
   'chemistry',
   'english',
+  'history',
   'timetable',
   'progress'
 ]);

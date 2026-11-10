@@ -286,6 +286,8 @@ export const GRADE_6_TIMETABLE: TimetableEntry[] = [
     displayDate: '12/11/26',
     dayOfWeek: 'Thursday',
     subject: 'History / MS',
+    subjectId: 'history',
+    notes: 'History / MS',
     sessionTime: '8:30 AM – 10:45 AM'
   },
   {

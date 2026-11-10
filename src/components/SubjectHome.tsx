@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna, FlaskConical,
+  ArrowRight, BookOpen, Bot, Calculator, Languages, Leaf, Dna, FlaskConical, Landmark,
   Calendar, RotateCw, ChevronDown, ChevronUp, Clock, Bus, AlertCircle, Sparkles
 } from 'lucide-react';
 import { ActiveAppView, StudentId } from '../types';
@@ -428,6 +428,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                     <FlaskConical className="w-8 h-8 text-purple-700" aria-hidden="true" />
                   ) : subject.id === 'english' ? (
                     <BookOpen className="w-8 h-8 text-blue-700" aria-hidden="true" />
+                  ) : subject.id === 'history' ? (
+                    <Landmark className="w-8 h-8 text-amber-800" aria-hidden="true" />
                   ) : (
                     <BookOpen className="w-8 h-8 text-amber-700" aria-hidden="true" />
                   )}

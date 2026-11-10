@@ -16,7 +16,7 @@ export const STUDENT_PROFILES: StudentProfile[] = [
     grade: 6,
     gradeLabel: 'Grade 6',
     avatarEmoji: '⭐',
-    description: 'Grade 6 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, Biology, Chemistry, and English'
+    description: 'Grade 6 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, Biology, Chemistry, English, and History'
   }
 ];
 
