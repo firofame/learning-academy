@@ -54,35 +54,9 @@ import {
   SETTINGS_KEY
 } from '../utils/storage';
 
-// In-memory mock localStorage for isolated testing
-class MockLocalStorage {
-  private store: Map<string, string> = new Map();
-  public shouldThrowOnSet = false;
-  public shouldThrowOnGet = false;
+import { installMockLocalStorage } from './helpers/storage';
 
-  getItem(key: string): string | null {
-    if (this.shouldThrowOnGet) throw new Error('Quota or security read error');
-    return this.store.has(key) ? this.store.get(key)! : null;
-  }
-
-  setItem(key: string, value: string): void {
-    if (this.shouldThrowOnSet) throw new Error('QuotaExceededError');
-    this.store.set(key, String(value));
-  }
-
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-
-  clear(): void {
-    this.store.clear();
-  }
-}
-
-const mockStorage = new MockLocalStorage();
-// Attach to global window
-(global as any).window = { localStorage: mockStorage };
-(global as any).localStorage = mockStorage;
+const mockStorage = installMockLocalStorage();
 
 describe('Learning Academy subject catalog', () => {
   test('subjects are grade-scoped peers with content for each offered grade', () => {

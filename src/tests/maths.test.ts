@@ -19,30 +19,9 @@ import {
 } from '../utils/mathsStorage';
 import { subscribeStorageError } from '../utils/storage';
 
-class MockLocalStorage {
-  private store = new Map<string, string>();
-  shouldThrowOnSet = false;
-  shouldThrowOnGet = false;
+import { installMockLocalStorage } from './helpers/storage';
 
-  getItem(key: string): string | null {
-    if (this.shouldThrowOnGet) throw new Error('Simulated read failure');
-    return this.store.get(key) ?? null;
-  }
-  setItem(key: string, value: string): void {
-    if (this.shouldThrowOnSet) throw new Error('Simulated write failure');
-    this.store.set(key, value);
-  }
-  removeItem(key: string): void {
-    this.store.delete(key);
-  }
-  clear(): void {
-    this.store.clear();
-  }
-}
-
-const mockStorage = new MockLocalStorage();
-(global as any).window = { localStorage: mockStorage };
-(global as any).localStorage = mockStorage;
+const mockStorage = installMockLocalStorage();
 
 describe('Grade 2 Maths Curriculum & Notebook Coverage', () => {
   const lesson = getMathsLesson('fazia');
