@@ -79,7 +79,7 @@ describe('Reward experience interactions', () => {
     assert.equal(view.queryByRole('heading', { name: 'First Spark!' }), null);
   });
 
-  test('mock exam rewards remain hidden, including when paused and resumed', async () => {
+  test('mock exam rewards reappear after exit and hide again when resumed', async () => {
     const view = render(React.createElement(App));
     fireEvent.click(view.getByRole('button', { name: 'Open Spell Bee' }));
     await view.findByRole('region', { name: 'Revision overview' });
@@ -95,7 +95,7 @@ describe('Reward experience interactions', () => {
     assert.ok(!view.queryByRole('heading', { name: 'First Spark!' }), 'milestone does not reveal correctness');
     assert.ok(!view.queryByText(/stars earned$/), 'no inline answer reward in exams');
     fireEvent.click(view.getByRole('button', { name: 'Save and exit' }));
-    assert.ok(!view.queryByLabelText(/stars earned today/), 'paused exam keeps rewards hidden');
+    assert.ok(view.getByLabelText(/stars earned today/), 'rewards reappear after exiting the exam');
     fireEvent.click(view.getByRole('button', { name: 'Resume current session' }));
     assert.ok(!view.queryByLabelText(/stars earned today/), 'resumed exam keeps rewards hidden');
   });

@@ -247,7 +247,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
         batchMilestonesBefore
       )
     : [];
-  const hasHiddenExam = session?.mode === 'exam' && screen !== 'summary';
+  const hasHiddenExam = session?.mode === 'exam' && screen === 'session';
 
   useEffect(() => {
     onExamActiveChange?.(hasHiddenExam);
