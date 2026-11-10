@@ -203,6 +203,9 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const remainingCount = progress.filter(item => !item.checked).length;
   const allRoundChecked = remainingCount === 0;
   const canStartNewRound = Boolean(round && remainingCount === 0 && pendingCount === 0);
+  const readyRecheckCount = progress.filter(item =>
+    item.pendingRecheck && (item.gapCount >= 2 || (allRoundChecked && !item.recheckAttempted))
+  ).length;
   const currentStep = session?.steps[session.index];
   const currentQuestion = currentStep ? questionById.get(currentStep.questionId) : undefined;
   const summaryAnswers = session?.answers.filter(answer => answer.outcome !== 'ungraded') ?? [];
@@ -333,7 +336,9 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
         if (canStartNewRound) {
           message = 'All questions in this revision round are complete and exam-ready! Start a new round to practice again.';
         } else if (allRoundChecked && pendingCount > 0) {
-          message = 'This portion has no remaining mistakes. Choose another portion or click “Recheck mistakes” to review them.';
+          message = readyRecheckCount === 0
+            ? 'This question was recently rechecked. Answer more questions before rechecking it again.'
+            : 'This portion has no remaining mistakes. Choose another portion or click “Recheck mistakes” to review them.';
         } else {
           message = 'This portion has no unchecked questions or ready rechecks. Choose another portion or recheck mistakes after more questions.';
         }
@@ -787,7 +792,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 {remainingCount > 0 && <p>{remainingCount} question(s) have not been checked in this revision round.</p>}
                 {pendingCount > 0 && (
                   <p>
-                    {allRoundChecked
+                    {allRoundChecked && readyRecheckCount > 0
                       ? 'All portion questions are checked. Recheck your remaining mistakes to make them exam-ready.'
                       : 'Rechecks need two other completed questions first. Once rechecked unaided, questions are exam-ready for tomorrow.'}
                   </p>
@@ -970,11 +975,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 </button>
               )}
               {(session.feedback.outcome !== 'correct' || session.feedback.assistance.length > 0) && currentStep.attemptKind === 'recheck' && (
-                <p className="text-sm text-slate-600">
-                  {allRoundChecked
-                    ? 'This still needs another recheck to become exam-ready.'
-                    : 'This still needs another recheck after more questions.'}
-                </p>
+                <p className="text-sm text-slate-600">This still needs another recheck after more questions.</p>
               )}
               <button type="button" className={buttonPrimary} onClick={() => moveToNext()}>
                 {session.index + 1 === session.steps.length ? 'Finish this batch' : 'Continue'}

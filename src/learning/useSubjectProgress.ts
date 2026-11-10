@@ -131,7 +131,9 @@ export function useSubjectProgress(
           ...summary,
           checkedCount: progress.filter(item => item.checked).length,
           pendingCount: progress.filter(item => item.pendingRecheck).length,
-          readyCount: progress.filter(item => item.pendingRecheck && (item.gapCount >= 2 || allChecked)).length
+          readyCount: progress.filter(item =>
+            item.pendingRecheck && (item.gapCount >= 2 || (allChecked && !item.recheckAttempted))
+          ).length
         };
       });
       setSummaries(nextSummaries);
