@@ -206,6 +206,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const readyRecheckCount = progress.filter(item =>
     item.pendingRecheck && (item.gapCount >= 2 || (allRoundChecked && !item.recheckAttempted))
   ).length;
+  const waitingRecheckCount = pendingCount - readyRecheckCount;
   const currentStep = session?.steps[session.index];
   const currentQuestion = currentStep ? questionById.get(currentStep.questionId) : undefined;
   const summaryAnswers = session?.answers.filter(answer => answer.outcome !== 'ungraded') ?? [];
@@ -307,7 +308,8 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     revisionRoundId: string,
     mode: 'practice' | 'exam',
     section: string,
-    batchId = createSessionId()
+    batchId = createSessionId(),
+    rechecksOnly = false
   ) => {
     const isAllPortions = section === 'all';
     const sectionIds = questions
@@ -327,7 +329,8 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
           roundQuestionIds,
           {
             interleave: isAllPortions,
-            categoryByQuestionId: id => questionById.get(id)?.section
+            categoryByQuestionId: id => questionById.get(id)?.section,
+            rechecksOnly
           }
         );
     if (steps.length === 0) {
@@ -662,6 +665,12 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     makeSession(round.revisionRoundId, 'practice', section);
   };
 
+  const beginRecheckBatch = (section = 'all') => {
+    if (!round || readyRecheckCount === 0) return;
+    setSelectedSection(section);
+    makeSession(round.revisionRoundId, 'practice', section, createSessionId(), true);
+  };
+
   const restartAsNewRound = async () => {
     await startRevision(true);
   };
@@ -771,9 +780,9 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
               <button type="button" className={buttonPrimary} onClick={() => void startRevision(!round || canStartNewRound)}>
                 {canStartNewRound ? 'Start a new revision round' : round ? 'Continue revision' : 'Start revision'}
               </button>
-              {round && pendingCount > 0 && (
-                <button type="button" className={buttonSecondary} onClick={() => beginNextBatch('all')}>
-                  Recheck mistakes ({pendingCount})
+              {round && readyRecheckCount > 0 && (
+                <button type="button" className={buttonSecondary} onClick={() => beginRecheckBatch('all')}>
+                  Recheck mistakes ({readyRecheckCount})
                 </button>
               )}
               {allowSectionAssessment && selectedSection !== 'all' && (
@@ -998,6 +1007,14 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
             </p>
           </div>
 
+          {session.mode === 'practice' && waitingRecheckCount > 0 && remainingCount > 0 && (
+            <p role="status" className="text-sm text-slate-700">
+              {readyRecheckCount === 0
+                ? 'No mistakes are ready to recheck yet. Continue with the remaining questions; a mistake becomes ready after two other questions.'
+                : `${waitingRecheckCount} more ${waitingRecheckCount === 1 ? 'mistake needs' : 'mistakes need'} two other questions before ${waitingRecheckCount === 1 ? 'it is' : 'they are'} ready to recheck.`}
+            </p>
+          )}
+
           <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 sm:p-4 text-emerald-950">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-xl" role="img" aria-label="Celebration">
               🎉
@@ -1051,9 +1068,9 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 Continue remaining portions ({remainingCount})
               </button>
             )}
-            {session.mode === 'practice' && pendingCount > 0 && (
-              <button type="button" className={buttonSecondary} onClick={() => { setSession(null); beginNextBatch('all'); }}>
-                Recheck mistakes ({pendingCount})
+            {session.mode === 'practice' && readyRecheckCount > 0 && (
+              <button type="button" className={buttonSecondary} onClick={() => { setSession(null); beginRecheckBatch('all'); }}>
+                Recheck mistakes ({readyRecheckCount})
               </button>
             )}
             {savedResult === false && onComplete && (

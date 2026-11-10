@@ -72,6 +72,7 @@ export function interleaveItems<T>(
 export interface SelectRevisionBatchOptions {
   interleave?: boolean;
   categoryByQuestionId?: (questionId: string) => string | undefined;
+  rechecksOnly?: boolean;
 }
 
 export function deriveRevisionProgress(
@@ -184,8 +185,9 @@ export function selectRevisionBatch(
 
   const remainingSlots = Math.max(0, limit - rechecks.length);
 
-  let candidateInitial = progress
-    .filter(item => allowedIds.has(item.questionId) && !item.checked);
+  let candidateInitial = options?.rechecksOnly
+    ? []
+    : progress.filter(item => allowedIds.has(item.questionId) && !item.checked);
 
   if (options?.interleave && options.categoryByQuestionId) {
     candidateInitial = interleaveItems(
