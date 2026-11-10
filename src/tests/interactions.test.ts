@@ -185,6 +185,9 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(coverageRegion);
     assert.ok(await view.findByRole('region', { name: 'Recent learning history' }));
 
+    // Revision coverage focuses on next upcoming exam (for Fazia, Hindi after study leave)
+    assert.ok(view.getByText(/Revision Coverage · Hindi \(हिन्दी\)/));
+
     // Finished exams are tagged with 'Exam completed' badge on their cards
     const completedBadges = view.queryAllByText('Exam completed');
     assert.ok(completedBadges.length > 0, 'Past exam subjects should show Exam completed badge');

@@ -84,6 +84,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
     error,
     summaryMap,
     attempts,
+    nextAppExam,
     totalQuestions,
     totalChecked,
     totalPending,
@@ -357,14 +358,16 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
       <section aria-label="Current revision coverage" className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Revision Coverage</h2>
+            <h2 className="text-lg font-bold text-slate-900">
+              Revision Coverage{nextAppExam ? ` · ${nextAppExam.subject}` : ''}
+            </h2>
             <p className="text-xs sm:text-sm text-slate-600">
               {loading ? (
                 'Loading revision coverage…'
-              ) : totalQuestions > 0 ? (
-                `${totalChecked} of ${totalQuestions} questions checked across upcoming exams (${overallPercentage}%)`
-              ) : hasUpcomingExams ? (
-                'No revision questions scheduled for upcoming exams'
+              ) : nextAppExam && totalQuestions > 0 ? (
+                `${totalChecked} of ${totalQuestions} questions checked (${overallPercentage}%)`
+              ) : nextAppExam ? (
+                `No revision questions scheduled for ${nextAppExam.subject}`
               ) : (
                 'All scheduled exams completed'
               )}
