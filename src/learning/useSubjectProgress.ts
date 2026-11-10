@@ -126,11 +126,12 @@ export function useSubjectProgress(
           attempt.revisionRoundId === summary.round?.revisionRoundId
         );
         const progress = deriveRevisionProgress(summary.round.questionIds, roundAttempts);
+        const allChecked = !progress.some(item => !item.checked);
         return {
           ...summary,
           checkedCount: progress.filter(item => item.checked).length,
           pendingCount: progress.filter(item => item.pendingRecheck).length,
-          readyCount: progress.filter(item => item.pendingRecheck && item.gapCount >= 2).length
+          readyCount: progress.filter(item => item.pendingRecheck && (item.gapCount >= 2 || allChecked)).length
         };
       });
       setSummaries(nextSummaries);

@@ -433,6 +433,54 @@ describe('Shared exam-eve revision interactions', () => {
     assert.ok(view.getByText(/3 of 3 checked · 0 to recheck/));
   });
 
+  test('rechecking mistakes succeeds when all questions in portion are checked even if gapCount < 2', async () => {
+    const q1 = question('q1', 'first answer');
+    const q2 = question('q2', 'second answer');
+    const view = renderRevision([q1, q2], { sessionSize: 2 });
+
+    await view.findByRole('region', { name: 'Revision overview' });
+    fireEvent.click(view.getByRole('button', { name: 'Start revision' }));
+
+    // Answer q1 correctly
+    await view.findByRole('textbox', { name: 'Your answer' });
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'first answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Continue' }));
+
+    // Answer q2 incorrectly (last question of round -> gapCount = 0)
+    await view.findByRole('textbox', { name: 'Your answer' });
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'wrong answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Let’s review this answer.');
+    fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
+
+    // Finish batch and return to overview
+    await view.findByRole('heading', { name: 'Revision batch complete' });
+    fireEvent.click(view.getByRole('button', { name: 'Return to revision' }));
+
+    // On overview: 2 of 2 checked · 1 to recheck
+    await view.findByText('2 of 2 checked · 1 to recheck');
+    assert.ok(view.getByText(/All portion questions are checked. Recheck your remaining mistakes/));
+
+    // Clicking "Recheck mistakes (1)" must NOT show error banner
+    const recheckBtn = view.getByRole('button', { name: 'Recheck mistakes (1)' });
+    fireEvent.click(recheckBtn);
+
+    // Verify session started directly on q2 recheck without error banner
+    assert.equal(view.queryByRole('alert'), null);
+    await view.findByRole('heading', { name: 'What is the answer to q2?' });
+    fireEvent.change(view.getByRole('textbox', { name: 'Your answer' }), { target: { value: 'second answer' } });
+    fireEvent.click(view.getByRole('button', { name: 'Check answer' }));
+    await view.findByText('Correct. Keep going.');
+    fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
+
+    // Batch summary and return
+    await view.findByRole('heading', { name: 'Revision batch complete' });
+    fireEvent.click(view.getByRole('button', { name: 'Return to revision' }));
+    assert.ok(await view.findByText('2 of 2 checked · 0 to recheck'));
+  });
+
   test('mock exam hides answers until completion and records skips in the result', async () => {
     const completed: Parameters<NonNullable<ExamRevisionViewProps['onComplete']>>[0][] = [];
     const view = renderRevision([

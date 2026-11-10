@@ -155,9 +155,17 @@ export function selectRevisionBatch(
     .filter(attempt => attempt.revisionBatchId === batchId && attempt.revisionAttemptKind === 'recheck')
     .map(attempt => attempt.questionId));
 
+  const allRoundChecked = !progress.some(item => !item.checked);
+
   let candidateRechecks = progress
     .filter(item => allowedIds.has(item.questionId) && item.pendingRecheck &&
-      item.gapCount >= 2 && !alreadyRechecked.has(item.questionId));
+      (item.gapCount >= 2 || allRoundChecked) && !alreadyRechecked.has(item.questionId));
+
+  candidateRechecks.sort((a, b) => {
+    const aMet = a.gapCount >= 2 ? 1 : 0;
+    const bMet = b.gapCount >= 2 ? 1 : 0;
+    return bMet - aMet;
+  });
 
   if (options?.interleave && options.categoryByQuestionId) {
     candidateRechecks = interleaveItems(

@@ -201,6 +201,8 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const readyCount = progress.filter(item => item.examReady).length;
   const pendingCount = progress.filter(item => item.pendingRecheck).length;
   const remainingCount = progress.filter(item => !item.checked).length;
+  const allRoundChecked = remainingCount === 0;
+  const canStartNewRound = Boolean(round && remainingCount === 0 && pendingCount === 0);
   const currentStep = session?.steps[session.index];
   const currentQuestion = currentStep ? questionById.get(currentStep.questionId) : undefined;
   const summaryAnswers = session?.answers.filter(answer => answer.outcome !== 'ungraded') ?? [];
@@ -326,9 +328,17 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
           }
         );
     if (steps.length === 0) {
-      setError(mode === 'exam'
-        ? 'There are no questions in this portion.'
-        : 'This portion has no unchecked questions or ready rechecks. Choose another portion or recheck mistakes after more questions.');
+      let message = 'There are no questions in this portion.';
+      if (mode === 'practice') {
+        if (canStartNewRound) {
+          message = 'All questions in this revision round are complete and exam-ready! Start a new round to practice again.';
+        } else if (allRoundChecked && pendingCount > 0) {
+          message = 'This portion has no remaining mistakes. Choose another portion or click “Recheck mistakes” to review them.';
+        } else {
+          message = 'This portion has no unchecked questions or ready rechecks. Choose another portion or recheck mistakes after more questions.';
+        }
+      }
+      setError(message);
       return;
     }
     const next: RevisionDraft = {
@@ -682,8 +692,6 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
     }
   };
 
-  const canStartNewRound = Boolean(round && remainingCount === 0 && pendingCount === 0);
-
   if (!loaded) {
     return <p className="mx-auto max-w-4xl p-6 text-sm text-slate-600" role="status">Loading your saved revision…</p>;
   }
@@ -759,7 +767,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 {canStartNewRound ? 'Start a new revision round' : round ? 'Continue revision' : 'Start revision'}
               </button>
               {round && pendingCount > 0 && (
-                <button type="button" className={buttonSecondary} onClick={() => beginNextBatch()}>
+                <button type="button" className={buttonSecondary} onClick={() => beginNextBatch('all')}>
                   Recheck mistakes ({pendingCount})
                 </button>
               )}
@@ -777,7 +785,13 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
               <div className="space-y-2 text-sm text-slate-700">
                 <p><strong>Exam-Ready for tomorrow:</strong> {readyCount} of {round.questionIds.length} question(s) ready.</p>
                 {remainingCount > 0 && <p>{remainingCount} question(s) have not been checked in this revision round.</p>}
-                {pendingCount > 0 && <p>Rechecks need two other completed questions first. Once rechecked unaided, questions are exam-ready for tomorrow.</p>}
+                {pendingCount > 0 && (
+                  <p>
+                    {allRoundChecked
+                      ? 'All portion questions are checked. Recheck your remaining mistakes to make them exam-ready.'
+                      : 'Rechecks need two other completed questions first. Once rechecked unaided, questions are exam-ready for tomorrow.'}
+                  </p>
+                )}
                 {isPortionExamReady(progress) && <p>All questions are exam-ready for tomorrow! Start a new round to practise them again.</p>}
               </div>
             )}
@@ -956,7 +970,11 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 </button>
               )}
               {(session.feedback.outcome !== 'correct' || session.feedback.assistance.length > 0) && currentStep.attemptKind === 'recheck' && (
-                <p className="text-sm text-slate-600">This still needs another recheck after more questions.</p>
+                <p className="text-sm text-slate-600">
+                  {allRoundChecked
+                    ? 'This still needs another recheck to become exam-ready.'
+                    : 'This still needs another recheck after more questions.'}
+                </p>
               )}
               <button type="button" className={buttonPrimary} onClick={() => moveToNext()}>
                 {session.index + 1 === session.steps.length ? 'Finish this batch' : 'Continue'}

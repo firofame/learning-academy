@@ -264,6 +264,30 @@ describe('Same-day revision rechecks', () => {
       []
     );
   });
+
+  test('when all questions in the round have been checked, pending rechecks are scheduled even if gapCount < 2', () => {
+    // 56 of 56 questions checked, with mistakes occurring on the last two questions (q55, q56)
+    const allIds = Array.from({ length: 56 }, (_, i) => `q${i + 1}`);
+    const attempts = allIds.map((id, index) => {
+      const outcome = (id === 'q55' || id === 'q56') ? 'incorrect' : 'correct';
+      return revisionAttempt(id, 'initial', outcome, index + 1);
+    });
+
+    const progress = deriveRevisionProgress(allIds, attempts);
+    const q55 = progress.find(p => p.questionId === 'q55')!;
+    const q56 = progress.find(p => p.questionId === 'q56')!;
+    assert.equal(q55.gapCount, 1, 'q55 only had 1 subsequent question');
+    assert.equal(q56.gapCount, 0, 'q56 had 0 subsequent questions');
+    assert.equal(q55.pendingRecheck, true);
+    assert.equal(q56.pendingRecheck, true);
+
+    // selectRevisionBatch must schedule both rechecks rather than returning an empty batch
+    const batch = selectRevisionBatch(allIds, attempts, 'batch-next', 5, allIds);
+    assert.deepEqual(batch, [
+      { questionId: 'q55', attemptKind: 'recheck' },
+      { questionId: 'q56', attemptKind: 'recheck' }
+    ]);
+  });
 });
 
 
