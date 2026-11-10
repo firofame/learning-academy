@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Volume2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Volume2 } from 'lucide-react';
 import type { AssistanceKind, AttemptOutcome, LearningAttempt, RevisionAttemptKind, RevisionResponseFormat } from '../learning/contracts';
 import { canScheduleRevisionRecheck, deriveRevisionProgress, interleaveItems, selectRevisionBatch, type RevisionStep } from '../learning/revision';
 import { createRevisionAttempts, recordRevisionAnswerAttempt } from '../learning/attemptRecords';
@@ -95,6 +95,46 @@ export interface ExamRevisionViewProps {
 const buttonPrimary = 'min-h-12 rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50';
 const buttonSecondary = 'min-h-12 rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50';
 
+const CONFETTI_PIECES = Array.from({ length: 28 }, (_, i) => ({
+  id: i,
+  left: `${(i * 3.6 + 1.5) % 98}%`,
+  delay: `${(i % 7) * 0.1}s`,
+  duration: `${1.8 + (i % 5) * 0.25}s`,
+  color: [
+    '#10b981', // emerald
+    '#f59e0b', // amber
+    '#3b82f6', // sky
+    '#ec4899', // pink
+    '#8b5cf6', // purple
+    '#14b8a6', // teal
+    '#f97316'  // orange
+  ][i % 7],
+  width: i % 2 === 0 ? '8px' : '6px',
+  height: i % 2 === 0 ? '14px' : '9px',
+  borderRadius: i % 3 === 0 ? '9999px' : '2px'
+}));
+
+const CelebrationConfetti: React.FC = () => (
+  <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+    {CONFETTI_PIECES.map(piece => (
+      <span
+        key={piece.id}
+        className="animate-confetti absolute pointer-events-none"
+        style={{
+          left: piece.left,
+          top: '-12px',
+          width: piece.width,
+          height: piece.height,
+          backgroundColor: piece.color,
+          borderRadius: piece.borderRadius,
+          animationDelay: piece.delay,
+          animationDuration: piece.duration
+        }}
+      />
+    ))}
+  </div>
+);
+
 function isAssistance(value: unknown): value is AssistanceKind {
   return ['answer-revealed', 'tile-helper', 'hint', 'read-aloud', 'other'].includes(String(value));
 }
@@ -163,6 +203,9 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
   const remainingCount = progress.filter(item => !item.checked).length;
   const currentStep = session?.steps[session.index];
   const currentQuestion = currentStep ? questionById.get(currentStep.questionId) : undefined;
+  const summaryAnswers = session?.answers.filter(answer => answer.outcome !== 'ungraded') ?? [];
+  const summaryCorrectCount = session?.answers.filter(answer => answer.outcome === 'correct').length ?? 0;
+  const isBatchPerfect = summaryAnswers.length > 0 && summaryCorrectCount === summaryAnswers.length;
 
   const priorAssistance = (
     questionId: string,
@@ -870,15 +913,35 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
           {checking && <p role="status" className="text-sm text-slate-600">Checking your answer…</p>}
 
           {session.phase === 'feedback' && session.feedback && (
-            <div role="status" className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-bold">
-                {session.feedback.outcome === 'correct'
-                  ? 'Correct. Keep going.'
-                  : session.feedback.outcome === 'skipped'
-                    ? 'We’ll come back to this after other questions.'
-                    : 'Let’s review this answer.'}
+            <div
+              role="status"
+              className={`space-y-3 rounded-xl border p-4 transition-colors duration-150 ${
+                session.feedback.outcome === 'correct'
+                  ? 'border-emerald-300 bg-emerald-50/80 shadow-xs'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
+            >
+              <p
+                className={`font-bold flex items-center gap-2 ${
+                  session.feedback.outcome === 'correct' ? 'text-emerald-950' : 'text-slate-900'
+                }`}
+              >
+                {session.feedback.outcome === 'correct' && (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 animate-gentle-bounce" aria-hidden="true" />
+                )}
+                <span>
+                  {session.feedback.outcome === 'correct'
+                    ? 'Correct. Keep going.'
+                    : session.feedback.outcome === 'skipped'
+                      ? 'We’ll come back to this after other questions.'
+                      : 'Let’s review this answer.'}
+                </span>
               </p>
-              {session.feedback.feedback && <p>{session.feedback.feedback}</p>}
+              {session.feedback.feedback && (
+                <p className={session.feedback.outcome === 'correct' ? 'text-emerald-900' : undefined}>
+                  {session.feedback.feedback}
+                </p>
+              )}
               {session.feedback.outcome !== 'correct' && (
                 <p dir={currentQuestion.direction ?? 'auto'} lang={currentQuestion.language}>
                   <strong>Answer:</strong> {currentQuestion.answer}
@@ -905,7 +968,8 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
       )}
 
       {screen === 'summary' && session && (
-        <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-label="Revision summary">
+        <section className="relative overflow-hidden space-y-5 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6" aria-label="Revision summary">
+          <CelebrationConfetti />
           <div>
             <h2 className="text-xl font-bold text-slate-900">{session.mode === 'exam' ? 'Mock exam complete' : 'Revision batch complete'}</h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -914,9 +978,28 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 : 'Same-day rechecks make questions Exam-Ready for tomorrow once answered correctly unaided or after a 2-question lag.'}
             </p>
           </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 sm:p-4 text-emerald-950">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-xl" role="img" aria-label="Celebration">
+              🎉
+            </span>
+            <div>
+              <p className="font-bold text-sm sm:text-base">
+                {isBatchPerfect
+                  ? `Fantastic effort, ${profile.name}! All ${summaryCorrectCount} correct in this batch!`
+                  : `Well done, ${profile.name}! You finished this revision batch.`}
+              </p>
+              <p className="text-xs text-emerald-800">
+                {session.mode === 'exam'
+                  ? `${summaryCorrectCount} of ${summaryAnswers.length} questions answered correctly.`
+                  : 'Keep the momentum going to make all your portions Exam-Ready!'}
+              </p>
+            </div>
+          </div>
+
           {session.mode === 'exam' && (
             <p className="text-lg font-semibold">
-              {session.answers.filter(answer => answer.outcome === 'correct').length} correct of {session.answers.filter(answer => answer.outcome !== 'ungraded').length} checked
+              {summaryCorrectCount} correct of {summaryAnswers.length} checked
             </p>
           )}
           {session.answers.length > 0 && (

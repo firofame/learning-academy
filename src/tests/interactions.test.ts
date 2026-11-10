@@ -426,6 +426,7 @@ describe('Shared exam-eve revision interactions', () => {
     fireEvent.click(view.getByRole('button', { name: 'Finish this batch' }));
 
     await view.findByRole('heading', { name: 'Revision batch complete' });
+    assert.ok(view.getByText(/Fantastic effort|Well done/));
     assert.ok(view.getAllByText(/Same-day recheck/).length >= 2);
     assert.ok(view.getAllByText(/Help used/).length >= 1);
     fireEvent.click(view.getByRole('button', { name: 'Return to revision' }));
