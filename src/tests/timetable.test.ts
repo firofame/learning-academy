@@ -83,10 +83,10 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       { date: '2026-11-05', displayDate: '05/11/26', day: 'Thursday', subject: 'Hindi (हिन्दी)', subjectId: 'hindi' },
       { date: '2026-11-06', displayDate: '06/11/26', day: 'Friday', subject: 'Malayalam (മലയാളം)', subjectId: 'malayalam' },
       { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'Chemistry', subjectId: 'chemistry' },
-      { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'English II', subjectId: 'english' },
-      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Biology', subjectId: 'biology' },
-      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History' },
-      { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'SUPW / Moral Science / Regular class' }
+      { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'English II', subjectId: 'english', isLeave: false },
+      { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Holiday', isLeave: true },
+      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History / MS', isLeave: false },
+      { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'Biology / SUPW', subjectId: 'biology', isLeave: false }
     ];
 
     expectedEntries.forEach((expected, i) => {
@@ -95,6 +95,9 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       assert.equal(entry.displayDate, expected.displayDate);
       assert.equal(entry.dayOfWeek, expected.day);
       assert.equal(entry.subject, expected.subject);
+      if (expected.isLeave !== undefined) {
+        assert.equal(Boolean(entry.isStudyLeave), expected.isLeave);
+      }
       if (expected.subjectId) {
         assert.equal(entry.subjectId, expected.subjectId);
       }
@@ -362,11 +365,35 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subjectId, 'english');
     assert.equal(getNextAppExam(6, '2026-11-10', '07:00')?.subject, 'English II');
 
-    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Biology (11/11)
+    // Grade 6 on 2026-11-10 11:30 AM (after English II) -> Holiday (11/11), next actual exam is History / MS (11/12), next app exam is Biology / SUPW (11/13)
+    assert.equal(getNextExam(6, '2026-11-10', '11:30')?.subject, 'Holiday');
+    assert.equal(getNextActualExam(6, '2026-11-10', '11:30')?.subject, 'History / MS');
     assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.date, '2026-11-13');
 
-    // Grade 6 on 2026-11-11 11:30 AM (after Biology, non-app exams History/SUPW follow) -> undefined
-    assert.equal(getNextAppExam(6, '2026-11-11', '11:30'), undefined);
+    // Grade 6 on 2026-11-11 11:30 AM (Holiday) -> Next app exam remains Biology / SUPW (11/13)
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-11', '11:30')?.date, '2026-11-13');
+
+    // Grade 6 on 2026-11-12 11:30 AM (after History / MS) -> Next app exam is Biology / SUPW (11/13)
+    assert.equal(getNextAppExam(6, '2026-11-12', '11:30')?.subjectId, 'biology');
+    assert.equal(getNextAppExam(6, '2026-11-12', '11:30')?.date, '2026-11-13');
+
+    // Grade 6 on 2026-11-13 11:30 AM (after Biology / SUPW) -> all app exams completed
+    assert.equal(getNextAppExam(6, '2026-11-13', '11:30'), undefined);
+
+    // Biology status on Grade 6:
+    // On 2026-11-11: upcoming
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-11'), 'upcoming');
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-11'), true);
+
+    // On 2026-11-13 before 11:00 AM: today
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-13', '09:00'), 'today');
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-13', '09:00'), true);
+
+    // On 2026-11-13 after 11:00 AM: past
+    assert.equal(getSubjectExamStatus('biology', 6, '2026-11-13', '11:30'), 'past');
+    assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-13', '11:30'), false);
 
     // Grade 2 on 2026-11-10 (Study Leave) -> Hindi (11/11)
     assert.equal(getNextAppExam(2, '2026-11-10')?.subjectId, 'hindi');

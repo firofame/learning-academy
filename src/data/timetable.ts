@@ -9,6 +9,7 @@ export interface TimetableEntry {
   subject: string; // Display subject name
   subjectId?: LearningSubjectId; // App revision subject if available
   isStudyLeave?: boolean;
+  isHoliday?: boolean;
   notes?: string;
   sessionTime?: string;
 }
@@ -276,16 +277,17 @@ export const GRADE_6_TIMETABLE: TimetableEntry[] = [
     date: '2026-11-11',
     displayDate: '11/11/26',
     dayOfWeek: 'Wednesday',
-    subject: 'Biology',
-    subjectId: 'biology',
-    sessionTime: '8:30 AM – 10:45 AM'
+    subject: 'Holiday',
+    isStudyLeave: true,
+    isHoliday: true,
+    notes: 'Holiday'
   },
   {
     id: 'g6-2026-11-12',
     date: '2026-11-12',
     displayDate: '12/11/26',
     dayOfWeek: 'Thursday',
-    subject: 'History',
+    subject: 'History / MS',
     sessionTime: '8:30 AM – 10:45 AM'
   },
   {
@@ -293,8 +295,10 @@ export const GRADE_6_TIMETABLE: TimetableEntry[] = [
     date: '2026-11-13',
     displayDate: '13/11/26',
     dayOfWeek: 'Friday',
-    subject: 'SUPW / Moral Science / Regular class',
-    notes: 'Supw//ms/ regular class'
+    subject: 'Biology / SUPW',
+    subjectId: 'biology',
+    notes: 'Biology / SUPW',
+    sessionTime: '8:30 AM – 10:45 AM'
   }
 ];
 
@@ -419,8 +423,8 @@ export function isExamPast(
     return false;
   }
 
-  // Study leave days are whole-day self-revision days with no exam hours or dispersal
-  if (entry.isStudyLeave) {
+  // Study leave days and holidays are whole-day self-revision days with no exam hours or dispersal
+  if (entry.isStudyLeave || entry.isHoliday) {
     return false;
   }
 
@@ -494,7 +498,7 @@ export function getNextActualExam(
   referenceTime?: string
 ): TimetableEntry | undefined {
   const upcoming = getUpcomingExams(grade, reference, referenceTime);
-  return upcoming.find(entry => !entry.isStudyLeave);
+  return upcoming.find(entry => !entry.isStudyLeave && !entry.isHoliday);
 }
 
 export function getNextAppExam(
@@ -503,7 +507,7 @@ export function getNextAppExam(
   referenceTime?: string
 ): TimetableEntry | undefined {
   const upcoming = getUpcomingExams(grade, reference, referenceTime);
-  return upcoming.find(entry => !entry.isStudyLeave && Boolean(entry.subjectId));
+  return upcoming.find(entry => !entry.isStudyLeave && !entry.isHoliday && Boolean(entry.subjectId));
 }
 
 export function getSubjectExamStatus(

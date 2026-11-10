@@ -92,7 +92,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
     hasUpcomingExams
   } = useSubjectProgress(activeStudent, currentDate);
 
-  const targetEntry = nextExam?.isStudyLeave ? nextActualExam : nextExam;
+  const isNonExamDay = Boolean(nextExam?.isStudyLeave || nextExam?.isHoliday);
+  const targetEntry = isNonExamDay ? nextActualExam : nextExam;
   const targetSubject = targetEntry?.subjectId && subjects.some(s => s.id === targetEntry.subjectId)
     ? LEARNING_SUBJECTS.find(s => s.id === targetEntry.subjectId)
     : undefined;
@@ -123,8 +124,8 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               </div>
               <h2 className="text-lg sm:text-xl font-extrabold text-slate-900">
                 {nextExam ? (
-                  nextExam.isStudyLeave ? (
-                    <span>Study Leave ({nextExam.displayDate})</span>
+                  isNonExamDay ? (
+                    <span>{nextExam.subject} ({nextExam.displayDate})</span>
                   ) : (
                     <span>Next Exam: {nextExam.subject} ({nextExam.displayDate})</span>
                   )
@@ -133,11 +134,13 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                 )}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600">
-                {nextExam?.isStudyLeave ? (
+                {isNonExamDay ? (
                   nextActualExam ? (
-                    <span>Self revision day. Next exam is <strong className="text-slate-800 font-semibold">{nextActualExam.subject}</strong> on {nextActualExam.displayDate} ({nextActualExam.dayOfWeek}).</span>
+                    <span>
+                      {nextExam?.isHoliday ? 'Holiday' : 'Self revision day'}. Next exam is <strong className="text-slate-800 font-semibold">{nextActualExam.subject}</strong> on {nextActualExam.displayDate} ({nextActualExam.dayOfWeek}).
+                    </span>
                   ) : (
-                    <span>Self revision day (no school attendance).</span>
+                    <span>{nextExam?.isHoliday ? 'Holiday (no school attendance).' : 'Self revision day (no school attendance).'}</span>
                   )
                 ) : nextExam ? (
                   <span>{nextExam.notes ? `${nextExam.notes} · ` : ''}Morning Assembly at {EXAM_GENERAL_INFO.morningAssembly} (reach by {EXAM_GENERAL_INFO.reportingTime}).</span>
@@ -296,6 +299,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                   const status = getExamStatus(entry, currentDate);
                   const isRevisableInApp = entry.subjectId && subjects.some(s => s.id === entry.subjectId);
                   const targetSub = isRevisableInApp ? LEARNING_SUBJECTS.find(s => s.id === entry.subjectId) : undefined;
+                  const isNonExamEntry = Boolean(entry.isStudyLeave || entry.isHoliday);
 
                   return (
                     <div
@@ -303,7 +307,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                       className={`p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
                         status === 'today'
                           ? 'bg-amber-50/60'
-                          : entry.isStudyLeave
+                          : isNonExamEntry
                           ? 'bg-slate-50/70'
                           : 'bg-white hover:bg-slate-50/70'
                       }`}
@@ -324,7 +328,7 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                               Completed
                             </span>
                           )}
-                          {status === 'upcoming' && !entry.isStudyLeave && (
+                          {status === 'upcoming' && !isNonExamEntry && (
                             <span className="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                               Upcoming
                             </span>
@@ -336,12 +340,12 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                       {/* Subject & Details */}
                       <div className="flex-1 space-y-0.5">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className={`text-sm sm:text-base font-bold ${entry.isStudyLeave ? 'text-slate-600 italic' : 'text-slate-900'}`}>
+                          <h4 className={`text-sm sm:text-base font-bold ${isNonExamEntry ? 'text-slate-600 italic' : 'text-slate-900'}`}>
                             {entry.subject}
                           </h4>
-                          {entry.isStudyLeave && (
+                          {isNonExamEntry && (
                             <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-slate-200 text-slate-700">
-                              Study Leave
+                              {entry.subject}
                             </span>
                           )}
                         </div>
@@ -361,8 +365,10 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
                             <span>Revise {targetSub.name}</span>
                             <ArrowRight className="w-3.5 h-3.5" />
                           </button>
-                        ) : entry.isStudyLeave ? (
-                          <span className="text-xs font-semibold text-slate-400 italic">Self Revision Day</span>
+                        ) : isNonExamEntry ? (
+                          <span className="text-xs font-semibold text-slate-400 italic">
+                            {entry.isHoliday ? 'Holiday' : 'Self Revision Day'}
+                          </span>
                         ) : (
                           <span className="text-xs text-slate-400">School Portions</span>
                         )}
