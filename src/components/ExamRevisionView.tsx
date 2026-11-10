@@ -26,6 +26,7 @@ export interface RevisionQuestion {
   id: string;
   section: string;
   sectionLabel: string;
+  groupLabel?: string;
   prompt: string;
   answer: string;
   responseFormat: RevisionResponseFormat;
@@ -929,7 +930,14 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
               ))}
             </div>
           </div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{currentQuestion.sectionLabel}</p>
+          <div className="space-y-1">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{currentQuestion.sectionLabel}</p>
+            {currentQuestion.groupLabel && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                {currentQuestion.groupLabel}
+              </p>
+            )}
+          </div>
           <div className="flex items-start justify-between gap-3">
             <div className={`min-w-0 flex-1 text-lg font-bold leading-relaxed text-slate-900 sm:text-xl ${currentQuestion.languageClass ?? ''}`}>
               <h2 ref={promptRef} tabIndex={-1} dir={currentQuestion.direction ?? 'auto'} lang={currentQuestion.language}>
@@ -1077,7 +1085,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                 </p>
               )}
               {session.feedback.outcome !== 'correct' && (
-                <p dir={currentQuestion.direction ?? 'auto'} lang={currentQuestion.language}>
+                <p dir={currentQuestion.direction ?? 'auto'} lang={currentQuestion.language} className="whitespace-pre-line">
                   <strong>Answer:</strong> {currentQuestion.answer}
                 </p>
               )}
@@ -1186,7 +1194,7 @@ export const ExamRevisionView: React.FC<ExamRevisionViewProps> = ({
                       {answer.assistance.length > 0 ? ' · Help used' : ''}
                     </p>
                     {answer.outcome !== 'correct' && question && (
-                      <p className="mt-1 text-sm" dir={question.direction ?? 'auto'}><strong>Answer:</strong> {question.answer}</p>
+                      <p className="mt-1 text-sm whitespace-pre-line" dir={question.direction ?? 'auto'}><strong>Answer:</strong> {question.answer}</p>
                     )}
                   </article>
                 );

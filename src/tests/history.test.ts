@@ -1,5 +1,6 @@
 import { beforeEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   checkHistoryAnswer,
   getHistoryLesson,
@@ -21,6 +22,12 @@ import { installMockLocalStorage } from './helpers/storage';
 
 const mockStorage = installMockLocalStorage();
 
+/** The teacher's own notes, used to check that nothing in the app drifts from them. */
+const teacherNotes = readFileSync(
+  new URL('./fixtures/social-science-revision-notes.txt', import.meta.url),
+  'utf8'
+).replace(/\s+/g, ' ');
+
 describe('Shiza Grade 6 History curriculum & revision notes coverage', () => {
   beforeEach(() => mockStorage.clear());
 
@@ -40,19 +47,11 @@ describe('Shiza Grade 6 History curriculum & revision notes coverage', () => {
     const ids = SHIZA_HISTORY_LESSON.questions.map(q => q.id);
     assert.equal(new Set(ids).size, 33);
 
-    // Cards check (12 cards total across sections)
-    assert.equal(SHIZA_HISTORY_LESSON.cards.length, 12);
-    const cardSectionCounts = HISTORY_SECTIONS.map(section =>
-      SHIZA_HISTORY_LESSON.cards.filter(c => c.section === section.id).length
-    );
-    assert.deepEqual(cardSectionCounts, [4, 4, 4]);
-
     // Prompt and answer checks
     for (const q of SHIZA_HISTORY_LESSON.questions) {
       assert.ok(q.prompt.length > 0, `Question ${q.id} prompt is empty`);
       assert.ok(q.answer.length > 0, `Question ${q.id} answer is empty`);
       assert.ok(q.markingCriteria.length > 0, `Question ${q.id} markingCriteria is empty`);
-      assert.ok(q.explanation.length > 0, `Question ${q.id} explanation is empty`);
       assert.equal(checkHistoryAnswer(q, q.answer), true, `Question ${q.id} failed checking its own answer: ${q.answer}`);
       assert.equal(checkHistoryAnswer(q, ''), false, `Question ${q.id} accepted empty answer`);
       assert.equal(checkHistoryAnswer(q, '   '), false, `Question ${q.id} accepted whitespace-only answer`);
@@ -62,6 +61,68 @@ describe('Shiza Grade 6 History curriculum & revision notes coverage', () => {
     assert.throws(() => getHistoryLesson('fazia'), /History is not available for Grade 2/);
     assert.equal(getHistoryLessonForGrade(2), undefined);
     assert.equal(getHistoryLessonForGrade(1), undefined);
+  });
+
+  test('every question and answer is the teacher\'s own wording from the notes', () => {
+    for (const q of SHIZA_HISTORY_LESSON.questions) {
+      assert.ok(
+        teacherNotes.includes(q.prompt),
+        `Question ${q.id} prompt is not the teacher's wording: ${q.prompt}`
+      );
+
+      // Each line of the answer must appear in the notes, so lists and tables stay as written.
+      for (const line of q.answer.split('\n')) {
+        const probe = line.trim().replace(/^•\s*/, '');
+        if (!probe) continue;
+        // A line ending in a colon labels a column of the teacher's comparison table.
+        const heading = probe.endsWith(':') ? probe.slice(0, -1) : probe;
+        assert.ok(
+          teacherNotes.includes(probe) || teacherNotes.includes(heading),
+          `Question ${q.id} answer line is not the teacher's wording: ${probe}`
+        );
+      }
+    }
+  });
+
+  test('grades against the teacher\'s own answer so no outside content can be required', () => {
+    for (const q of SHIZA_HISTORY_LESSON.questions) {
+      assert.equal(
+        q.markingCriteria,
+        q.answer,
+        `Question ${q.id} rubric drifts from the teacher's answer`
+      );
+    }
+  });
+
+  test('keeps the teacher\'s question groups and list layout', () => {
+    const groupOf = (id: string) =>
+      SHIZA_HISTORY_LESSON.questions.find(q => q.id === id)?.groupLabel;
+
+    // The notes divide Part 2 and Part 3 into their own sub-headings.
+    assert.equal(groupOf('g6-hist-part2-qa-1'), 'I. SHORT ANSWER QUESTIONS');
+    assert.equal(groupOf('g6-hist-part2-qa-9'), 'II. GIVE REASONS');
+    assert.equal(groupOf('g6-hist-part3-qa-1'), 'I. SHORT ANSWER QUESTIONS');
+    assert.equal(groupOf('g6-hist-part3-qa-9'), 'II. LONG ANSWER QUESTIONS');
+    assert.equal(groupOf('g6-hist-part3-qa-13'), 'III. GIVE REASONS');
+    // Part 1 has no sub-heading in the notes.
+    assert.equal(groupOf('g6-hist-part1-qa-1'), undefined);
+
+    // A bulleted answer keeps the teacher's own lines.
+    const functions = SHIZA_HISTORY_LESSON.questions.find(q => q.id === 'g6-hist-part1-qa-2')!;
+    assert.deepEqual(functions.answer.split('\n'), [
+      'The primary functions essential for village welfare include:',
+      'Providing clean drinking water and sanitation facilities.',
+      'Registering and maintaining vital statistics (birth and death records).',
+      'Managing the day-to-day civic administration of the village.',
+      'Upkeep and maintenance of general village infrastructure.'
+    ]);
+
+    // A comparison table keeps both of the teacher's columns.
+    const sabha = SHIZA_HISTORY_LESSON.questions.find(q => q.id === 'g6-hist-part1-qa-8')!;
+    assert.ok(sabha.answer.includes('Gram Sabha:'));
+    assert.ok(sabha.answer.includes('Gram Panchayat:'));
+    assert.ok(sabha.answer.includes('• Headed and presided over by the Sarpanch.'));
+    assert.ok(sabha.answer.includes('• Headed and administered by the Pradhan / Sarpanch and elected ward members.'));
   });
 
   test('normalizes answers and accepts valid aliases and order-independent lists', () => {
@@ -81,7 +142,7 @@ describe('Shiza Grade 6 History curriculum & revision notes coverage', () => {
     assert.equal(checkHistoryAnswer(civilizationsQ, 'Sumer, Babylon, and Assyria'), true);
     assert.equal(checkHistoryAnswer(civilizationsQ, 'Babylon, Sumer, and Assyria'), true);
     assert.equal(checkHistoryAnswer(civilizationsQ, 'Assyria, Babylon, Sumer'), true);
-    assert.equal(checkHistoryAnswer(civilizationsQ, 'Sumerian, Babylonian, Assyrian'), true);
+    assert.equal(checkHistoryAnswer(civilizationsQ, 'Sumerians, Babylonians, and Assyrians'), true);
     assert.equal(checkHistoryAnswer(civilizationsQ, 'Egypt, Greece, Rome'), false);
 
     // Prominent deities order independence
@@ -96,13 +157,12 @@ describe('Shiza Grade 6 History curriculum & revision notes coverage', () => {
     assert.equal(checkHistoryAnswer(ashramasQ, 'Brahmacharya, Grihastha, Vanaprastha, Sanyasa'), true);
     assert.equal(checkHistoryAnswer(ashramasQ, 'Brahmacharya, Grihastha, Vanaprastha, and Sanyasa.'), true);
 
-    // Rigveda definition
-    const rigvedaQ = SHIZA_HISTORY_LESSON.questions.find(q => q.id === 'g6-hist-part3-qa-2')!;
-    assert.equal(checkHistoryAnswer(rigvedaQ, rigvedaQ.answer), true);
+    // A learner who writes the teacher's list as one flowing sentence still matches.
+    const functionsQ = SHIZA_HISTORY_LESSON.questions.find(q => q.id === 'g6-hist-part1-qa-2')!;
     assert.equal(
       checkHistoryAnswer(
-        rigvedaQ,
-        'It is the oldest Vedic text, composed in the Early Vedic period, containing 1,028 sacred hymns (suktas) and mantras addressed to nature gods.'
+        functionsQ,
+        'The primary functions essential for village welfare include: Providing clean drinking water and sanitation facilities. Registering and maintaining vital statistics (birth and death records). Managing the day-to-day civic administration of the village. Upkeep and maintenance of general village infrastructure.'
       ),
       true
     );

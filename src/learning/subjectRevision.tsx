@@ -603,29 +603,19 @@ function historyQuestion(
   gradingApiUrl: string
 ): RevisionQuestion {
   const section = HISTORY_SECTIONS.find(item => item.id === question.section);
-  const cards = lesson.cards.filter(card => card.section === question.section);
   return {
     id: question.id,
     section: question.section,
     sectionLabel: section?.label ?? question.section,
+    ...(question.groupLabel ? { groupLabel: question.groupLabel } : {}),
     prompt: question.prompt,
     answer: question.answer,
     responseFormat: 'written',
-    explanation: question.explanation,
     provenance: lesson.sourceName,
     helpContent: (
-      <div className="space-y-3 text-sm text-slate-800">
-        {question.markingCriteria && (
-          <p><strong>What to include:</strong> {question.markingCriteria}</p>
-        )}
-        {cards.map(card => (
-          <article key={card.id} className="space-y-1">
-            <h3 className="font-bold">{card.title}</h3>
-            <p>{card.prompt}</p>
-            <p><strong>Summary:</strong> {card.answer}</p>
-            {card.examples && <p><strong>Examples:</strong> {card.examples}</p>}
-          </article>
-        ))}
+      <div className="space-y-2 text-sm text-slate-800">
+        <p><strong>From your notes:</strong></p>
+        <p className="whitespace-pre-line">{question.answer}</p>
       </div>
     ),
     language: 'en',
