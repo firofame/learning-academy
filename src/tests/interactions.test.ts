@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, test } from 'node:test';
+import { afterEach, beforeEach, describe, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { JSDOM } from 'jsdom';
@@ -91,7 +91,10 @@ describe('Shared exam-eve revision interactions', () => {
     }
   });
 
-  afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  mock.timers.reset();
+});
 
   for (const learnerId of ['fazia', 'shiza'] as const) {
     const grade = getStudentProfile(learnerId).grade;
@@ -169,6 +172,7 @@ describe('Shared exam-eve revision interactions', () => {
   });
 
   test('the subjects home view merges progress and renders revision coverage and learning history', async () => {
+    mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-10T03:30:00Z') });
     const { ParentDashboard, default: ParentDashboardDefault } = await import('../components/ParentDashboard');
     const { ProgressDashboard, default: ProgressDashboardDefault } = await import('../components/ProgressDashboard');
     assert.equal(ParentDashboard, ProgressDashboard);
@@ -194,6 +198,7 @@ describe('Shared exam-eve revision interactions', () => {
   });
 
   test('the subjects home view merges timetable with expandable schedule and preserves native scripts', async () => {
+    mock.timers.enable({ apis: ['Date'], now: new Date('2026-11-10T03:30:00Z') });
     const { ExamTimetableView, default: ExamTimetableViewDefault } = await import('../components/ExamTimetableView');
     assert.ok(ExamTimetableView);
     assert.equal(ExamTimetableView, ExamTimetableViewDefault);
