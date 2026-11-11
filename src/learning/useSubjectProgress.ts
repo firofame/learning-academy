@@ -185,23 +185,26 @@ export function useSubjectProgress(
   }, [profile.grade, referenceDate, currentDate]);
 
   const { totalQuestions, totalChecked, totalPending } = useMemo(() => {
-    if (nextAppExam?.subjectId) {
-      const target = summaries.find(s => s.subjectId === nextAppExam.subjectId);
-      return {
-        totalQuestions: target?.questionCount ?? 0,
-        totalChecked: target?.checkedCount ?? 0,
-        totalPending: target?.pendingCount ?? 0
-      };
-    }
-    return {
-      totalQuestions: 0,
-      totalChecked: 0,
-      totalPending: 0
-    };
+    const targetIds = new Set([
+      ...(nextAppExam?.subjectId ? [nextAppExam.subjectId] : []),
+      ...(nextAppExam?.additionalSubjectIds ?? [])
+    ]);
+    return summaries
+      .filter(summary => targetIds.has(summary.subjectId))
+      .reduce((totals, summary) => ({
+        totalQuestions: totals.totalQuestions + summary.questionCount,
+        totalChecked: totals.totalChecked + summary.checkedCount,
+        totalPending: totals.totalPending + summary.pendingCount
+      }), { totalQuestions: 0, totalChecked: 0, totalPending: 0 });
   }, [summaries, nextAppExam]);
 
   const hasUpcomingExams = Boolean(nextAppExam);
-  const upcomingSubjectsCount = hasUpcomingExams ? 1 : 0;
+  const upcomingSubjectsCount = hasUpcomingExams
+    ? new Set([
+        ...(nextAppExam?.subjectId ? [nextAppExam.subjectId] : []),
+        ...(nextAppExam?.additionalSubjectIds ?? [])
+      ]).size
+    : 0;
   const overallPercentage = totalQuestions > 0 ? Math.round((totalChecked / totalQuestions) * 100) : 0;
 
   const todayStr = useMemo(() => {

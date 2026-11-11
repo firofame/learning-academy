@@ -36,7 +36,7 @@ export const STUDENT_PROFILES: StudentProfile[] = [
       greeting: 'Hey Shiza! ⭐ Ready to master your exams?',
       pageTint: '#f5f3ff'
     },
-    description: 'Grade 6 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, Biology, Chemistry, English, and History'
+    description: 'Grade 6 multi-subject revision across Spell Bee, Robotics, Maths, Malayalam, Hindi, Biology, Chemistry, English, History, and Moral Science'
   }
 ];
 

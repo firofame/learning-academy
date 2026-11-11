@@ -21,7 +21,8 @@ import { getChemistryLesson, getChemistryLessonForGrade, SHIZA_CHEMISTRY_LESSON 
 import { getEnglishLesson, getEnglishLessonForGrade, SHIZA_ENGLISH_LESSON } from '../data/english';
 import { getHistoryLesson, getHistoryLessonForGrade, SHIZA_HISTORY_LESSON } from '../data/history';
 import {
-  FAZIA_MORAL_SCIENCE_LESSON, getMoralScienceLesson, getMoralScienceLessonForGrade
+  FAZIA_MORAL_SCIENCE_LESSON, SHIZA_MORAL_SCIENCE_LESSON,
+  getMoralScienceLesson, getMoralScienceLessonForGrade
 } from '../data/moralScience';
 import { LEARNING_SUBJECTS, getAvailableSubjectsForGrade, getSubjectForView } from '../data/subjects';
 import {
@@ -114,16 +115,21 @@ describe('Learning Academy subject catalog', () => {
           assert.equal(getHistoryLessonForGrade(grade), SHIZA_HISTORY_LESSON);
           assert.equal(SHIZA_HISTORY_LESSON.questions.length, 33);
         } else if (subject.id === 'moral-science') {
-          assert.equal(grade, 2);
-          assert.equal(getMoralScienceLessonForGrade(grade), FAZIA_MORAL_SCIENCE_LESSON);
-          assert.equal(FAZIA_MORAL_SCIENCE_LESSON.questions.length, 22);
+          if (grade === 2) {
+            assert.equal(getMoralScienceLessonForGrade(grade), FAZIA_MORAL_SCIENCE_LESSON);
+            assert.equal(FAZIA_MORAL_SCIENCE_LESSON.questions.length, 22);
+          } else {
+            assert.equal(grade, 6);
+            assert.equal(getMoralScienceLessonForGrade(grade), SHIZA_MORAL_SCIENCE_LESSON);
+            assert.equal(SHIZA_MORAL_SCIENCE_LESSON.questions.length, 23);
+          }
         }
       }
     }
     for (const profile of STUDENT_PROFILES) {
       const expectedSubjectIds = profile.grade === 2
         ? ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'evs', 'moral-science']
-        : ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'biology', 'chemistry', 'english', 'history'];
+        : ['spell-bee', 'robotics', 'maths', 'malayalam', 'hindi', 'biology', 'chemistry', 'english', 'history', 'moral-science'];
       assert.deepEqual(getAvailableSubjectsForGrade(profile.grade).map(subject => subject.id), expectedSubjectIds);
       assert.ok(getWordsForStudent(profile.id).every(word => word.studentGrade === profile.grade));
       assert.equal(getRoboticsLesson(profile.id).grade, profile.grade);
@@ -139,7 +145,7 @@ describe('Learning Academy subject catalog', () => {
         assert.throws(() => getHistoryLesson(profile.id), /not available/);
       } else {
         assert.throws(() => getEvsLesson(profile.id), /not available/);
-        assert.throws(() => getMoralScienceLesson(profile.id), /not available/);
+        assert.equal(getMoralScienceLesson(profile.id).grade, profile.grade);
         assert.equal(getHindiLesson(profile.id).grade, profile.grade);
         assert.equal(getBiologyLesson(profile.id).grade, profile.grade);
         assert.equal(getChemistryLesson(profile.id).grade, profile.grade);

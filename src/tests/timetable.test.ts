@@ -72,7 +72,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       { date: '2026-11-09', displayDate: '09/11/26', day: 'Monday', subject: 'Chemistry', subjectId: 'chemistry' },
       { date: '2026-11-10', displayDate: '10/11/26', day: 'Tuesday', subject: 'English II', subjectId: 'english', isHoliday: false },
       { date: '2026-11-11', displayDate: '11/11/26', day: 'Wednesday', subject: 'Holiday', isHoliday: true },
-      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History / MS', subjectId: 'history', isHoliday: false },
+      { date: '2026-11-12', displayDate: '12/11/26', day: 'Thursday', subject: 'History / MS', subjectId: 'history', additionalSubjectIds: ['moral-science'], isHoliday: false },
       { date: '2026-11-13', displayDate: '13/11/26', day: 'Friday', subject: 'Biology / SUPW', subjectId: 'biology', isHoliday: false }
     ];
 
@@ -87,6 +87,9 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
       }
       if (expected.subjectId) {
         assert.equal(entry.subjectId, expected.subjectId);
+      }
+      if (expected.additionalSubjectIds) {
+        assert.deepEqual(entry.additionalSubjectIds, expected.additionalSubjectIds);
       }
       if (entry.sessionTime) {
         assert.equal(entry.sessionTime, '8:30 AM – 10:45 AM');
@@ -112,19 +115,21 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     const grade6Available = getAvailableSubjectsForGrade(6).map(s => s.id);
 
     for (const entry of GRADE_2_TIMETABLE) {
-      if (entry.subjectId) {
+      for (const subjectId of [entry.subjectId, ...(entry.additionalSubjectIds ?? [])]) {
+        if (!subjectId) continue;
         assert.ok(
-          grade2Available.includes(entry.subjectId),
-          `Grade 2 entry ${entry.subject} has subjectId ${entry.subjectId} which is not available for Grade 2`
+          grade2Available.includes(subjectId),
+          `Grade 2 entry ${entry.subject} has subjectId ${subjectId} which is not available for Grade 2`
         );
       }
     }
 
     for (const entry of GRADE_6_TIMETABLE) {
-      if (entry.subjectId) {
+      for (const subjectId of [entry.subjectId, ...(entry.additionalSubjectIds ?? [])]) {
+        if (!subjectId) continue;
         assert.ok(
-          grade6Available.includes(entry.subjectId),
-          `Grade 6 entry ${entry.subject} has subjectId ${entry.subjectId} which is not available for Grade 6`
+          grade6Available.includes(subjectId),
+          `Grade 6 entry ${entry.subject} has subjectId ${subjectId} which is not available for Grade 6`
         );
       }
     }
@@ -340,6 +345,8 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     // 4. After all exams completed (2026-11-15)
     assert.equal(getSubjectExamStatus('hindi', 2, '2026-11-15'), 'past');
     assert.equal(getSubjectExamStatus('biology', 6, '2026-11-15'), 'past');
+    assert.equal(getSubjectExamStatus('moral-science', 6, '2026-11-11'), 'upcoming');
+    assert.equal(getSubjectExamStatus('moral-science', 6, '2026-11-12', '11:30'), 'past');
     assert.equal(isSubjectUpcomingOrToday('hindi', 2, '2026-11-15'), false);
     assert.equal(isSubjectUpcomingOrToday('biology', 6, '2026-11-15'), false);
 
@@ -356,6 +363,7 @@ describe('Marion Villa Convent First Semester Exam Timetable', () => {
     assert.equal(getNextExam(6, '2026-11-10', '11:30')?.subject, 'Holiday');
     assert.equal(getNextActualExam(6, '2026-11-10', '11:30')?.subject, 'History / MS');
     assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.subjectId, 'history');
+    assert.deepEqual(getNextAppExam(6, '2026-11-10', '11:30')?.additionalSubjectIds, ['moral-science']);
     assert.equal(getNextAppExam(6, '2026-11-10', '11:30')?.date, '2026-11-12');
 
     // Grade 6 on 2026-11-11 11:30 AM (Holiday) -> Next app exam remains History / MS (11/12)
