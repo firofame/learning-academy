@@ -8,6 +8,7 @@ import {
   getMoralScienceLesson,
   getMoralScienceLessonForGrade,
   MORAL_SCIENCE_SECTIONS,
+  SHIZA_MORAL_SCIENCE_LESSON,
   normalizeMoralScienceAnswer
 } from '../data/moralScience';
 import {
@@ -55,8 +56,8 @@ describe('Fazia Grade 2 Moral Science curriculum & revision notes coverage', () 
       assert.equal(checkMoralScienceAnswer(question, '   '), false, `Question ${question.id} accepted a whitespace-only answer`);
     }
 
-    assert.throws(() => getMoralScienceLesson('shiza'), /Moral Science is not available for Grade 6/);
-    assert.equal(getMoralScienceLessonForGrade(6), undefined);
+    assert.equal(getMoralScienceLesson('shiza'), SHIZA_MORAL_SCIENCE_LESSON);
+    assert.equal(getMoralScienceLessonForGrade(6), SHIZA_MORAL_SCIENCE_LESSON);
     assert.equal(getMoralScienceLessonForGrade(3), undefined);
   });
 
@@ -198,7 +199,7 @@ describe('Fazia Grade 2 Moral Science curriculum & revision notes coverage', () 
     assert.equal(isValidMoralScienceProgress({ studentId: 'fazia', lessonId: 'moral-science-grade-2-lessons-1-2', practice: { mode: 'invalid' } }, 'fazia'), false);
   });
 
-  test('keeps Moral Science unavailable for Grade 6 learners', () => {
+  test('loads Grade 6 Moral Science progress and rejects an invalid empty exam result', () => {
     assert.equal(isValidMoralScienceProgress({ studentId: 'shiza' }, 'shiza'), false);
     const shizaProgress = loadMoralScienceProgress('shiza');
     assert.equal(shizaProgress.studentId, 'shiza');

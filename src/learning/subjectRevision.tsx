@@ -30,7 +30,7 @@ import {
   checkHistoryAnswer, getHistoryLesson, HISTORY_SECTIONS, type HistoryLesson, type HistoryQuestion
 } from '../data/history';
 import {
-  checkMoralScienceAnswer, getMoralScienceLesson, MORAL_SCIENCE_SECTIONS,
+  checkMoralScienceAnswer, getMoralScienceLesson,
   type MoralScienceLesson, type MoralScienceQuestion
 } from '../data/moralScience';
 import { MathsDiagram } from '../components/MathsDiagram';
@@ -647,7 +647,7 @@ function moralScienceQuestion(
   lesson: MoralScienceLesson,
   gradingApiUrl: string
 ): RevisionQuestion {
-  const section = MORAL_SCIENCE_SECTIONS.find(item => item.id === question.section);
+  const section = lesson.sections.find(item => item.id === question.section);
   const isChoice = question.kind === 'true-false' || question.kind === 'match';
   const markingCriteria = question.kind === 'written' ? question.markingCriteria : undefined;
   return {

@@ -1,5 +1,5 @@
 import { StudentId } from '../types';
-import { getMoralScienceLessonForGrade, MORAL_SCIENCE_SECTIONS } from '../data/moralScience';
+import { getMoralScienceLessonForGrade } from '../data/moralScience';
 import { getStudentProfile } from '../data/profiles';
 import {
   SubjectAnswer, SubjectResult, SubjectProgress, SubjectRevisionMode,
@@ -48,7 +48,7 @@ function isValidMoralScienceResult(
     if (!section || section === 'all') {
       expectedQuestionIds = new Set(lesson.questions.map(q => q.id));
     } else {
-      if (!MORAL_SCIENCE_SECTIONS.some(s => s.id === section)) return false;
+      if (!lesson.sections.some(s => s.id === section)) return false;
       expectedQuestionIds = new Set(lesson.questions.filter(q => q.section === section).map(q => q.id));
       if (expectedQuestionIds.size === 0) return false;
     }

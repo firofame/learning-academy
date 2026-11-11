@@ -161,8 +161,8 @@ export const LEARNING_SUBJECTS: LearningSubject[] = [
     lightBg: 'bg-cyan-50',
     darkText: 'text-cyan-800',
     iconBg: 'bg-cyan-100 text-cyan-700',
-    description: 'Revise school Moral Values lessons with recall, feedback, and same-day rechecks.',
-    availableGrades: [2],
+    description: 'Revise school Moral Science lessons with recall, feedback, and same-day rechecks.',
+    availableGrades: [2, 6],
     startView: 'moral-science',
     views: ['moral-science']
   }

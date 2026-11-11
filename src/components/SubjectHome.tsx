@@ -97,9 +97,13 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
   } = useSubjectProgress(activeStudent, currentDate);
 
   const targetEntry = nextActualExam ?? nextExam;
-  const targetSubject = targetEntry?.subjectId && subjects.some(s => s.id === targetEntry.subjectId)
-    ? LEARNING_SUBJECTS.find(s => s.id === targetEntry.subjectId)
-    : undefined;
+  const targetSubjects = targetEntry
+    ? [targetEntry.subjectId, ...(targetEntry.additionalSubjectIds ?? [])]
+        .flatMap(subjectId => {
+          const subject = subjects.find(candidate => candidate.id === subjectId);
+          return subject ? [subject] : [];
+        })
+    : [];
 
   const subjectNames = new Map(LEARNING_SUBJECTS.map(subject => [subject.id, subject.name]));
   const recentAttempts = [...attempts].reverse().slice(0, 15);
@@ -296,22 +300,23 @@ export const SubjectHome: React.FC<SubjectHomeProps> = ({ activeStudent, onNavig
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-              {targetSubject && (
+              {targetSubjects.map(targetSubject => (
                 <button
+                  key={targetSubject.id}
                   onClick={() => onNavigate(targetSubject.startView)}
                   className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                 >
                   <span>Revise {targetSubject.name} Now</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              )}
+              ))}
               <button
                 onClick={() => setShowTimetable(prev => !prev)}
                 aria-expanded={showTimetable}
                 className={`px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm inline-flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs ${
                   showTimetable
                     ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300'
-                    : targetSubject
+                    : targetSubjects.length > 0
                     ? 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
                     : 'bg-amber-600 hover:bg-amber-700 text-white'
                 }`}

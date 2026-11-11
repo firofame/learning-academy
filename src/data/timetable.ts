@@ -8,6 +8,7 @@ export interface TimetableEntry {
   dayOfWeek: string; // 'Wednesday', 'Thursday', etc.
   subject: string; // Display subject name
   subjectId?: LearningSubjectId; // App revision subject if available
+  additionalSubjectIds?: LearningSubjectId[];
   isHoliday?: boolean;
   notes?: string;
   sessionTime?: string;
@@ -288,6 +289,7 @@ export const GRADE_6_TIMETABLE: TimetableEntry[] = [
     dayOfWeek: 'Thursday',
     subject: 'History / MS',
     subjectId: 'history',
+    additionalSubjectIds: ['moral-science'],
     notes: 'History / MS',
     sessionTime: '8:30 AM – 10:45 AM'
   },
@@ -517,7 +519,9 @@ export function getSubjectExamStatus(
   reference?: string | Date | ParsedReferenceDateTime,
   referenceTime?: string
 ): 'past' | 'today' | 'upcoming' | 'unscheduled' {
-  const entries = getTimetableForGrade(grade).filter(e => e.subjectId === subjectId);
+  const entries = getTimetableForGrade(grade).filter(
+    entry => entry.subjectId === subjectId || entry.additionalSubjectIds?.includes(subjectId)
+  );
   if (entries.length === 0) return 'unscheduled';
   const parsedRef = parseReferenceDateTime(reference, referenceTime);
   const statuses = entries.map(entry => getExamStatus(entry, parsedRef));

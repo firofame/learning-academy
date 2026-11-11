@@ -1,14 +1,14 @@
 import { StudentId } from '../types';
 import { getStudentProfile } from './profiles';
 
-export type MoralScienceSectionId = 'handmade-flag' | 'breakfast-table';
+export type MoralScienceSectionId = 'handmade-flag' | 'breakfast-table' | 'public-property' | 'be-a-lifesaver';
 
 export interface MoralScienceSection {
   id: MoralScienceSectionId;
   lessonNumber: number;
   label: string;
   topic: string;
-  lessonDate: string;
+  lessonDate?: string;
 }
 
 export const MORAL_SCIENCE_SECTIONS: MoralScienceSection[] = [
@@ -25,6 +25,21 @@ export const MORAL_SCIENCE_SECTIONS: MoralScienceSection[] = [
     label: 'Lesson 2 · On the Breakfast Table',
     topic: 'On the Breakfast Table',
     lessonDate: '18-9-26 / 7-10-26 (Wednesday)'
+  }
+];
+
+export const SHIZA_MORAL_SCIENCE_SECTIONS: MoralScienceSection[] = [
+  {
+    id: 'public-property',
+    lessonNumber: 1,
+    label: 'Lesson 1 · An Unforgettable School Trip',
+    topic: 'An Unforgettable School Trip'
+  },
+  {
+    id: 'be-a-lifesaver',
+    lessonNumber: 2,
+    label: 'Lesson 2 · Be a Lifesaver',
+    topic: 'Be a Lifesaver'
   }
 ];
 
@@ -356,8 +371,204 @@ export const FAZIA_MORAL_SCIENCE_LESSON: MoralScienceLesson = {
   ]
 };
 
+export const SHIZA_MORAL_SCIENCE_LESSON: MoralScienceLesson = {
+  id: 'moral-science-grade-6-lessons-1-2',
+  grade: 6,
+  title: 'Grade 6 Moral Science Revision',
+  sourceName: 'Student Notebook & Study Notes · Civics & Health Studies, Lessons 1 & 2',
+  sections: SHIZA_MORAL_SCIENCE_SECTIONS,
+  questions: [
+    fill(
+      'g6-ms-l1-fill-1',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      "Sameer's school trip was to the ______.",
+      'India Gate',
+      "Sameer's school trip was to the India Gate."
+    ),
+    fill(
+      'g6-ms-l1-fill-2',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      'Public property is built with ______.',
+      'public money',
+      'Public property is built with public money.'
+    ),
+    fill(
+      'g6-ms-l1-fill-3',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      'People had scribbled on the ______ and thrown trash in the garden.',
+      'monument',
+      'People had scribbled on the monument and thrown trash in the garden.'
+    ),
+    fill(
+      'g6-ms-l1-fill-4',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      'The children promised to take care of public property like their ______.',
+      'own belongings',
+      'The children promised to take care of public property like their own belongings.'
+    ),
+    fill(
+      'g6-ms-l1-fill-5',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      'Misusing public property has become a pressing problem around the ______.',
+      'world',
+      'Misusing public property has become a pressing problem around the world.'
+    ),
+    fill(
+      'g6-ms-l1-fill-6',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      'Public properties include schools, parks, museums, zoos, and ______.',
+      'libraries',
+      'Public properties include schools, parks, museums, zoos, and libraries.'
+    ),
+    fill(
+      'g6-ms-l1-fill-7',
+      'public-property',
+      'I. FILL IN THE BLANKS',
+      "Destroying public property harms a country's ______.",
+      'progress',
+      "Destroying public property harms a country's progress."
+    ),
+    trueFalse(
+      'g6-ms-l1-tf-1',
+      'public-property',
+      'II. TRUE OR FALSE',
+      "Sameer's parents gave him a plastic bag.",
+      false,
+      "Sameer's parents gave him a plastic bag. False"
+    ),
+    trueFalse(
+      'g6-ms-l1-tf-2',
+      'public-property',
+      'II. TRUE OR FALSE',
+      'The children ignored the litter in the park.',
+      false,
+      'The children ignored the litter in the park. False'
+    ),
+    trueFalse(
+      'g6-ms-l1-tf-3',
+      'public-property',
+      'II. TRUE OR FALSE',
+      'Public property belongs to all citizens.',
+      true,
+      'Public property belongs to all citizens. True'
+    ),
+    trueFalse(
+      'g6-ms-l1-tf-4',
+      'public-property',
+      'II. TRUE OR FALSE',
+      'Only the government should take care of public property.',
+      false,
+      'Only the government should take care of public property. False'
+    ),
+    written(
+      'g6-ms-l1-qa-1',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'What is public property?',
+      'Public property is said to be owned by the people and held in trust by the government for the common benefit.',
+      'Ans: Public property is said to be owned by the people and held in trust by the government for the common benefit.'
+    ),
+    written(
+      'g6-ms-l1-qa-2',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'What is the punishment for damaging public property?',
+      'Anyone who damages public property faces a five-year imprisonment and a certain amount of money as a fine.',
+      'Ans: Anyone who damages public property faces a five-year imprisonment and a certain amount of money as a fine.'
+    ),
+    written(
+      'g6-ms-l1-qa-3',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'What lesson did Sameer and his friends learn?',
+      'Sameer and his friends learned the importance of protecting public property.',
+      'Ans: Sameer and his friends learned the importance of protecting public property.'
+    ),
+    written(
+      'g6-ms-l1-qa-4',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'What plays an important role in cultivating the pride of our heritage and of our glorious past?',
+      'Preserving and maintaining national monuments and public property plays an important role in cultivating the pride of our heritage and of our glorious past.',
+      'Ans: Preserving and maintaining national monuments and public property plays an important role in cultivating the pride of our heritage and of our glorious past.'
+    ),
+    written(
+      'g6-ms-l1-qa-5',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'What are public properties situated in different parts of our country?',
+      'Schools, buses, colleges, hospitals, parks, museums, and libraries.',
+      'Ans: Schools, buses, colleges, hospitals, parks, museums, and libraries.'
+    ),
+    written(
+      'g6-ms-l1-qa-6',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'Sameer felt bad to see his friend eat a banana and throw the peel outside. If your friend does so, what would you tell him?',
+      'If I were Sameer, I would politely tell my friend that throwing banana peels out of the window is wrong. I would explain that someone could slip on the peel and get seriously hurt. I would also mention that it makes the surroundings dirty and ask him to keep the litter until we find a dustbin.',
+      'Ans: If I were Sameer, I would politely tell my friend that throwing banana peels out of the window is wrong. I would explain that someone could slip on the peel and get seriously hurt. I would also mention that it makes the surroundings dirty and ask him to keep the litter until we find a dustbin.'
+    ),
+    written(
+      'g6-ms-l1-qa-7',
+      'public-property',
+      'III. ANSWER THE FOLLOWING QUESTIONS',
+      'Sameer whispered to his friends to help him clean the park. Have you ever made such a request to your friends? How did your friends react to this? What was the outcome of your request?',
+      'Yes, I have made a similar request to my friends during school lunch time when our seating area was littered with wrappers. Together we picked up all the trash within five minutes, leaving the area completely clean and tidy.',
+      'Ans: Yes, I have made a similar request to my friends during school lunch time when our seating area was littered with wrappers. Together we picked up all the trash within five minutes, leaving the area completely clean and tidy.'
+    ),
+    written(
+      'g6-ms-l2-qa-1',
+      'be-a-lifesaver',
+      'I. ANSWER THE FOLLOWING QUESTIONS',
+      'How do you think Soniya can use everyday items to give first aid?',
+      'Clean cloth helps to cover wounds.\nA belt or scarf can be used as a bandage.\nCold water can be applied for burns.',
+      'Ans: Everyday items can be used in the following ways: a. Clean cloth helps to cover wounds. b. A belt or scarf can be used as a bandage. c. Cold water can be applied for burns.'
+    ),
+    written(
+      'g6-ms-l2-qa-2',
+      'be-a-lifesaver',
+      'I. ANSWER THE FOLLOWING QUESTIONS',
+      "What did Soniya do to stop bleeding on Ricky's arm?",
+      'Soniya pressed the wound with a clean towel to stop the bleeding.',
+      "Ans: Soniya pressed the wound with a clean towel to stop the bleeding."
+    ),
+    written(
+      'g6-ms-l2-qa-3',
+      'be-a-lifesaver',
+      'I. ANSWER THE FOLLOWING QUESTIONS',
+      'How did the jacket help save the head of the woman who was having a seizure?',
+      "Soniya removed her jacket and placed it under the woman's head. She loosened her tight clothes and tilted her head back to help her breathe.",
+      "Ans: Soniya removed her jacket and placed it under the woman's head. She loosened her tight clothes and tilted her head back to help her breathe."
+    ),
+    written(
+      'g6-ms-l2-qa-4',
+      'be-a-lifesaver',
+      'I. ANSWER THE FOLLOWING QUESTIONS',
+      'Why and how is first aid akin to kindness?',
+      'First aid is akin to kindness because it involves helping someone in need with care and compassion.',
+      'Ans: First aid is akin to kindness because it involves helping someone in need with care and compassion.'
+    ),
+    written(
+      'g6-ms-l2-qa-5',
+      'be-a-lifesaver',
+      'I. ANSWER THE FOLLOWING QUESTIONS',
+      'What first aid can be applied for cardiac arrest?',
+      'We can give CPR (Cardiopulmonary Resuscitation) for cardiac arrest.',
+      'Ans: We can give CPR (Cardiopulmonary Resuscitation) for cardiac arrest.'
+    )
+  ]
+};
+
 export function getMoralScienceLessonForGrade(grade: number): MoralScienceLesson | undefined {
-  return grade === 2 ? FAZIA_MORAL_SCIENCE_LESSON : undefined;
+  if (grade === 2) return FAZIA_MORAL_SCIENCE_LESSON;
+  if (grade === 6) return SHIZA_MORAL_SCIENCE_LESSON;
+  return undefined;
 }
 
 export function getMoralScienceLesson(studentId: StudentId): MoralScienceLesson {

@@ -6,7 +6,7 @@ import { SHIZA_BIOLOGY_LESSON } from '../src/data/biology';
 import { SHIZA_CHEMISTRY_LESSON } from '../src/data/chemistry';
 import { SHIZA_ENGLISH_LESSON } from '../src/data/english';
 import { SHIZA_HISTORY_LESSON } from '../src/data/history';
-import { FAZIA_MORAL_SCIENCE_LESSON } from '../src/data/moralScience';
+import { FAZIA_MORAL_SCIENCE_LESSON, SHIZA_MORAL_SCIENCE_LESSON } from '../src/data/moralScience';
 import {
   isRecord, MAX_WRITTEN_ANSWER_LENGTH, GRADING_MODEL, GEMINI_MODEL_UNAVAILABLE_MESSAGE
 } from '../src/utils/writtenGrading';
@@ -162,7 +162,7 @@ async function generateGrade(
         body: JSON.stringify({
           systemInstruction: { parts: [{ text:
             (subject === 'moral-science'
-              ? 'You mark Grade 2 Moral Science written answers against the supplied trusted marking criteria. ' +
+              ? `You mark Grade ${gradeLevel ?? 2} Moral Science written answers against the supplied trusted marking criteria. ` +
                 'Judge understanding, not exact wording, spelling, or grammar. Accept equivalent valid phrasing. ' +
                 'Require every essential idea in the criteria; reject contradictions and irrelevant answers. '
               : subject === 'history'
@@ -312,9 +312,10 @@ export async function handleGradingRequest(
     const historyQuestion = body.lessonId === SHIZA_HISTORY_LESSON.id
       ? SHIZA_HISTORY_LESSON.questions.find(question => question.id === body.questionId)
       : undefined;
-    const moralScienceQuestion = body.lessonId === FAZIA_MORAL_SCIENCE_LESSON.id
-      ? FAZIA_MORAL_SCIENCE_LESSON.questions.find(question => question.id === body.questionId)
-      : undefined;
+    const moralScienceLesson = [FAZIA_MORAL_SCIENCE_LESSON, SHIZA_MORAL_SCIENCE_LESSON]
+      .find(lesson => lesson.id === body.lessonId);
+    const moralScienceQuestion = moralScienceLesson?.questions
+      .find(question => question.id === body.questionId);
     let subject: 'robotics' | 'malayalam' | 'hindi' | 'evs' | 'biology' | 'chemistry' | 'english' | 'history' | 'moral-science';
     let context: object;
     let gradeLevel: number | undefined;
@@ -386,9 +387,9 @@ export async function handleGradingRequest(
       };
     } else if (moralScienceQuestion && moralScienceQuestion.kind === 'written' && moralScienceQuestion.markingCriteria) {
       subject = 'moral-science';
-      gradeLevel = FAZIA_MORAL_SCIENCE_LESSON.grade;
+      gradeLevel = moralScienceLesson!.grade;
       context = {
-        grade: FAZIA_MORAL_SCIENCE_LESSON.grade, question: moralScienceQuestion.prompt,
+        grade: moralScienceLesson!.grade, question: moralScienceQuestion.prompt,
         referenceAnswer: moralScienceQuestion.answer,
         markingCriteria: moralScienceQuestion.markingCriteria, studentAnswer: body.answer.trim()
       };
